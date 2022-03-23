@@ -2,7 +2,7 @@
 
 # cluster-registration-operator
 
-This operator is in charge of creating a ManagedClusterSet for each AppStudio workspace.
+The Cluster Registration operator enables users to register clusters to their AppStudio workspace. We leverage the [multicluster engine](https://stolostron.github.io/mce-docs/) to import each cluster and add it to a ManagedClusterSet per workspace.
 
 Please fork this repo and clone from the fork.  All your work should be against the forked repo.
 
