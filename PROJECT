@@ -1,0 +1,13 @@
+domain: open-cluster-management.io
+repo: github.com/stolostron/cluster-registration-operator
+projectName: cluster-registration-operator
+layout:
+- go.kubebuilder.io/v2
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+resources:
+- group: singapore.open-cluster-management.io
+  kind: RegisteredCluster
+  version: v1alpha1
+version: "3"

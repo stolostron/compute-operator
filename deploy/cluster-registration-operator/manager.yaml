@@ -1,0 +1,79 @@
+# Copyright Red Hat
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-registration-operator-manager
+  namespace: {{ .Namespace }}
+  labels:
+    control-plane: cluster-registration-operator-manager
+spec:
+  selector:
+    matchLabels:
+      control-plane: cluster-registration-operator-manager
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        control-plane: cluster-registration-operator-manager
+        cluster-antiaffinity-selector: cluster-registration-operator-controller
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: cluster-antiaffinity-selector
+                      operator: In
+                      values:
+                        - cluster-registration-operator-controller
+                topologyKey: topology.kubernetes.io/zone
+              weight: 70
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: cluster-antiaffinity-selector
+                      operator: In
+                      values:
+                        - cluster-registration-operator-controller
+                topologyKey: kubernetes.io/hostname
+              weight: 35
+      containers:
+        - args:
+            - manager
+            - --enable-leader-election
+            - "--health-probe-bind-address=:8081"
+          image: {{ .Image }}
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          name: manager
+          imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: 100cm
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 50Mi
+      serviceAccountName: cluster-registration-operator-manager
+      terminationGracePeriodSeconds: 10
+      tolerations:
+        - key: node-role.kubernetes.io/infra
+          operator: Exists
+          effect: NoSchedule
+        - key: dedicated
+          operator: Exists
+          effect: NoSchedule
