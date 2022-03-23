@@ -11,6 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/stolostron/cluster-registration-operator/cmd/installer"
+	"github.com/stolostron/cluster-registration-operator/cmd/manager"
 
 	utilflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
@@ -40,6 +42,9 @@ func newWorkCommand() *cobra.Command {
 			os.Exit(1)
 		},
 	}
+
+	cmd.AddCommand(installer.NewInstaller())
+	cmd.AddCommand(manager.NewManager())
 
 	return cmd
 }

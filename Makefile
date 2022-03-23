@@ -50,6 +50,8 @@ BROWSER ?= chrome
 
 # go-get-tool will 'go get' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+FQ_APIS=github.com/stolostron/${PROJECT_NAME}/api/singapore/v1alpha1
+
 define go-get-tool
 @[ -f $(1) ] || { \
 set -e ;\
@@ -80,6 +82,22 @@ else
 CONTROLLER_GEN=$(shell which controller-gen)
 endif
 
+.PHONY: register-gen
+## Fdownload register-gen
+register-gen:
+ifeq (, $(shell which register-gen))
+	@( \
+	set -e ;\
+	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
+	cd $$CONTROLLER_GEN_TMP_DIR ;\
+	go mod init tmp ;\
+	go get k8s.io/code-generator/cmd/register-gen ;\
+	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
+	)
+REGISTER_GEN=$(GOBIN)/register-gen
+else
+REGISTER_GEN=$(shell which register-gen)
+endif
 
 .PHONY: kustomize
 kustomize: ## Download kustomize locally if necessary.
@@ -217,8 +235,25 @@ docker-build: #test
 docker-push:
 	docker push ${IMG}
 
+
+# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
+deploy: kustomize
+	cp config/installer/kustomization.yaml config/installer/kustomization.yaml.tmp
+	cd config/installer && $(KUSTOMIZE) edit set image controller=${IMG}
+	${KUSTOMIZE} build config/default | kubectl apply -f -
+	mv config/installer/kustomization.yaml.tmp config/installer/kustomization.yaml
+
+# Generate manifests e.g. CRD, RBAC etc.
+manifests: controller-gen yq/install
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." 
+	$(REGISTER_GEN) --output-package "${FQ_APIS}" --input-dirs ${FQ_APIS} --go-header-file ${PROJECT_DIR}/hack/boilerplate.go.txt
+ 
+
+# Generate code
+generate: kubebuilder-tools controller-gen register-gen
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	
 # Tag the IMG as latest and docker push
 docker-push-latest:
 	docker tag ${IMG} ${IMAGE_TAG_BASE}:latest
 	$(MAKE) docker-push IMG=${IMAGE_TAG_BASE}:latest
-

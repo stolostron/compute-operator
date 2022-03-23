@@ -15,16 +15,16 @@ COPY go.sum go.sum
 RUN go mod download
 
 COPY main.go main.go
-COPY main_test.go main_test.go
+COPY api/ api/
 COPY cmd/ cmd/
 COPY deploy/ deploy/
 COPY resources/ resources/
 COPY pkg/ pkg/
-#Only the rbac is needed to compile, the rest of the config will be copied later
+
 COPY config/rbac config/rbac
+COPY config/crd config/crd
 COPY config/resources.go config/resources.go
 COPY controllers/ controllers/
-
 
 RUN GOFLAGS="" go build -a -o cluster-registration main.go
 

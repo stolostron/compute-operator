@@ -1,4 +1,4 @@
-domain: identitatem.io
+domain: open-cluster-management.io
 repo: github.com/stolostron/cluster-registration-operator
 projectName: cluster-registration-operator
 layout:
@@ -7,7 +7,7 @@ plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
 resources:
-- group: identityconfig.identitatem.io
+- group: singapore.open-cluster-management.io
   kind: AuthRealm
   version: v1alpha1
 version: "3"

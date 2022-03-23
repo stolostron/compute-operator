@@ -1,5 +1,5 @@
 // Copyright Red Hat
-package config
+package deploy
 
 import (
 	"embed"
@@ -7,7 +7,7 @@ import (
 	"open-cluster-management.io/clusteradm/pkg/helpers/asset"
 )
 
-//go:embed crd
+//go:embed cluster-registration-operator
 var files embed.FS
 
 func GetScenarioResourcesReader() *asset.ScenarioResourcesReader {

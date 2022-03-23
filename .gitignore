@@ -32,18 +32,8 @@
 
 .DS_Store
 
-/test/functional/coverage
-/test/functional/tmp
-/test/e2e/cypress-ui/node_modules
-/test/e2e/cypress-ui/results
 /vendor
 /_output
-kind_kubeconfig.yaml
-kind_kubeconfig_internal.yaml
 
 /operator-sdk
 /yq
-
-# bundle/manifests/idp-mgmt-operator.clusterserviceversion.yaml
-/test/e2e/utils/kcfg.yaml
-test/e2e/cypress-ui/node_modules/
