@@ -85,7 +85,7 @@ make manifests
 
 ## How the installer operator works
 
-- The installer controller monitors the `clusterregistrars.sigapore.open-cluster-management.io` CR and reconcile it.
+- The installer controller monitors the `clusterregistrars.singapore.open-cluster-management.io` CR and reconcile it.
 - When an ClusterRegistrar CR is created, the installer deploys the cluster-registration-operator.
 - The installer controller and other cluster-registration-operator controllers are baked in the same image and same executable. 
 - The installer is launched `cluster-registration installer` and the cluster-registration-operator controllers are launched using `cluster-registration manager`.

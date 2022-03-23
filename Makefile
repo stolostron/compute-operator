@@ -246,9 +246,7 @@ deploy: kustomize
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen yq/install
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." 
-	$(REGISTER_GEN) --output-package "${FQ_APIS}" --input-dirs ${FQ_APIS} --go-header-file ${PROJECT_DIR}/hack/boilerplate.go.txt
- 
-
+	
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."

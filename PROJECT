@@ -8,6 +8,6 @@ plugins:
   scorecard.sdk.operatorframework.io/v2: {}
 resources:
 - group: singapore.open-cluster-management.io
-  kind: AuthRealm
+  kind: RegisteredCluster
   version: v1alpha1
 version: "3"

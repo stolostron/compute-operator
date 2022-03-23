@@ -12,14 +12,14 @@ import (
 // ClusterRegistrarSpec defines the desired state of ClusterRegistrar
 type ClusterRegistrarSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Important: Run "make generate" to regenerate code after modifying this file
 
 }
 
 // ClusterRegistrarStatus defines the observed state of ClusterRegistrar
 type ClusterRegistrarStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make generate-clients" to regenerate code after modifying this file
+	// Important: Run "make generate" to regenerate code after modifying this file
 
 	// Conditions contains the different condition statuses for this ClusterRegistrar.
 	// +optional

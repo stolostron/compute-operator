@@ -75,7 +75,7 @@ func (o *managerOptions) run() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("Add AuthRealm reconciler")
+	setupLog.Info("Add RegisteredCluster reconciler")
 
 	if err = (&clusterreg.RegisteredClusterReconciler{
 		Client:             mgr.GetClient(),
