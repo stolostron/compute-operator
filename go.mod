@@ -14,8 +14,9 @@ require (
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/component-base v0.23.3
 	k8s.io/kube-aggregator v0.22.1
+	open-cluster-management.io/api v0.6.1-0.20220324065122-34f585d51995
 	open-cluster-management.io/clusteradm v0.1.0
-	sigs.k8s.io/controller-runtime v0.11.0
+	sigs.k8s.io/controller-runtime v0.11.1
 )
 
 require (
