@@ -3,6 +3,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 )
@@ -28,9 +29,9 @@ type RegisteredClusterStatus struct {
 	// Important: Run "make generate" to regenerate code after modifying this file
 
 	//ImportCommandRef is reference to configmap containing import command.
-	ImportCommandRef importCommandRef `json:"importCommandRef"`
+	ImportCommandRef corev1.LocalObjectReference `json:"importCommandRef,omitempty"`
 
-	// Conditions contains the different condition statuses for this ClusterRegistrar.
+	// Conditions contains the different condition statuses for this RegisteredCluster.
 	Conditions []metav1.Condition `json:"conditions"`
 
 	// Capacity represents the total resource capacity from all nodeStatuses
@@ -52,12 +53,6 @@ type RegisteredClusterStatus struct {
 	ClusterClaims []clusterv1.ManagedClusterClaim `json:"clusterClaims,omitempty"`
 }
 
-//ImportCommandRef represents reference to a configmap containing import command.
-type importCommandRef struct {
-	//Name of configmap containing import command
-	Name string `json:"name"`
-}
-
 // +kubebuilder:object:root=true
 // RegisteredCluster represents the desired state and current status of registered
 // cluster. The name is the cluster
@@ -71,13 +66,13 @@ type RegisteredCluster struct {
 }
 
 // +kubebuilder:object:root=true
-// RegisteredClusterList contains a list of ClusterRegistrar
+// RegisteredClusterList contains a list of RegisteredCluster
 type RegisteredClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard list metadata.
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
-	// List of ClusterRegistrar.
+	// List of RegisteredCluster.
 	// +listType=set
 	Items []RegisteredCluster `json:"items"`
 }
