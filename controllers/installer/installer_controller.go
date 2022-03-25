@@ -439,6 +439,7 @@ func (r *ClusterRegistrarReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	files := []string{
 		"crd/singapore.open-cluster-management.io_clusterregistrars.yaml",
+		"crd/singapore.open-cluster-management.io_registeredclusters.yaml",
 	}
 	if _, err := applier.ApplyDirectly(readerClusterRegOperator, nil, false, "", files...); err != nil {
 		return giterrors.WithStack(err)

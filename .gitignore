@@ -37,3 +37,6 @@
 
 /operator-sdk
 /yq
+
+# Kubeconfig for MCE cluster (temporary)
+mce-kubeconfig
