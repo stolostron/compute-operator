@@ -41,7 +41,7 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, mceCluster cluster.Cluster) error {
-	clusterapiv1.AddToScheme(r.Scheme)
+	clusterapiv1.AddToScheme(r.Scheme) // not needed? set in main
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&singaporev1alpha1.RegisteredCluster{}).
 		Watches(source.NewKindWithCache(&clusterapiv1.ManagedCluster{}, mceCluster.GetCache()), handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
