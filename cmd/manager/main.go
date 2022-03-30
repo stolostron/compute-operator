@@ -221,6 +221,7 @@ func getHubClusters(mgr ctrl.Manager, scheme *runtime.Scheme) ([]helpers.HubInst
 		hubInstance := helpers.HubInstance{
 			HubConfig:          hubConfig,
 			Cluster:            hubCluster,
+			APIReader:          hubCluster.GetAPIReader(),
 			KubeClient:         kubernetes.NewForConfigOrDie(hubKubeconfig),
 			DynamicClient:      dynamic.NewForConfigOrDie(hubKubeconfig),
 			APIExtensionClient: apiextensionsclient.NewForConfigOrDie(hubKubeconfig),
