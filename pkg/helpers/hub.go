@@ -3,6 +3,8 @@
 package helpers
 
 import (
+	singaporev1alpha1 "github.com/stolostron/cluster-registration-operator/api/singapore/v1alpha1"
+
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -11,8 +13,8 @@ import (
 )
 
 type HubInstance struct {
+	HubConfig          *singaporev1alpha1.HubConfig
 	Cluster            cluster.Cluster
-	Client             client.Client
 	APIReader          client.Reader
 	KubeClient         kubernetes.Interface
 	DynamicClient      dynamic.Interface
