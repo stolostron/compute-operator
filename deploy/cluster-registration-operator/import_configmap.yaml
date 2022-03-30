@@ -1,0 +1,16 @@
+# Copyright Red Hat
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Name }}-import
+  namespace: {{ .Namespace }}
+data:
+  crds.yaml: |
+    {{ .CrdsYaml | indent 4 }}
+  crdsv1.yaml: |
+    {{ .CrdsV1Yaml | indent 4 }}
+  crdsv1beta1.yaml: |
+    {{ .CrdsV1beta1 | indent 4 }}
+  import.yaml: |
+    {{ .ImportYaml | indent 4 }}

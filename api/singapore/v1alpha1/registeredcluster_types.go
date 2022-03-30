@@ -28,16 +28,20 @@ type RegisteredClusterStatus struct {
 	ImportCommandRef corev1.LocalObjectReference `json:"importCommandRef,omitempty"`
 
 	// Conditions contains the different condition statuses for this RegisteredCluster.
+	// +optional
 	Conditions []metav1.Condition `json:"conditions"`
 
 	// Capacity represents the total resource capacity from all nodeStatuses
 	// on the registered cluster.
+	// +optional
 	Capacity clusterv1.ResourceList `json:"capacity,omitempty"`
 
 	// Allocatable represents the total allocatable resources on the registered cluster.
+	// +optional
 	Allocatable clusterv1.ResourceList `json:"allocatable,omitempty"`
 
 	// Version represents the kubernetes version of the registered cluster.
+	// +optional
 	Version clusterv1.ManagedClusterVersion `json:"version,omitempty"`
 
 	// ClusterClaims represents cluster information that a registered cluster claims,
