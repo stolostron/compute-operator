@@ -5,20 +5,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
-  name: clusterregistrars.singapore.open-cluster-management.io
+  name: hubconfigs.singapore.open-cluster-management.io
 spec:
   group: singapore.open-cluster-management.io
   names:
-    kind: ClusterRegistrar
-    listKind: ClusterRegistrarList
-    plural: clusterregistrars
-    singular: clusterregistrar
+    kind: HubConfig
+    listKind: HubConfigList
+    plural: hubconfigs
+    singular: hubconfig
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterRegistrar is the Schema for the clusterregistrars API
+        description: HubConfig is the Schema for the clusterregistrars API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,14 +33,25 @@ spec:
           metadata:
             type: object
           spec:
-            description: ClusterRegistrarSpec defines the desired state of ClusterRegistrar
+            description: HubConfigSpec defines the desired state of HubConfig
+            properties:
+              kubeConfigSecretRef:
+                description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                  Important: Run "make generate" to regenerate code after modifying
+                  this file'
+                properties:
+                  name:
+                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?'
+                    type: string
+                type: object
             type: object
           status:
-            description: ClusterRegistrarStatus defines the observed state of ClusterRegistrar
+            description: HubConfigStatus defines the observed state of HubConfig
             properties:
               conditions:
                 description: Conditions contains the different condition statuses
-                  for this ClusterRegistrar.
+                  for this HubConfig.
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct

@@ -45,6 +45,11 @@ spec:
             - --enable-leader-election
             - "--health-probe-bind-address=:8081"
           image: {{ .Image }}
+          env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
           livenessProbe:
             httpGet:
               scheme: HTTP
@@ -63,7 +68,7 @@ spec:
           imagePullPolicy: Always
           resources:
             limits:
-              cpu: 100cm
+              cpu: 100m
               memory: 256Mi
             requests:
               cpu: 50m

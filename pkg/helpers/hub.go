@@ -10,7 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
-type MceInstance struct {
+type HubInstance struct {
 	Cluster            cluster.Cluster
 	Client             client.Client
 	APIReader          client.Reader

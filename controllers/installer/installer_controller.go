@@ -58,9 +58,16 @@ type ClusterRegistrarReconciler struct {
 var podName, podNamespace string
 
 // +kubebuilder:rbac:groups="",resources={namespaces, pods},verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources={services,serviceaccounts},verbs=get;create;update;list;watch;delete
-// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources={roles,rolebindings,clusterrolebindings},verbs=get;create;update;list;watch;delete
+// +kubebuilder:rbac:groups="",resources={services,serviceaccounts,configmaps},verbs=get;create;update;list;watch;delete
+
 // +kubebuilder:rbac:groups="apps",resources={deployments},verbs=get;create;update;list;watch;delete
+
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources={clusterroles},verbs=escalate;get;create;update;delete;bind;list
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources={clusterrolebindings},verbs=get;create;update;delete;list;watch
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources={roles},verbs=get;create;update;delete;escalate;bind;list;watch
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources={rolebindings},verbs=get;create;update;delete;list;watch
+
+// +kubebuilder:rbac:groups="apiextensions.k8s.io",resources={customresourcedefinitions},verbs=get;create;update;delete
 
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources={validatingwebhookconfigurations},verbs=get;create;update;list;watch;delete
 // +kubebuilder:rbac:groups="apiregistration.k8s.io",resources={apiservices},verbs=get;create;update;list;watch;delete
@@ -419,6 +426,7 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(clusterRegi
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterRegistrarReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.Log.Info("setup installer manager")
 	if err := singaporev1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
 		return giterrors.WithStack(err)
 	}
@@ -440,6 +448,7 @@ func (r *ClusterRegistrarReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	files := []string{
 		"crd/singapore.open-cluster-management.io_clusterregistrars.yaml",
 		"crd/singapore.open-cluster-management.io_registeredclusters.yaml",
+		"crd/singapore.open-cluster-management.io_hubconfigs.yaml",
 	}
 	if _, err := applier.ApplyDirectly(readerClusterRegOperator, nil, false, "", files...); err != nil {
 		return giterrors.WithStack(err)

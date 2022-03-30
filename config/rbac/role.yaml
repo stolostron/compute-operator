@@ -9,34 +9,14 @@ rules:
   - ""
   resources:
   - configmaps
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - secrets
   - serviceaccounts
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - namespaces
+  - services
   verbs:
   - create
   - delete
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - ""
@@ -52,30 +32,9 @@ rules:
   resources:
   - secrets
   verbs:
-  - create
-  - delete
-  - get
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  - services
-  verbs:
-  - create
-  - delete
   - get
   - list
-  - update
   - watch
-- apiGroups:
-  - ""
-  - events.k8s.io
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - update
 - apiGroups:
   - admissionregistration.k8s.io
   resources:
@@ -119,45 +78,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - cluster.open-cluster-management.io
-  resources:
-  - managedclusters
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - config.openshift.io
-  resources:
-  - infrastructures
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - singapore.open-cluster-management.io
-  resources:
-  - clusterregistrars
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
   - multicluster.openshift.io
   resources:
   - multiclusterengines
@@ -187,19 +107,6 @@ rules:
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
-  - clusterrolebindings
-  - rolebindings
-  - roles
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
   - clusterroles
   verbs:
   - bind
@@ -217,7 +124,9 @@ rules:
   - create
   - delete
   - get
+  - list
   - update
+  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -228,4 +137,36 @@ rules:
   - delete
   - escalate
   - get
+  - list
   - update
+  - watch
+- apiGroups:
+  - singapore.open-cluster-management.io
+  resources:
+  - clusterregistrars
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - singapore.open-cluster-management.io
+  resources:
+  - hubconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - singapore.open-cluster-management.io
+  resources:
+  - registeredclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch

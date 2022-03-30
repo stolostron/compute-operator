@@ -228,7 +228,7 @@ vet:
 	go vet ./...
 
 # Build the docker image
-docker-build: #test
+docker-build: manifests #test
 	docker build . -t ${IMG}
 
 # Push the docker image
@@ -246,7 +246,9 @@ deploy: kustomize
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen yq/install
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." 
-	
+	${YQ} e '.metadata.name = "cluster-registration-operator-manager-role"' config/rbac/role.yaml > deploy/cluster-registration-operator/clusterrole.yaml && \
+	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/cluster-registration-operator/leader_election_role.yaml
+
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."

@@ -31,7 +31,7 @@ type WorkspaceReconciler struct {
 	APIExtensionClient apiextensionsclient.Interface
 	Log                logr.Logger
 	Scheme             *runtime.Scheme
-	MceClusters        []helpers.MceInstance
+	MceClusters        []helpers.HubInstance
 	// MceKubeClient         kubernetes.Interface
 	// MceDynamicClient      dynamic.Interface
 	// MceAPIExtensionClient apiextensionsclient.Interface
@@ -103,6 +103,7 @@ func workspaceNamespacesPredicate() predicate.Predicate {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *WorkspaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.Log.Info("setup workspace manager")
 	// clusterapiv1.AddToScheme(r.Scheme) //I think I don't need this..set in main
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Namespace{}, builder.WithPredicates(workspaceNamespacesPredicate())). // only care about appstudio workspace namespaces

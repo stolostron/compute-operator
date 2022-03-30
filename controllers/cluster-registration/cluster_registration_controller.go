@@ -4,27 +4,30 @@ package registeredcluster
 
 import (
 	"context"
+	"errors"
+	"os"
 	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/go-logr/logr"
 	giterrors "github.com/pkg/errors"
 	"github.com/stolostron/cluster-registration-operator/deploy"
-	"github.com/stolostron/cluster-registration-operator/pkg/helpers"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 	// corev1 "k8s.io/api/core/v1"
 	singaporev1alpha1 "github.com/stolostron/cluster-registration-operator/api/singapore/v1alpha1"
+	"github.com/stolostron/cluster-registration-operator/pkg/helpers"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -37,6 +40,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+// +kubebuilder:rbac:groups="",resources={secrets},verbs=get;list;watch
+// +kubebuilder:rbac:groups="singapore.open-cluster-management.io",resources={hubconfigs},verbs=get;list;watch
+// +kubebuilder:rbac:groups="singapore.open-cluster-management.io",resources={registeredclusters},verbs=get;list;watch;create;update;delete
+
+// +kubebuilder:rbac:groups="coordination.k8s.io",resources={leases},verbs=get;list;create;update;patch;delete;watch
+// +kubebuilder:rbac:groups="";events.k8s.io,resources=events,verbs=create;update;patch
 const (
 	RegisteredClusterNamelabel      string = "registeredcluster.singapore.open-cluster-management.io/name"
 	RegisteredClusterNamespacelabel string = "registeredcluster.singapore.open-cluster-management.io/namespace"
@@ -50,7 +59,7 @@ type RegisteredClusterReconciler struct {
 	APIExtensionClient apiextensionsclient.Interface
 	Log                logr.Logger
 	Scheme             *runtime.Scheme
-	MceCluster         []helpers.MceInstance
+	HubCluster         []helpers.HubInstance
 }
 
 func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -65,7 +74,7 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		types.NamespacedName{Namespace: req.Namespace, Name: req.Name},
 		instance,
 	); err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
@@ -84,7 +93,7 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// update status of registeredcluster - add import command
 	if err := r.updateImportCommand(instance, ctx); err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			return reconcile.Result{Requeue: true, RequeueAfter: 1 * time.Second}, nil
 		}
 		logger.Error(err, "failed to update import command")
@@ -97,7 +106,7 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev1alpha1.RegisteredCluster, ctx context.Context) error {
 
 	managedClusterList := &clusterapiv1.ManagedClusterList{}
-	if err := r.MceCluster[0].Client.List(context.Background(), managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
+	if err := r.HubCluster[0].Client.List(context.Background(), managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
 		// Error reading the object - requeue the request.
 		return giterrors.WithStack(err)
 	}
@@ -106,8 +115,8 @@ func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev
 		managedclusterNamespace := managedClusterList.Items[0].Name
 		// get import secret from mce managecluster namespace
 		importSecret := &corev1.Secret{}
-		if err := r.MceCluster[0].APIReader.Get(ctx, types.NamespacedName{Namespace: managedclusterNamespace, Name: managedclusterNamespace + "-import"}, importSecret); err != nil {
-			if errors.IsNotFound(err) {
+		if err := r.HubCluster[0].APIReader.Get(ctx, types.NamespacedName{Namespace: managedclusterNamespace, Name: managedclusterNamespace + "-import"}, importSecret); err != nil {
+			if k8serrors.IsNotFound(err) {
 				return err
 			}
 			return giterrors.WithStack(err)
@@ -174,7 +183,7 @@ func (r *RegisteredClusterReconciler) createManagedCluster(regCluster *singapore
 
 	// check if managedcluster is already exists
 	managedClusterList := &clusterapiv1.ManagedClusterList{}
-	if err := r.MceCluster[0].Client.List(context.Background(), managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
+	if err := r.HubCluster[0].Client.List(context.Background(), managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
 		// Error reading the object - requeue the request.
 		return giterrors.WithStack(err)
 	}
@@ -197,7 +206,7 @@ func (r *RegisteredClusterReconciler) createManagedCluster(regCluster *singapore
 			},
 		}
 
-		if err := r.MceCluster[0].Client.Create(context.TODO(), managedCluster, &client.CreateOptions{}); err != nil {
+		if err := r.HubCluster[0].Client.Create(context.TODO(), managedCluster, &client.CreateOptions{}); err != nil {
 			return err
 		}
 	}
@@ -247,18 +256,109 @@ func managedClusterPredicate() predicate.Predicate {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, mceCluster cluster.Cluster) error {
-	clusterapiv1.AddToScheme(r.Scheme) // not needed? set in main
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&singaporev1alpha1.RegisteredCluster{}, builder.WithPredicates(registeredClusterPredicate())).
-		Watches(source.NewKindWithCache(&clusterapiv1.ManagedCluster{}, mceCluster.GetCache()), handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+
+func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme *runtime.Scheme) ([]helpers.HubInstance, error) {
+	r.Log.Info("setup registeredCluster manager")
+	r.Log.Info("create dynamic client")
+	dynamicClient, err := dynamic.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	r.Log.Info("create kube client")
+	kubeClient, err := kubernetes.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	r.Log.Info("retrieve POD namespace")
+	namespace := os.Getenv("POD_NAMESPACE")
+	if len(namespace) == 0 {
+		err := errors.New("POD_NAMESPACE not defined")
+		return nil, err
+	}
+
+	gvr := schema.GroupVersionResource{Group: "singapore.open-cluster-management.io", Version: "v1alpha1", Resource: "hubconfigs"}
+
+	r.Log.Info("retrieve list of hubConfig")
+	hubConfigListU, err := dynamicClient.Resource(gvr).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	r.Log.Info("nb of hubConfig unstructured found", "sze", len(hubConfigListU.Items))
+
+	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
+		For(&singaporev1alpha1.RegisteredCluster{})
+
+	hubInstances := make([]helpers.HubInstance, 0)
+
+	for _, hubConfigU := range hubConfigListU.Items {
+		r.Log.Info("convert to hubConfig structure", "name", hubConfigU.GetName())
+		hubConfig := &singaporev1alpha1.HubConfig{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(hubConfigU.Object, hubConfig); err != nil {
+			return nil, err
+		}
+
+		r.Log.Info("get config secret", "name", hubConfig.Spec.KubeConfigSecretRef.Name)
+		configSecret, err := kubeClient.CoreV1().Secrets(hubConfig.Namespace).Get(context.TODO(),
+			hubConfig.Spec.KubeConfigSecretRef.Name,
+			metav1.GetOptions{})
+		if err != nil {
+			r.Log.Error(err, "unable to read kubeconfig secret for MCE cluster",
+				"HubConfig Name", hubConfig.GetName(),
+				"HubConfig Secret Name", hubConfig.Spec.KubeConfigSecretRef.Name)
+			return nil, err
+		}
+
+		r.Log.Info("generate hubKubeConfig")
+		hubKubeconfig, err := clientcmd.RESTConfigFromKubeConfig(configSecret.Data["kubeConfig"])
+		if err != nil {
+			r.Log.Error(err, "unable to create REST config for MCE cluster")
+			return nil, err
+		}
+
+		// Add MCE cluster
+		hubCluster, err := cluster.New(hubKubeconfig,
+			func(o *cluster.Options) {
+				o.Scheme = scheme // Explicitly set the scheme which includes ManagedCluster
+			},
+		)
+		if err != nil {
+			r.Log.Error(err, "unable to setup MCE cluster")
+			return nil, err
+		}
+
+		hubInstance := helpers.HubInstance{
+			Cluster:            hubCluster,
+			KubeClient:         kubernetes.NewForConfigOrDie(hubKubeconfig),
+			DynamicClient:      dynamic.NewForConfigOrDie(hubKubeconfig),
+			APIExtensionClient: apiextensionsclient.NewForConfigOrDie(hubKubeconfig),
+		}
+
+		hubInstances = append(hubInstances, hubInstance)
+		// Add MCE cluster to manager
+		if err := mgr.Add(hubCluster); err != nil {
+			r.Log.Error(err, "unable to add MCE cluster")
+			return nil, err
+		}
+
+		r.Log.Info("add watcher for ", "hubConfig.Name", hubConfig.Name)
+		controllerBuilder.Watches(source.NewKindWithCache(&clusterapiv1.ManagedCluster{}, hubCluster.GetCache()), handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
 			managedCluster := o.(*clusterapiv1.ManagedCluster)
 			// Just log it for now...
 			r.Log.Info("managedCluster", "name", managedCluster.Name)
 
 			req := make([]reconcile.Request, 0)
-			req = append(req, reconcile.Request{types.NamespacedName{Name: managedCluster.Name}})
+			req = append(req, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      managedCluster.Name,
+					Namespace: hubConfig.Namespace,
+				},
+			})
 			return req
-		}), builder.WithPredicates(managedClusterPredicate())).
+		}), builder.WithPredicates(managedClusterPredicate()))
+	}
+
+	return hubInstances, controllerBuilder.
 		Complete(r)
 }
