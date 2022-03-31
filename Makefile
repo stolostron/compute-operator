@@ -215,6 +215,14 @@ check: check-copyright
 check-copyright:
 	@build/check-copyright.sh
 
+test: fmt vet manifests
+	@go test ./... -coverprofile cover.out -coverpkg ./... &&\
+	COVERAGE=`go tool cover -func="cover.out" | grep "total:" | awk '{ print $$3 }' | sed 's/[][()><%]/ /g'` &&\
+	echo "-------------------------------------------------------------------------" &&\
+	echo "TOTAL COVERAGE IS $$COVERAGE%" &&\
+	echo "-------------------------------------------------------------------------" &&\
+	go tool cover -html "cover.out" -o ${PROJECT_DIR}/cover.html
+
 # Build manager binary
 manager: fmt vet
 	go build -o bin/cluster-registration main.go
