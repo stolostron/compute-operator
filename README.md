@@ -84,6 +84,9 @@ To run the operator locally, you can:
 ```bash
 make generate
 oc apply -f config/crd/singapore.open-cluster-management.io_registeredclusters.yaml
+oc apply -f config/crd/singapore.open-cluster-management.io_hubconfigs.yaml
+oc apply -f hack/hubconfig.yaml
+oc create secret generic mce-kubeconfig-secret --from-file kubeConfig # Expects a kubeconfig file named kubeConfig
+export POD_NAMESPACE=default
 go run main.go manager
 ```
-Currently we do not yet have proper storage for the MCE kubeconfig(s). For now, drop a kubeconfig file named mce-kubeconfig in the root of your clone of this repo.

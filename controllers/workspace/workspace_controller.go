@@ -77,7 +77,7 @@ func (r *WorkspaceReconciler) syncManagedClusterSet(name string, ctx context.Con
 func workspaceNamespacesPredicate() predicate.Predicate {
 	f := func(obj client.Object) bool {
 		log := ctrl.Log.WithName("controllers").WithName("workspace").WithName("workspaceNamespacesPredicate").WithValues("namespace", obj.GetNamespace(), "name", obj.GetName())
-		if _, ok := obj.GetAnnotations()["appstudio.redhat.com/workspace"]; ok { //TODO - get actual annotation we're looking for
+		if obj.GetLabels()["toolchain.dev.openshift.com/provider"] == "codeready-toolchain" {
 			log.V(1).Info("process appstudio workspace")
 			return true
 		}
