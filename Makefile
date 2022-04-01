@@ -251,6 +251,9 @@ deploy: kustomize
 	${KUSTOMIZE} build config/default | kubectl apply -f -
 	mv config/installer/kustomization.yaml.tmp config/installer/kustomization.yaml
 
+undeploy:
+	kubectl delete --wait=true -k config/default
+
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen yq/install
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." 

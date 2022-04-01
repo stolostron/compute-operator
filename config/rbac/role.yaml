@@ -191,3 +191,10 @@ rules:
   - list
   - update
   - watch
+- apiGroups:
+  - singapore.open-cluster-management.io
+  resources:
+  - registeredclusters/status
+  verbs:
+  - patch
+  - update

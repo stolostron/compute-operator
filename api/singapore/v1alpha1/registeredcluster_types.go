@@ -53,7 +53,10 @@ type RegisteredClusterStatus struct {
 	ClusterClaims []clusterv1.ManagedClusterClaim `json:"clusterClaims,omitempty"`
 }
 
+// +genclient
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+
 // RegisteredCluster represents the desired state and current status of registered
 // cluster. The name is the cluster
 // UID.

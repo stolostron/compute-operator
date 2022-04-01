@@ -6,9 +6,9 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	"github.com/stolostron/cluster-registration-operator/resources"
 
 	giterrors "github.com/pkg/errors"
-	"github.com/stolostron/cluster-registration-operator/deploy"
 	"github.com/stolostron/cluster-registration-operator/pkg/helpers"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -55,7 +55,7 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *WorkspaceReconciler) syncManagedClusterSet(name string, ctx context.Context) error {
 	applierBuilder := &clusteradmapply.ApplierBuilder{}
 	applier := applierBuilder.WithClient(r.MceClusters[0].KubeClient, r.MceClusters[0].APIExtensionClient, r.MceClusters[0].DynamicClient).Build() //TODO - support more than one
-	readerDeploy := deploy.GetScenarioResourcesReader()
+	readerDeploy := resources.GetScenarioResourcesReader()
 
 	files := []string{
 		"workspace/managed_cluster_set.yaml",
