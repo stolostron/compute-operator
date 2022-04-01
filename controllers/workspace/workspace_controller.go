@@ -57,6 +57,8 @@ func (r *WorkspaceReconciler) syncManagedClusterSet(name string, ctx context.Con
 	applier := applierBuilder.WithClient(r.MceClusters[0].KubeClient, r.MceClusters[0].APIExtensionClient, r.MceClusters[0].DynamicClient).Build() //TODO - support more than one
 	readerDeploy := resources.GetScenarioResourcesReader()
 
+	mcsName := helpers.ManagedClusterSetNameForWorkspace(name)
+
 	files := []string{
 		"workspace/managed_cluster_set.yaml",
 	}
@@ -64,7 +66,7 @@ func (r *WorkspaceReconciler) syncManagedClusterSet(name string, ctx context.Con
 	values := struct {
 		Name string
 	}{
-		Name: name,
+		Name: mcsName,
 	}
 
 	_, err := applier.ApplyCustomResources(readerDeploy, values, false, "", files...)

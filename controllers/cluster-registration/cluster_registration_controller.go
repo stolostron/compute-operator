@@ -49,6 +49,7 @@ import (
 const (
 	RegisteredClusterNamelabel      string = "registeredcluster.singapore.open-cluster-management.io/name"
 	RegisteredClusterNamespacelabel string = "registeredcluster.singapore.open-cluster-management.io/namespace"
+	ManagedClusterSetlabel          string = "cluster.open-cluster-management.io/clusterset"
 )
 
 // RegisteredClusterReconciler reconciles a RegisteredCluster object
@@ -234,6 +235,8 @@ func (r *RegisteredClusterReconciler) createManagedCluster(regCluster *singapore
 		return err
 	}
 
+	mcsName := helpers.ManagedClusterSetNameForWorkspace(regCluster.Namespace)
+
 	if len(managedClusterList.Items) < 1 {
 		managedCluster := &clusterapiv1.ManagedCluster{
 			TypeMeta: metav1.TypeMeta{
@@ -245,6 +248,7 @@ func (r *RegisteredClusterReconciler) createManagedCluster(regCluster *singapore
 				Labels: map[string]string{
 					RegisteredClusterNamelabel:      regCluster.Name,
 					RegisteredClusterNamespacelabel: regCluster.Namespace,
+					ManagedClusterSetlabel:          mcsName,
 				},
 			},
 			Spec: clusterapiv1.ManagedClusterSpec{

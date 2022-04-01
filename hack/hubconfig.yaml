@@ -1,0 +1,7 @@
+apiVersion: singapore.open-cluster-management.io/v1alpha1
+kind: HubConfig
+metadata:
+  name: mce-1
+spec:
+  kubeConfigSecretRef:
+    name: mce-kubeconfig-secret
