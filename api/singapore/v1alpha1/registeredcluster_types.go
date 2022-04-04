@@ -29,7 +29,7 @@ type RegisteredClusterStatus struct {
 
 	// Conditions contains the different condition statuses for this RegisteredCluster.
 	// +optional
-	Conditions []metav1.Condition `json:"conditions"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Capacity represents the total resource capacity from all nodeStatuses
 	// on the registered cluster.

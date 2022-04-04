@@ -143,11 +143,11 @@ operatorsdk:
 ## Find or download kubebuilder
 kubebuilder-tools:
 ifeq (, $(shell which kubebuilder))
-	@( \
+	( \
 		set -ex ;\
 		KUBEBUILDER_TMP_DIR=$$(mktemp -d) ;\
 		cd $$KUBEBUILDER_TMP_DIR ;\
-		curl -L -o $$KUBEBUILDER_TMP_DIR/kubebuilder https://github.com/kubernetes-sigs/kubebuilder/releases/download/3.1.0/$$(go env GOOS)/$$(go env GOARCH) ;\
+		curl -L -o $$KUBEBUILDER_TMP_DIR/kubebuilder https://github.com/kubernetes-sigs/kubebuilder/releases/download/v3.1.0/kubebuilder_$$(go env GOOS)_$$(go env GOARCH) ;\
 		chmod +x $$KUBEBUILDER_TMP_DIR/kubebuilder && mv $$KUBEBUILDER_TMP_DIR/kubebuilder /usr/local/bin/ ;\
 	)
 endif
@@ -185,7 +185,7 @@ endif
 ## Install envtest tools to allow you to run `make test`
 envtest-tools:
 ifeq (, $(shell which etcd))
-		@{ \
+	@{ \
 			set -ex ;\
 			ENVTEST_TMP_DIR=$$(mktemp -d) ;\
 			cd $$ENVTEST_TMP_DIR ;\
@@ -194,9 +194,18 @@ ifeq (, $(shell which etcd))
 			tar xf envtest-bins.tar.gz ;\
 			mv $$ENVTEST_TMP_DIR/kubebuilder $$HOME ;\
 			rm -rf $$ENVTEST_TMP_DIR ;\
-		}
+	}
 endif
 
+ifeq (, $(shell which ginkgo))
+	@{ \
+	set -ex ;\
+	ENVTEST_TMP_DIR=$$(mktemp -d) ;\
+	cd $$ENVTEST_TMP_DIR ;\
+	go get -u "github.com/onsi/ginkgo/v2/ginkgo@v2.1.1";\
+	rm -rf $$ENVTEST_TMP_DIR ;\
+	}
+endif
 
 
 #### BUNDLING AND PUBLISHING ####
@@ -215,8 +224,8 @@ check: check-copyright
 check-copyright:
 	@build/check-copyright.sh
 
-test: fmt vet manifests
-	@go test ./... -coverprofile cover.out -coverpkg ./... &&\
+test: fmt vet manifests envtest-tools 
+	@ginkgo -r --cover --coverprofile=cover.out --coverpkg ./... &&\
 	COVERAGE=`go tool cover -func="cover.out" | grep "total:" | awk '{ print $$3 }' | sed 's/[][()><%]/ /g'` &&\
 	echo "-------------------------------------------------------------------------" &&\
 	echo "TOTAL COVERAGE IS $$COVERAGE%" &&\

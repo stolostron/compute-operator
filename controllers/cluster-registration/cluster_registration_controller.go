@@ -150,7 +150,7 @@ func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(regCluster *
 func (r *RegisteredClusterReconciler) getManagedCluster(regCluster *singaporev1alpha1.RegisteredCluster) (clusterapiv1.ManagedCluster, error) {
 	managedClusterList := &clusterapiv1.ManagedClusterList{}
 	managedCluster := clusterapiv1.ManagedCluster{}
-	if err := r.HubClusters[0].Client.List(context.Background(), managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
+	if err := r.HubClusters[0].Cluster.GetAPIReader().List(context.Background(), managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
 		// Error reading the object - requeue the request.
 		return managedCluster, err
 	}
@@ -230,7 +230,7 @@ func (r *RegisteredClusterReconciler) createManagedCluster(regCluster *singapore
 
 	// check if managedcluster is already exists
 	managedClusterList := &clusterapiv1.ManagedClusterList{}
-	if err := r.HubClusters[0].Client.List(context.Background(), managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
+	if err := r.HubClusters[0].Cluster.GetAPIReader().List(context.Background(), managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
 		// Error reading the object - requeue the request.
 		return err
 	}
