@@ -31,10 +31,7 @@ type WorkspaceReconciler struct {
 	APIExtensionClient apiextensionsclient.Interface
 	Log                logr.Logger
 	Scheme             *runtime.Scheme
-	MceClusters        []helpers.HubInstance
-	// MceKubeClient         kubernetes.Interface
-	// MceDynamicClient      dynamic.Interface
-	// MceAPIExtensionClient apiextensionsclient.Interface
+	HubClusters        []helpers.HubInstance
 }
 
 func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -53,8 +50,12 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func (r *WorkspaceReconciler) syncManagedClusterSet(name string, ctx context.Context) error {
+	hubCluster, err := helpers.GetHubCluster(name, r.HubClusters)
+	if err != nil {
+		return err
+	}
 	applierBuilder := &clusteradmapply.ApplierBuilder{}
-	applier := applierBuilder.WithClient(r.MceClusters[0].KubeClient, r.MceClusters[0].APIExtensionClient, r.MceClusters[0].DynamicClient).Build() //TODO - support more than one
+	applier := applierBuilder.WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).Build() //TODO - support more than one
 	readerDeploy := resources.GetScenarioResourcesReader()
 
 	mcsName := helpers.ManagedClusterSetNameForWorkspace(name)
@@ -69,7 +70,7 @@ func (r *WorkspaceReconciler) syncManagedClusterSet(name string, ctx context.Con
 		Name: mcsName,
 	}
 
-	_, err := applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
+	_, err = applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
 	if err != nil {
 		return giterrors.WithStack(err)
 	}

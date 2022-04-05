@@ -42,10 +42,15 @@ func init() {
 type HubInstance struct {
 	HubConfig          *singaporev1alpha1.HubConfig
 	Cluster            cluster.Cluster
-	Client client.Client
+	Client             client.Client
 	KubeClient         kubernetes.Interface
 	DynamicClient      dynamic.Interface
 	APIExtensionClient apiextensionsclient.Interface
+}
+
+func GetHubCluster(workspace string, hubInstances []HubInstance) (HubInstance, error) {
+	// For now, we always assume there is only one hub cluster. Later we will replace this with a lookup.
+	return hubInstances[0], nil
 }
 
 func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
@@ -102,8 +107,16 @@ func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
 			return nil, err
 		}
 
+		kubeConfigData, ok := configSecret.Data["kubeConfig"]
+		if !ok {
+			setupLog.Error(err, "HubConfig secret missing kubeConfig data",
+				"HubConfig Name", hubConfig.GetName(),
+				"HubConfig Secret Name", hubConfig.Spec.KubeConfigSecretRef.Name)
+			return nil, errors.New("HubConfig secret missing kubeConfig data")
+		}
+
 		setupLog.Info("generate hubKubeConfig")
-		hubKubeconfig, err := clientcmd.RESTConfigFromKubeConfig(configSecret.Data["kubeConfig"])
+		hubKubeconfig, err := clientcmd.RESTConfigFromKubeConfig(kubeConfigData)
 		if err != nil {
 			setupLog.Error(err, "unable to create REST config for MCE cluster")
 			return nil, err
@@ -129,7 +142,7 @@ func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
 		hubInstance := HubInstance{
 			HubConfig:          hubConfig,
 			Cluster:            hubCluster,
-			Client:    hubCluster.GetClient(),
+			Client:             hubCluster.GetClient(),
 			KubeClient:         kubernetes.NewForConfigOrDie(hubKubeconfig),
 			DynamicClient:      dynamic.NewForConfigOrDie(hubKubeconfig),
 			APIExtensionClient: apiextensionsclient.NewForConfigOrDie(hubKubeconfig),

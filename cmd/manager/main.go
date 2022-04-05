@@ -123,7 +123,7 @@ func (o *managerOptions) run() {
 		APIExtensionClient: apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie()),
 		Log:                ctrl.Log.WithName("controllers").WithName("Workspace"),
 		Scheme:             mgr.GetScheme(),
-		MceClusters:        hubInstances,
+		HubClusters:        hubInstances,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "workspace")
 		os.Exit(1)
