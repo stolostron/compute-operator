@@ -15,9 +15,10 @@ require (
 	k8s.io/apimachinery v0.23.3
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/component-base v0.23.3
-	k8s.io/kube-aggregator v0.22.1
+	k8s.io/kube-aggregator v0.23.0
 	open-cluster-management.io/api v0.6.1-0.20220324065122-34f585d51995
 	open-cluster-management.io/clusteradm v0.1.0
+	open-cluster-management.io/managed-serviceaccount v0.2.0
 	sigs.k8s.io/controller-runtime v0.11.1
 )
 
@@ -54,7 +55,7 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20220401020641-b5a4dc8f4f2a // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/google/uuid v1.1.2 // indirect
+	github.com/google/uuid v1.2.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
@@ -62,6 +63,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kr/pretty v0.2.1 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
@@ -75,8 +77,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
-	github.com/openshift/api v0.0.0-20210915110300-3cd8091317c4 // indirect
-	github.com/openshift/library-go v0.0.0-20210916194400-ae21aab32431 // indirect
+	github.com/openshift/api v0.0.0-20211209135129-c58d9f695577 // indirect
+	github.com/openshift/library-go v0.0.0-20220112153822-ac82336bd076 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.11.0 // indirect
@@ -90,7 +92,7 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
-	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
+	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e // indirect
 	golang.org/x/net v0.0.0-20211209124913-491a49abca63 // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
 	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
@@ -118,6 +120,7 @@ require (
 )
 
 replace (
+	github.com/openshift/library-go => github.com/openshift/library-go v0.0.0-20210916194400-ae21aab32431
 	k8s.io/client-go => k8s.io/client-go v0.23.3
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.27
 )

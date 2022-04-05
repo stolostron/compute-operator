@@ -92,8 +92,14 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
+	managedCluster, err := r.getManagedCluster(instance)
+	if err != nil {
+		logger.Error(err, "failed to get ManagedCluster")
+		return ctrl.Result{}, err
+	}
+
 	// update status of registeredcluster - add import command
-	if err := r.updateImportCommand(instance, ctx); err != nil {
+	if err := r.updateImportCommand(instance, &managedCluster, ctx); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return reconcile.Result{Requeue: true, RequeueAfter: 1 * time.Second}, nil
 		}
@@ -101,8 +107,14 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
+	// sync ManagedClusterAddOn, ManagedServiceAccount, ...
+	if err := r.syncManagedServiceAccount(instance, &managedCluster, ctx); err != nil {
+		logger.Error(err, "failed to sync managedclusteraddon")
+		return ctrl.Result{}, err
+	}
+
 	// update status of registeredcluster
-	if err := r.updateRegisteredClusterStatus(instance, ctx); err != nil {
+	if err := r.updateRegisteredClusterStatus(instance, &managedCluster, ctx); err != nil {
 		logger.Error(err, "failed to update registered cluster status")
 		return ctrl.Result{}, err
 	}
@@ -110,12 +122,7 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	return ctrl.Result{}, nil
 }
 
-func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(regCluster *singaporev1alpha1.RegisteredCluster, ctx context.Context) error {
-
-	managedCluster, err := r.getManagedCluster(regCluster)
-	if err != nil {
-		return giterrors.WithStack(err)
-	}
+func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, ctx context.Context) error {
 
 	patch := client.MergeFrom(regCluster.DeepCopy())
 	if managedCluster.Status.Conditions != nil {
@@ -159,13 +166,7 @@ func (r *RegisteredClusterReconciler) getManagedCluster(regCluster *singaporev1a
 	return managedCluster, fmt.Errorf("Correct Managed cluster not found")
 }
 
-func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev1alpha1.RegisteredCluster, ctx context.Context) error {
-
-	managedCluster, err := r.getManagedCluster(regCluster)
-	if err != nil {
-		return giterrors.WithStack(err)
-	}
-
+func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, ctx context.Context) error {
 	// get import secret from mce managecluster namespace
 	importSecret := &corev1.Secret{}
 	if err := r.HubClusters[0].Cluster.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: managedCluster.Name, Name: managedCluster.Name + "-import"}, importSecret); err != nil {
@@ -214,6 +215,32 @@ func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev
 		return err
 	}
 
+	return nil
+}
+
+func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, ctx context.Context) error {
+	logger := r.Log.WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
+	logger.Info("syncManagedServiceAccount")
+
+	applierBuilder := &clusteradmapply.ApplierBuilder{}
+	applier := applierBuilder.WithClient(r.HubClusters[0].KubeClient, r.HubClusters[0].APIExtensionClient, r.HubClusters[0].DynamicClient).Build() //TODO - support more than one
+	readerDeploy := resources.GetScenarioResourcesReader()
+
+	files := []string{
+		"cluster-registration/managed_cluster_addon.yaml",
+		"cluster-registration/managed_service_account.yaml",
+	}
+
+	values := struct {
+		Namespace string
+	}{
+		Namespace: managedCluster.Name,
+	}
+
+	_, err := applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
 	return nil
 }
 
@@ -313,8 +340,7 @@ func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme 
 		r.Log.Info("add watcher for ", "hubConfig.Name", hubCluster.HubConfig.Name)
 		controllerBuilder.Watches(source.NewKindWithCache(&clusterapiv1.ManagedCluster{}, hubCluster.Cluster.GetCache()), handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
 			managedCluster := o.(*clusterapiv1.ManagedCluster)
-			// Just log it for now...
-			r.Log.Info("managedCluster", "name", managedCluster.Name)
+			r.Log.Info("Processing ManagedCluster event", "name", managedCluster.Name)
 
 			req := make([]reconcile.Request, 0)
 			req = append(req, reconcile.Request{

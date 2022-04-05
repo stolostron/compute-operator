@@ -10,6 +10,11 @@ import (
 	singaporev1alpha1 "github.com/stolostron/cluster-registration-operator/api/singapore/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
+
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,6 +26,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
+var (
+	scheme = runtime.NewScheme()
+)
+
+func init() {
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = clusterapiv1.AddToScheme(scheme)
+	_ = addonv1alpha1.AddToScheme(scheme)
+	_ = authv1alpha1.AddToScheme(scheme)
+
+	// +kubebuilder:scaffold:scheme
+}
+
 type HubInstance struct {
 	HubConfig          *singaporev1alpha1.HubConfig
 	Cluster            cluster.Cluster
@@ -30,7 +48,7 @@ type HubInstance struct {
 	APIExtensionClient apiextensionsclient.Interface
 }
 
-func GetHubClusters(mgr ctrl.Manager, scheme *runtime.Scheme) ([]HubInstance, error) {
+func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
 	setupLog := ctrl.Log.WithName("setup")
 	setupLog.Info("setup registeredCluster manager")
 	setupLog.Info("create dynamic client")

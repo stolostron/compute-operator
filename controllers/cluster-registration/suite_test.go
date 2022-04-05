@@ -177,7 +177,7 @@ var _ = BeforeSuite(func() {
 	})
 
 	By("Init the controller", func() {
-		hubClusters, err := helpers.GetHubClusters(mgr, scheme)
+		hubClusters, err := helpers.GetHubClusters(mgr)
 		Expect(err).To(BeNil())
 		r = &RegisteredClusterReconciler{
 			Client:             k8sClient,

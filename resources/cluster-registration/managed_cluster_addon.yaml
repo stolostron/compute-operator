@@ -1,0 +1,9 @@
+# Copyright Red Hat
+
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: ManagedClusterAddOn
+metadata:
+  name: managed-serviceaccount
+  namespace: "{{ .Namespace }}"
+spec:
+  installNamespace: open-cluster-management-agent-addon

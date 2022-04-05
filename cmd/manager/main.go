@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -38,7 +38,6 @@ type managerOptions struct {
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
-	_ = clusterapiv1.AddToScheme(scheme)
 	_ = singaporev1alpha1.AddToScheme(scheme)
 
 	// +kubebuilder:scaffold:scheme
@@ -96,9 +95,9 @@ func (o *managerOptions) run() {
 
 	setupLog.Info("Add RegisteredCluster reconciler")
 
-	hubInstances, err := helpers.GetHubClusters(mgr, scheme)
+	hubInstances, err := helpers.GetHubClusters(mgr)
 	if err != nil {
-		setupLog.Error(err, "unable to retreive the hubClsuter", "controller", "Cluster Registration")
+		setupLog.Error(err, "unable to retreive the hubCluster", "controller", "Cluster Registration")
 		os.Exit(1)
 	}
 
