@@ -143,7 +143,7 @@ operatorsdk:
 ## Find or download kubebuilder
 kubebuilder-tools:
 ifeq (, $(shell which kubebuilder))
-	( \
+	@( \
 		set -ex ;\
 		KUBEBUILDER_TMP_DIR=$$(mktemp -d) ;\
 		cd $$KUBEBUILDER_TMP_DIR ;\

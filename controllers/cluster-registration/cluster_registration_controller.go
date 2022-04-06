@@ -134,7 +134,7 @@ func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(regCluster *
 
 	patch := client.MergeFrom(regCluster.DeepCopy())
 	if managedCluster.Status.Conditions != nil {
-		regCluster.Status.Conditions = managedCluster.Status.Conditions
+		regCluster.Status.Conditions = helpers.MergeStatusConditions(regCluster.Status.Conditions, managedCluster.Status.Conditions...)
 	}
 	if managedCluster.Status.Allocatable != nil {
 		allocatable := managedCluster.Status.Allocatable

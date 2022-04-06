@@ -19,12 +19,18 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+
+	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+
+	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -44,7 +50,8 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 const (
-	userNamespace string = "user-namespace"
+	userNamespace      string = "user-namespace"
+	managedClusterName string = ""
 )
 
 var (
@@ -81,6 +88,10 @@ var _ = BeforeSuite(func() {
 	err = clusterapiv1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	err = singaporev1alpha1.AddToScheme(scheme)
+	Expect(err).Should(BeNil())
+	err = addonv1alpha1.AddToScheme(scheme)
+	Expect(err).Should(BeNil())
+	err = authv1alpha1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 
 	readerIDP := croconfig.GetScenarioResourcesReader()
@@ -222,6 +233,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 			err := k8sClient.Create(context.TODO(), registeredCluster)
 			Expect(err).To(BeNil())
 		})
+		var managedCluster *clusterapiv1.ManagedCluster
 		By("Checking managedCluster", func() {
 			Eventually(func() error {
 				managedClusters := &clusterapiv1.ManagedClusterList{}
@@ -238,8 +250,143 @@ var _ = Describe("Process registeredCluster: ", func() {
 				if len(managedClusters.Items) != 1 {
 					return fmt.Errorf("Number of managedCluster found %d", len(managedClusters.Items))
 				}
+				managedCluster = &managedClusters.Items[0]
 				return nil
 			}, 30, 1).Should(BeNil())
+		})
+		By("Patching managedcluster status", func() {
+			// patch := client.MergeFrom(managedCluster.DeepCopy())
+			managedCluster.Status.Conditions = []metav1.Condition{
+				{
+					Type:               clusterapiv1.ManagedClusterConditionAvailable,
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: metav1.Now(),
+					Reason:             "Succeeded",
+					Message:            "Managedcluster succeeded",
+				},
+			}
+			managedCluster.Status.Allocatable = clusterapiv1.ResourceList{
+				clusterapiv1.ResourceCPU:    *apiresource.NewQuantity(2, apiresource.DecimalSI),
+				clusterapiv1.ResourceMemory: *apiresource.NewQuantity(2, apiresource.DecimalSI),
+			}
+			managedCluster.Status.Capacity = clusterapiv1.ResourceList{
+				clusterapiv1.ResourceCPU:    *apiresource.NewQuantity(1, apiresource.DecimalSI),
+				clusterapiv1.ResourceMemory: *apiresource.NewQuantity(1, apiresource.DecimalSI),
+			}
+			managedCluster.Status.Version.Kubernetes = "1.19.2"
+			managedCluster.Status.ClusterClaims = []clusterapiv1.ManagedClusterClaim{
+				{
+					Name:  "registeredCluster",
+					Value: registeredCluster.Name,
+				},
+			}
+			err := k8sClient.Status().Update(context.TODO(), managedCluster)
+			Expect(err).Should(BeNil())
+		})
+		By("Create managedcluster namespace", func() {
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: managedCluster.Name,
+				},
+			}
+			err := k8sClient.Create(context.TODO(), ns)
+			Expect(err).To(BeNil())
+		})
+		importSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      managedCluster.Name + "-import",
+				Namespace: managedCluster.Name,
+			},
+			Data: map[string][]byte{
+				"crds.yaml":        []byte("my-crds.yaml"),
+				"crdsv1.yaml":      []byte("my-crdsv1.yaml"),
+				"crdsv1beta1.yaml": []byte("my-crdsv1beta1.yaml"),
+				"import.yaml":      []byte("my-import.yaml"),
+			},
+		}
+		By("Create import secret", func() {
+			err := k8sClient.Create(context.TODO(), importSecret)
+			Expect(err).To(BeNil())
+		})
+		By("Checking registeredCluster ImportCommandRef", func() {
+			Eventually(func() error {
+				err := k8sClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      registeredCluster.Name,
+						Namespace: registeredCluster.Namespace,
+					},
+					registeredCluster)
+				if err != nil {
+					return err
+				}
+				if registeredCluster.Status.ImportCommandRef.Name != registeredCluster.Name+"-import" {
+					return fmt.Errorf("Get %s instead of %s",
+						registeredCluster.Status.ImportCommandRef.Name,
+						registeredCluster.Name+"-import")
+				}
+				return nil
+			}, 30, 1).Should(BeNil())
+		})
+		cm := &corev1.ConfigMap{}
+		importCommand :=
+			`echo "bXktY3Jkc3YxLnlhbWw=" | base64 --decode | kubectl apply -f - && ` +
+				`sleep 2 && ` +
+				`echo "bXktaW1wb3J0LnlhbWw=" | base64 --decode | kubectl apply -f -
+`
+
+		By("Checking import configMap", func() {
+			Eventually(func() error {
+				err := k8sClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      registeredCluster.Status.ImportCommandRef.Name,
+						Namespace: registeredCluster.Namespace,
+					},
+					cm)
+				if err != nil {
+					return err
+				}
+				if cm.Data["importCommand"] != importCommand {
+					return fmt.Errorf("invalid import expect %s, got %s", importCommand, cm.Data["importCommand"])
+				}
+				return nil
+			}, 30, 1).Should(BeNil())
+		})
+		By("Checking registeredCluster status", func() {
+			Eventually(func() error {
+				err := k8sClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      registeredCluster.Name,
+						Namespace: registeredCluster.Namespace,
+					},
+					registeredCluster)
+				if err != nil {
+					return err
+				}
+				if len(registeredCluster.Status.Conditions) == 0 {
+					return fmt.Errorf("Expecting 1 condtions got 0")
+				}
+				if q, ok := registeredCluster.Status.Allocatable[clusterapiv1.ResourceCPU]; !ok {
+					return fmt.Errorf("Expecting Allocatable ResourceCPU exists")
+				} else {
+					if v, ok := q.AsInt64(); !ok || v != 2 {
+						return fmt.Errorf("Expecting Allocatable ResourceCPU equal 2, got %d", v)
+					}
+				}
+				if q, ok := registeredCluster.Status.Capacity[clusterapiv1.ResourceCPU]; !ok {
+					return fmt.Errorf("Expecting Allocatable ResourceCPU exists")
+				} else {
+					if v, ok := q.AsInt64(); !ok || v != 1 {
+						return fmt.Errorf("Expecting Allocatable ResourceCPU equal 1, got %d", v)
+					}
+				}
+				if registeredCluster.Status.Version.Kubernetes != "1.19.2" {
+					return fmt.Errorf("Expecting Version 1.19.2, got %s", registeredCluster.Status.Version)
+				}
+				if len(managedCluster.Status.ClusterClaims) != 1 {
+					return fmt.Errorf("Expecting 1 ClusterClaim got 0")
+				}
+				return nil
+			}, 60, 1).Should(BeNil())
 		})
 	})
 
