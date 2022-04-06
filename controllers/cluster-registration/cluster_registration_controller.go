@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -51,6 +52,7 @@ const (
 	RegisteredClusterNamelabel      string = "registeredcluster.singapore.open-cluster-management.io/name"
 	RegisteredClusterNamespacelabel string = "registeredcluster.singapore.open-cluster-management.io/namespace"
 	ManagedClusterSetlabel          string = "cluster.open-cluster-management.io/clusterset"
+	ManagedServiceAccountName       string = "appstudio"
 )
 
 // RegisteredClusterReconciler reconciles a RegisteredCluster object
@@ -229,7 +231,7 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *sing
 	logger.Info("syncManagedServiceAccount")
 
 	applierBuilder := &clusteradmapply.ApplierBuilder{}
-	applier := applierBuilder.WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).Build() //TODO - support more than one
+	applier := applierBuilder.WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).Build()
 	readerDeploy := resources.GetScenarioResourcesReader()
 
 	files := []string{
@@ -238,15 +240,44 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *sing
 	}
 
 	values := struct {
-		Namespace string
+		ServiceAccountName string
+		Namespace          string
 	}{
-		Namespace: managedCluster.Name,
+		ServiceAccountName: ManagedServiceAccountName,
+		Namespace:          managedCluster.Name,
 	}
 
 	_, err := applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
 	if err != nil {
 		return giterrors.WithStack(err)
 	}
+
+	// If cluster has joined, sync the ManifestWork to create the roles and bindings for the service account
+	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
+		msa := &authv1alpha1.ManagedServiceAccount{}
+
+		if err := hubCluster.Client.Get(
+			context.TODO(),
+			types.NamespacedName{Namespace: managedCluster.Name, Name: ManagedServiceAccountName},
+			msa,
+		); err != nil {
+			return giterrors.WithStack(err)
+		}
+		applier = applierBuilder.
+			WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).
+			WithOwner(msa, true, true, hubCluster.Client.Scheme()).
+			Build()
+
+		files = []string{
+			"cluster-registration/service_account_roles.yaml",
+		}
+		_, err := applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
+		if err != nil {
+			return giterrors.WithStack(err)
+		}
+		//TODO - Add Watches on ManifestWork. Once condition AppliedManifestWorkComplete is True, copy the service account secret to the AppStudio workspace (transformed to a kubeconfig)
+	}
+
 	return nil
 }
 

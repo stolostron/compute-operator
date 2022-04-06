@@ -48,8 +48,23 @@ type HubInstance struct {
 	APIExtensionClient apiextensionsclient.Interface
 }
 
+// GetConditionStatus returns the status for a given condition type and whether the condition was found
+func GetConditionStatus(conditions []metav1.Condition, t string) (status metav1.ConditionStatus, ok bool) {
+	log := ctrl.Log.WithName("GetConditionStatus")
+	for i := range conditions {
+		condition := conditions[i]
+
+		if condition.Type == t {
+			log.Info("found it", "status", condition.Status)
+			return condition.Status, true
+		}
+	}
+	log.Info("didnt find it")
+	return "", false
+}
+
 func GetHubCluster(workspace string, hubInstances []HubInstance) (HubInstance, error) {
-	// For now, we always assume there is only one hub cluster. Later we will replace this with a lookup.
+	// For now, we always assume there is only one hub cluster. //TODO Later we will replace this with a lookup.
 	return hubInstances[0], nil
 }
 

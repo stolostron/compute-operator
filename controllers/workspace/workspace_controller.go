@@ -55,7 +55,7 @@ func (r *WorkspaceReconciler) syncManagedClusterSet(name string, ctx context.Con
 		return err
 	}
 	applierBuilder := &clusteradmapply.ApplierBuilder{}
-	applier := applierBuilder.WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).Build() //TODO - support more than one
+	applier := applierBuilder.WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).Build()
 	readerDeploy := resources.GetScenarioResourcesReader()
 
 	mcsName := helpers.ManagedClusterSetNameForWorkspace(name)
