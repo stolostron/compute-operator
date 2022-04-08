@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+	manifestworkv1 "open-cluster-management.io/api/work/v1"
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -227,8 +228,7 @@ func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev
 }
 
 func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance, ctx context.Context) error {
-	logger := r.Log.WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
-	logger.Info("syncManagedServiceAccount")
+	logger := r.Log.WithName("syncManagedServiceAccount").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
 
 	applierBuilder := &clusteradmapply.ApplierBuilder{}
 	applier := applierBuilder.WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).Build()
@@ -240,12 +240,22 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *sing
 	}
 
 	values := struct {
-		ServiceAccountName string
-		Namespace          string
+		ServiceAccountName              string
+		Namespace                       string
+		RegisteredClusterNameLabel      string
+		RegisteredClusterNamespaceLabel string
+		RegisteredClusterName           string
+		RegisteredClusterNamespace      string
 	}{
-		ServiceAccountName: ManagedServiceAccountName,
-		Namespace:          managedCluster.Name,
+		ServiceAccountName:              ManagedServiceAccountName,
+		Namespace:                       managedCluster.Name,
+		RegisteredClusterNameLabel:      RegisteredClusterNamelabel,
+		RegisteredClusterNamespaceLabel: RegisteredClusterNamespacelabel,
+		RegisteredClusterName:           regCluster.Name,
+		RegisteredClusterNamespace:      regCluster.Namespace,
 	}
+
+	logger.V(1).Info("applying managedclusteraddon and managedserviceaccount")
 
 	_, err := applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
 	if err != nil {
@@ -275,7 +285,73 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *sing
 		if err != nil {
 			return giterrors.WithStack(err)
 		}
-		//TODO - Add Watches on ManifestWork. Once condition AppliedManifestWorkComplete is True, copy the service account secret to the AppStudio workspace (transformed to a kubeconfig)
+
+		work := &manifestworkv1.ManifestWork{}
+
+		err = hubCluster.Client.Get(ctx, types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name}, work)
+		if err != nil {
+			return err
+		}
+
+		if status, ok := helpers.GetConditionStatus(work.Status.Conditions, string(manifestworkv1.ManifestApplied)); ok && status == metav1.ConditionTrue {
+			logger.V(1).Info("manifestwork applied. preparing secret...")
+			err := r.syncManagedClusterKubeconfig(regCluster, managedCluster, hubCluster, ctx)
+			if err != nil {
+				return giterrors.WithStack(err)
+			}
+		}
+	}
+	return nil
+}
+
+func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance, ctx context.Context) error {
+	logger := r.Log.WithName("syncManagedClusterKubeconfig").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
+	// Retrieve the secret containing the managedserviceaccount token
+	token := &corev1.Secret{}
+
+	err := hubCluster.Client.Get(ctx, types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name}, token)
+	if err != nil {
+		return err
+	}
+
+	applierBuilder := &clusteradmapply.ApplierBuilder{}
+	readerDeploy := resources.GetScenarioResourcesReader()
+	applier := applierBuilder.
+		WithClient(r.KubeClient, r.APIExtensionClient, r.DynamicClient).
+		WithOwner(regCluster, true, true, r.Scheme).
+		Build()
+
+	files := []string{
+		"cluster-registration/kubeconfig-secret.yaml",
+	}
+	secretName := fmt.Sprintf("%s-cluster-secret", regCluster.Name)
+	values := struct {
+		ApiURL      string
+		Token       string
+		SecretName  string
+		Namespace   string
+		ClusterName string
+	}{
+		ApiURL:      managedCluster.Spec.ManagedClusterClientConfigs[0].URL,
+		Token:       string(token.Data["token"]),
+		SecretName:  secretName,
+		ClusterName: regCluster.Name,
+		Namespace:   regCluster.Namespace,
+	}
+
+	_, err = applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
+	logger.V(1).Info("cluster kubeconfig synced")
+
+	// Patch the RegisteredCluster status with reference to the kubeconfig secret
+	patch := client.MergeFrom(regCluster.DeepCopy())
+	regCluster.Status.ClusterSecretRef = corev1.LocalObjectReference{
+		Name: secretName,
+	}
+	if err := r.Client.Status().Patch(ctx, regCluster, patch); err != nil {
+		return err
 	}
 
 	return nil
@@ -338,7 +414,7 @@ func registeredClusterPredicate() predicate.Predicate {
 
 func managedClusterPredicate() predicate.Predicate {
 	f := func(obj client.Object) bool {
-		log := ctrl.Log.WithName("controllers").WithName("ManagedCluster").WithName("managedClusterPredicate").WithValues("namespace", obj.GetNamespace(), "name", obj.GetName())
+		log := ctrl.Log.WithName("controllers").WithName("RegisteredCluster").WithName("managedClusterPredicate").WithValues("namespace", obj.GetNamespace(), "name", obj.GetName())
 		if _, ok := obj.GetLabels()[RegisteredClusterNamelabel]; ok {
 			if _, ok := obj.GetLabels()[RegisteredClusterNamespacelabel]; ok {
 				log.V(1).Info("process managedcluster")
@@ -365,6 +441,35 @@ func managedClusterPredicate() predicate.Predicate {
 	}
 }
 
+func manifestWorkPredicate() predicate.Predicate {
+	f := func(obj client.Object) bool {
+		log := ctrl.Log.WithName("controllers").WithName("RegisteredCluster").WithName("manifestWorkPredicate").WithValues("namespace", obj.GetNamespace(), "name", obj.GetName())
+		if _, ok := obj.GetLabels()[RegisteredClusterNamelabel]; ok {
+			if _, ok := obj.GetLabels()[RegisteredClusterNamespacelabel]; ok {
+				log.V(1).Info("process manifestwork")
+				return true
+			}
+
+		}
+		return false
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(event event.CreateEvent) bool {
+			return false
+		},
+		UpdateFunc: func(event event.UpdateEvent) bool {
+			return f(event.ObjectNew)
+		},
+		GenericFunc: func(event event.GenericEvent) bool {
+			return false
+		},
+		DeleteFunc: func(event event.DeleteEvent) bool {
+			return false
+		},
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager.
 
 func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme *runtime.Scheme) error {
@@ -374,7 +479,7 @@ func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme 
 
 	for _, hubCluster := range r.HubClusters {
 
-		r.Log.Info("add watcher for ", "hubConfig.Name", hubCluster.HubConfig.Name)
+		r.Log.Info("add watchers for ", "hubConfig.Name", hubCluster.HubConfig.Name)
 		controllerBuilder.Watches(source.NewKindWithCache(&clusterapiv1.ManagedCluster{}, hubCluster.Cluster.GetCache()), handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
 			managedCluster := o.(*clusterapiv1.ManagedCluster)
 			r.Log.Info("Processing ManagedCluster event", "name", managedCluster.Name)
@@ -388,6 +493,19 @@ func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme 
 			})
 			return req
 		}), builder.WithPredicates(managedClusterPredicate()))
+		controllerBuilder.Watches(source.NewKindWithCache(&manifestworkv1.ManifestWork{}, hubCluster.Cluster.GetCache()), handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+			manifestWork := o.(*manifestworkv1.ManifestWork)
+			r.Log.Info("Processing ManifestWork event", "name", manifestWork.Name, "namespace", manifestWork.Namespace)
+
+			req := make([]reconcile.Request, 0)
+			req = append(req, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      manifestWork.GetLabels()[RegisteredClusterNamelabel],
+					Namespace: manifestWork.GetLabels()[RegisteredClusterNamespacelabel],
+				},
+			})
+			return req
+		}), builder.WithPredicates(manifestWorkPredicate()))
 	}
 
 	return controllerBuilder.

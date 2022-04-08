@@ -29,6 +29,7 @@ import (
 
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+	manifestworkv1 "open-cluster-management.io/api/work/v1"
 
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -92,6 +93,8 @@ var _ = BeforeSuite(func() {
 	err = addonv1alpha1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	err = authv1alpha1.AddToScheme(scheme)
+	Expect(err).Should(BeNil())
+	err = manifestworkv1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 
 	readerIDP := croconfig.GetScenarioResourcesReader()

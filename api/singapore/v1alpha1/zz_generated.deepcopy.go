@@ -284,6 +284,7 @@ func (in *RegisteredClusterSpec) DeepCopy() *RegisteredClusterSpec {
 func (in *RegisteredClusterStatus) DeepCopyInto(out *RegisteredClusterStatus) {
 	*out = *in
 	out.ImportCommandRef = in.ImportCommandRef
+	out.ClusterSecretRef = in.ClusterSecretRef
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]v1.Condition, len(*in))

@@ -84,6 +84,15 @@ spec:
                       type: string
                   type: object
                 type: array
+              clusterSecretRef:
+                description: ClusterSecretRef is a reference to the secret containing
+                  the registered cluster kubeconfig.
+                properties:
+                  name:
+                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?'
+                    type: string
+                type: object
               conditions:
                 description: Conditions contains the different condition statuses
                   for this RegisteredCluster.

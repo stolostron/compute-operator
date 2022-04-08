@@ -13,6 +13,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+	manifestworkv1 "open-cluster-management.io/api/work/v1"
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -35,6 +36,7 @@ func init() {
 	_ = clusterapiv1.AddToScheme(scheme)
 	_ = addonv1alpha1.AddToScheme(scheme)
 	_ = authv1alpha1.AddToScheme(scheme)
+	_ = manifestworkv1.AddToScheme(scheme)
 
 	// +kubebuilder:scaffold:scheme
 }
@@ -55,11 +57,11 @@ func GetConditionStatus(conditions []metav1.Condition, t string) (status metav1.
 		condition := conditions[i]
 
 		if condition.Type == t {
-			log.Info("found it", "status", condition.Status)
+			log.V(1).Info("condition found", "type", condition.Type, "status", condition.Status)
 			return condition.Status, true
 		}
 	}
-	log.Info("didnt find it")
+	log.V(1).Info("condition not found", "type", t)
 	return "", false
 }
 
