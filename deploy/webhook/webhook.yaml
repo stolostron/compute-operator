@@ -1,0 +1,68 @@
+# Copyright Red Hat
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-registration-webhook-service
+  namespace: {{ .Namespace }}
+  labels:
+    control-plane: cluster-registration-webhook-service
+spec:
+  selector:
+    matchLabels:
+      control-plane: cluster-registration-webhook-service
+      
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        control-plane: cluster-registration-webhook-service
+        cluster-registration-antiaffinity-selector: cluster-registration-webhook
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: cluster-registration-antiaffinity-selector
+                      operator: In
+                      values:
+                        - cluster-registration-webhook
+                topologyKey: topology.kubernetes.io/zone
+              weight: 70
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: cluster-registration-antiaffinity-selector
+                      operator: In
+                      values:
+                        - cluster-registration-webhook
+                topologyKey: kubernetes.io/hostname
+              weight: 35
+      containers:
+        - args:
+            - webhook
+            - "--secure-port=6443"
+            - "--tls-cert-file=/serving-cert/tls.crt"
+            - "--tls-private-key-file=/serving-cert/tls.key"
+          image: {{ .Image }}
+          name: webhook
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: webhook-secret
+              mountPath: "/serving-cert"
+              readOnly: true
+      volumes:
+        - name: webhook-secret
+          secret:
+            secretName: cluster-registration-webhook-service
+      serviceAccountName: cluster-registration-webhook-service
+      terminationGracePeriodSeconds: 10
+      tolerations:
+        - key: node-role.kubernetes.io/infra
+          operator: Exists
+          effect: NoSchedule
+        - key: dedicated
+          operator: Exists
+          effect: NoSchedule

@@ -25,6 +25,7 @@ COPY config/rbac config/rbac
 COPY config/crd config/crd
 COPY config/resources.go config/resources.go
 COPY controllers/ controllers/
+COPY webhook/ webhook/
 
 RUN GOFLAGS="" go build -a -o cluster-registration main.go
 

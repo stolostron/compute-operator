@@ -10,6 +10,7 @@ import (
 	// "fmt"
 	// "os"
 
+	"github.com/ghodss/yaml"
 	giterrors "github.com/pkg/errors"
 
 	admissionregistration "k8s.io/api/admissionregistration/v1"
@@ -181,59 +182,59 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarCreation(clusterRegi
 	}
 
 	//Deploy webhook
-	/*	files = []string{
-			"webhook/service_account.yaml",
-			"webhook/webhook_clusterrole.yaml",
-			"webhook/webhook_clusterrolebinding.yaml",
-			"webhook/webhook_service.yaml",
-		}
+	files = []string{
+		"webhook/service_account.yaml",
+		"webhook/webhook_clusterrole.yaml",
+		"webhook/webhook_clusterrolebinding.yaml",
+		"webhook/webhook_service.yaml",
+	}
 
-		_, err = applier.ApplyDirectly(readerDeploy, values, false, "", files...)
-		if err != nil {
-			return giterrors.WithStack(err)
-		}
+	_, err = applier.ApplyDirectly(readerDeploy, values, false, "", files...)
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
 
-		files = []string{
-			"webhook/webhook.yaml",
-		}
+	files = []string{
+		"webhook/webhook.yaml",
+	}
 
-		_, err = applier.ApplyDeployments(readerDeploy, values, false, "", files...)
-		if err != nil {
-			return giterrors.WithStack(err)
-		}
+	_, err = applier.ApplyDeployments(readerDeploy, values, false, "", files...)
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
 
-		b, err := applier.MustTempalteAsset(readerDeploy, values, "", "webhook/webhook_validating_config.yaml")
-		if err != nil {
-			return giterrors.WithStack(err)
-		}
-		validationWebhookConfiguration := &admissionregistration.ValidatingWebhookConfiguration{}
-		err = yaml.Unmarshal(b, validationWebhookConfiguration)
-		if err != nil {
-			return giterrors.WithStack(err)
-		}
-		if err := r.Client.Create(context.TODO(), validationWebhookConfiguration, &client.CreateOptions{}); err != nil {
-			if !errors.IsAlreadyExists(err) {
-				return giterrors.WithStack(err)
-			}
-		}
+	b, err := applier.MustTempalteAsset(readerDeploy, values, "", "webhook/webhook_validating_config.yaml")
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
 
-		b, err = applier.MustTempalteAsset(readerDeploy, values, "", "webhook/webhook_apiservice.yaml")
-		if err != nil {
+	validationWebhookConfiguration := &admissionregistration.ValidatingWebhookConfiguration{}
+	err = yaml.Unmarshal(b, validationWebhookConfiguration)
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
+
+	if err := r.Client.Create(context.TODO(), validationWebhookConfiguration, &client.CreateOptions{}); err != nil {
+		if !errors.IsAlreadyExists(err) {
 			return giterrors.WithStack(err)
 		}
-		if err != nil {
+	}
+
+	b, err = applier.MustTempalteAsset(readerDeploy, values, "", "webhook/webhook_apiservice.yaml")
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
+
+	apiService := &apiregistrationv1.APIService{}
+	err = yaml.Unmarshal(b, apiService)
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
+	if err := r.Client.Create(context.TODO(), apiService, &client.CreateOptions{}); err != nil {
+		if !errors.IsAlreadyExists(err) {
 			return giterrors.WithStack(err)
 		}
-		apiService := &apiregistrationv1.APIService{}
-		err = yaml.Unmarshal(b, apiService)
-		if err != nil {
-			return giterrors.WithStack(err)
-		}
-		if err := r.Client.Create(context.TODO(), apiService, &client.CreateOptions{}); err != nil {
-			if !errors.IsAlreadyExists(err) {
-				return giterrors.WithStack(err)
-			}
-		} */
+	}
 
 	return nil
 }
@@ -330,96 +331,96 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(clusterRegi
 	// }
 
 	//Delete webhook
-	// r.Log.Info("Delete Deployment", "name", "idp-mgmt-webhook-service", "namespace", podNamespace)
-	// webhookDeployment := &appsv1.Deployment{}
-	// err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "idp-mgmt-webhook-service", Namespace: podNamespace}, webhookDeployment)
-	// switch {
-	// case errors.IsNotFound(err):
-	// case err == nil:
-	// 	if err := r.Client.Delete(context.TODO(), webhookDeployment, &client.DeleteOptions{}); err != nil {
-	// 		return giterrors.WithStack(err)
-	// 	}
-	// default:
-	// 	return giterrors.WithStack(err)
-	// }
+	r.Log.Info("Delete Deployment", "name", "cluster-registration-webhook-service", "namespace", podNamespace)
+	webhookDeployment := &appsv1.Deployment{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "cluster-registration-webhook-service", Namespace: podNamespace}, webhookDeployment)
+	switch {
+	case errors.IsNotFound(err):
+	case err == nil:
+		if err := r.Client.Delete(context.TODO(), webhookDeployment, &client.DeleteOptions{}); err != nil {
+			return giterrors.WithStack(err)
+		}
+	default:
+		return giterrors.WithStack(err)
+	}
 
-	// r.Log.Info("Delete APIService", "name", "v1alpha1.admission.identityconfig.identitatem.io")
-	// apiService := &apiregistrationv1.APIService{}
-	// err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "v1alpha1.admission.identityconfig.identitatem.io"}, apiService)
-	// switch {
-	// case errors.IsNotFound(err):
-	// case err == nil:
-	// 	if err := r.Client.Delete(context.TODO(), apiService, &client.DeleteOptions{}); err != nil {
-	// 		return giterrors.WithStack(err)
-	// 	}
-	// default:
-	// 	return giterrors.WithStack(err)
-	// }
+	r.Log.Info("Delete APIService", "name", "v1alpha1.admission.singapore.open-cluster-management.io")
+	apiService := &apiregistrationv1.APIService{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "v1alpha1.admission.singapore.open-cluster-management.io"}, apiService)
+	switch {
+	case errors.IsNotFound(err):
+	case err == nil:
+		if err := r.Client.Delete(context.TODO(), apiService, &client.DeleteOptions{}); err != nil {
+			return giterrors.WithStack(err)
+		}
+	default:
+		return giterrors.WithStack(err)
+	}
 
-	// r.Log.Info("Delete ClusterRoleBinding", "name", "idp-mgmt-webhook-service")
-	// webHookClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
-	// err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "idp-mgmt-webhook-service"}, webHookClusterRoleBinding)
-	// switch {
-	// case errors.IsNotFound(err):
-	// case err == nil:
-	// 	if err := r.Client.Delete(context.TODO(), webHookClusterRoleBinding, &client.DeleteOptions{}); err != nil {
-	// 		return giterrors.WithStack(err)
-	// 	}
-	// default:
-	// 	return giterrors.WithStack(err)
-	// }
+	r.Log.Info("Delete ClusterRoleBinding", "name", "cluster-registration-webhook-service")
+	webHookClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "cluster-registration-webhook-service"}, webHookClusterRoleBinding)
+	switch {
+	case errors.IsNotFound(err):
+	case err == nil:
+		if err := r.Client.Delete(context.TODO(), webHookClusterRoleBinding, &client.DeleteOptions{}); err != nil {
+			return giterrors.WithStack(err)
+		}
+	default:
+		return giterrors.WithStack(err)
+	}
 
-	// r.Log.Info("Delete ClusterRole", "name", "idp-mgmt-webhook-service")
-	// webHookClusterRole := &rbacv1.ClusterRole{}
-	// err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "idp-mgmt-webhook-service"}, webHookClusterRole)
-	// switch {
-	// case errors.IsNotFound(err):
-	// case err == nil:
-	// 	if err := r.Client.Delete(context.TODO(), webHookClusterRole, &client.DeleteOptions{}); err != nil {
-	// 		return giterrors.WithStack(err)
-	// 	}
-	// default:
-	// 	return giterrors.WithStack(err)
-	// }
+	r.Log.Info("Delete ClusterRole", "name", "cluster-registration-webhook-service")
+	webHookClusterRole := &rbacv1.ClusterRole{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "cluster-registration-webhook-service"}, webHookClusterRole)
+	switch {
+	case errors.IsNotFound(err):
+	case err == nil:
+		if err := r.Client.Delete(context.TODO(), webHookClusterRole, &client.DeleteOptions{}); err != nil {
+			return giterrors.WithStack(err)
+		}
+	default:
+		return giterrors.WithStack(err)
+	}
 
-	// r.Log.Info("Delete serviceAccount", "name", "idp-mgmt-webhook-service", "namespace", podNamespace)
-	// webHookServiceAccount := &corev1.ServiceAccount{}
-	// err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "idp-mgmt-webhook-service", Namespace: podNamespace}, webHookServiceAccount)
-	// switch {
-	// case errors.IsNotFound(err):
-	// case err == nil:
-	// 	if err := r.Client.Delete(context.TODO(), webHookServiceAccount, &client.DeleteOptions{}); err != nil {
-	// 		return giterrors.WithStack(err)
-	// 	}
-	// default:
-	// 	return giterrors.WithStack(err)
-	// }
+	r.Log.Info("Delete serviceAccount", "name", "cluster-registration-webhook-service", "namespace", podNamespace)
+	webHookServiceAccount := &corev1.ServiceAccount{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "cluster-registration-webhook-service", Namespace: podNamespace}, webHookServiceAccount)
+	switch {
+	case errors.IsNotFound(err):
+	case err == nil:
+		if err := r.Client.Delete(context.TODO(), webHookServiceAccount, &client.DeleteOptions{}); err != nil {
+			return giterrors.WithStack(err)
+		}
+	default:
+		return giterrors.WithStack(err)
+	}
 
-	// r.Log.Info("Delete Service", "name", "idp-mgmt-webhook-service", "namespace", podNamespace)
-	// service := &corev1.Service{}
-	// err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "idp-mgmt-webhook-service", Namespace: podNamespace}, service)
-	// switch {
-	// case errors.IsNotFound(err):
-	// case err == nil:
-	// 	if err := r.Client.Delete(context.TODO(), service, &client.DeleteOptions{}); err != nil {
-	// 		return giterrors.WithStack(err)
-	// 	}
-	// default:
-	// 	return giterrors.WithStack(err)
-	// }
+	r.Log.Info("Delete Service", "name", "cluster-registration-webhook-service", "namespace", podNamespace)
+	service := &corev1.Service{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "cluster-registration-webhook-service", Namespace: podNamespace}, service)
+	switch {
+	case errors.IsNotFound(err):
+	case err == nil:
+		if err := r.Client.Delete(context.TODO(), service, &client.DeleteOptions{}); err != nil {
+			return giterrors.WithStack(err)
+		}
+	default:
+		return giterrors.WithStack(err)
+	}
 
-	// r.Log.Info("Delete ValidatingWebhookConfiguration", "name", "idp-mgmt-webhook-service", "namespace", podNamespace)
-	// validationWebhook := &admissionregistration.ValidatingWebhookConfiguration{}
-	// err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "idp-mgmt-webhook-service", Namespace: podNamespace}, validationWebhook)
-	// switch {
-	// case errors.IsNotFound(err):
-	// case err == nil:
-	// 	if err := r.Client.Delete(context.TODO(), validationWebhook, &client.DeleteOptions{}); err != nil {
-	// 		return giterrors.WithStack(err)
-	// 	}
-	// default:
-	// 	return giterrors.WithStack(err)
-	// }
+	r.Log.Info("Delete ValidatingWebhookConfiguration", "name", "cluster-registration-webhook-service", "namespace", podNamespace)
+	validationWebhook := &admissionregistration.ValidatingWebhookConfiguration{}
+	err = r.Client.Get(context.TODO(), client.ObjectKey{Name: "cluster-registration-webhook-service", Namespace: podNamespace}, validationWebhook)
+	switch {
+	case errors.IsNotFound(err):
+	case err == nil:
+		if err := r.Client.Delete(context.TODO(), validationWebhook, &client.DeleteOptions{}); err != nil {
+			return giterrors.WithStack(err)
+		}
+	default:
+		return giterrors.WithStack(err)
+	}
 
 	return nil
 }

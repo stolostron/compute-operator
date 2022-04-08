@@ -1,0 +1,27 @@
+# Copyright Red Hat
+
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: cluster-registration-webhook-service
+webhooks:
+  - name: admission.singapore.open-cluster-management.io
+    admissionReviewVersions: 
+      - v1beta1
+    sideEffects: None
+    rules:
+      - apiGroups:
+          - singapore.open-cluster-management.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - registeredclusters
+    failurePolicy: Fail
+    clientConfig:
+      service:
+        namespace: default
+        name: kubernetes
+        path: /apis/admission.singapore.open-cluster-management.io/v1alpha1/registeredclusters

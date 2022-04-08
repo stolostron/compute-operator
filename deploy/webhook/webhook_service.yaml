@@ -1,0 +1,16 @@
+
+# Copyright Red Hat
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-registration-webhook-service
+  namespace: {{ .Namespace }}
+  annotations:
+    "service.beta.openshift.io/serving-cert-secret-name": cluster-registration-webhook-service
+spec:
+  ports:
+    - port: 443
+      targetPort: 6443
+  selector:
+    control-plane: cluster-registration-webhook-service
