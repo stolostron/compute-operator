@@ -4,6 +4,7 @@ package registeredcluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -305,6 +306,12 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *sing
 
 func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance, ctx context.Context) error {
 	logger := r.Log.WithName("syncManagedClusterKubeconfig").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
+	// Retrieve the API URL
+	apiUrl := managedCluster.Spec.ManagedClusterClientConfigs[0].URL
+	if managedCluster.Spec.ManagedClusterClientConfigs == nil || len(managedCluster.Spec.ManagedClusterClientConfigs) == 0 {
+		return errors.New("ManagedClusterClientConfigs not configured as expected")
+	}
+
 	// Retrieve the secret containing the managedserviceaccount token
 	token := &corev1.Secret{}
 
@@ -331,7 +338,7 @@ func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(regCluster *s
 		Namespace   string
 		ClusterName string
 	}{
-		ApiURL:      managedCluster.Spec.ManagedClusterClientConfigs[0].URL,
+		ApiURL:      apiUrl,
 		Token:       string(token.Data["token"]),
 		SecretName:  secretName,
 		ClusterName: regCluster.Name,
