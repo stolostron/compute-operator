@@ -436,7 +436,12 @@ func managedClusterPredicate() predicate.Predicate {
 			return f(event.Object)
 		},
 		UpdateFunc: func(event event.UpdateEvent) bool {
-			return f(event.ObjectNew)
+			new, okNew := event.ObjectNew.(*clusterapiv1.ManagedCluster)
+			old, okOld := event.ObjectOld.(*clusterapiv1.ManagedCluster)
+			if okNew && okOld {
+				return f(event.ObjectNew) && !equality.Semantic.DeepEqual(old.Status, new.Status)
+			}
+			return false
 		},
 		GenericFunc: func(event event.GenericEvent) bool {
 			return f(event.Object)
@@ -465,7 +470,12 @@ func manifestWorkPredicate() predicate.Predicate {
 			return false
 		},
 		UpdateFunc: func(event event.UpdateEvent) bool {
-			return f(event.ObjectNew)
+			new, okNew := event.ObjectNew.(*manifestworkv1.ManifestWork)
+			old, okOld := event.ObjectOld.(*manifestworkv1.ManifestWork)
+			if okNew && okOld {
+				return f(event.ObjectNew) && !equality.Semantic.DeepEqual(old.Status, new.Status)
+			}
+			return false
 		},
 		GenericFunc: func(event event.GenericEvent) bool {
 			return false
