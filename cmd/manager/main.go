@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -101,11 +102,16 @@ func (o *managerOptions) run() {
 		os.Exit(1)
 	}
 
+	kubeClient := kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie())
+	dynamicClient := dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie())
+	apiExtensionClient := apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie())
+	hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
 	if err = (&clusterreg.RegisteredClusterReconciler{
 		Client:             mgr.GetClient(),
-		KubeClient:         kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie()),
-		DynamicClient:      dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie()),
-		APIExtensionClient: apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie()),
+		KubeClient:         kubeClient,
+		DynamicClient:      dynamicClient,
+		APIExtensionClient: apiExtensionClient,
+		HubApplier:         hubApplier,
 		Log:                ctrl.Log.WithName("controllers").WithName("RegistredCluster"),
 		Scheme:             mgr.GetScheme(),
 		HubClusters:        hubInstances,

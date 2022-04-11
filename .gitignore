@@ -41,3 +41,4 @@
 # Kubeconfig for MCE cluster (temporary)
 mce-kubeconfig
 kubeConfig
+kubeconfig

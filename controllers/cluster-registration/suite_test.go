@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
 
 	croconfig "github.com/stolostron/cluster-registration-operator/config"
@@ -166,7 +167,7 @@ var _ = BeforeSuite(func() {
 				Namespace: userNamespace,
 			},
 			Data: map[string][]byte{
-				"kubeConfig": []byte(buf.String()),
+				"kubeconfig": []byte(buf.String()),
 			},
 		}
 		err := k8sClient.Create(context.TODO(), secret)
@@ -193,6 +194,10 @@ var _ = BeforeSuite(func() {
 	By("Init the controller", func() {
 		hubClusters, err := helpers.GetHubClusters(mgr)
 		Expect(err).To(BeNil())
+		kubeClient := kubernetes.NewForConfigOrDie(cfg)
+		dynamicClient := dynamic.NewForConfigOrDie(cfg)
+		apiExtensionClient := apiextensionsclient.NewForConfigOrDie(cfg)
+		hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
 		r = &RegisteredClusterReconciler{
 			Client:             k8sClient,
 			KubeClient:         kubernetes.NewForConfigOrDie(cfg),
@@ -201,6 +206,7 @@ var _ = BeforeSuite(func() {
 			Log:                logf.Log,
 			Scheme:             scheme,
 			HubClusters:        hubClusters,
+			HubApplier:         hubApplier,
 		}
 		err = r.SetupWithManager(mgr, scheme)
 		Expect(err).To(BeNil())

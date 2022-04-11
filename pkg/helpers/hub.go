@@ -14,6 +14,7 @@ import (
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
+	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -48,6 +49,7 @@ type HubInstance struct {
 	KubeClient         kubernetes.Interface
 	DynamicClient      dynamic.Interface
 	APIExtensionClient apiextensionsclient.Interface
+	HubApplier         clusteradmapply.Applier
 }
 
 // GetConditionStatus returns the status for a given condition type and whether the condition was found
@@ -124,12 +126,12 @@ func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
 			return nil, err
 		}
 
-		kubeConfigData, ok := configSecret.Data["kubeConfig"]
+		kubeConfigData, ok := configSecret.Data["kubeconfig"]
 		if !ok {
-			setupLog.Error(err, "HubConfig secret missing kubeConfig data",
+			setupLog.Error(err, "HubConfig secret missing kubeconfig data",
 				"HubConfig Name", hubConfig.GetName(),
 				"HubConfig Secret Name", hubConfig.Spec.KubeConfigSecretRef.Name)
-			return nil, errors.New("HubConfig secret missing kubeConfig data")
+			return nil, errors.New("HubConfig secret missing kubeconfig data")
 		}
 
 		setupLog.Info("generate hubKubeConfig")
@@ -156,13 +158,19 @@ func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
 			return nil, err
 		}
 
+		kubeClient := kubernetes.NewForConfigOrDie(hubKubeconfig)
+		dynamicClient := dynamic.NewForConfigOrDie(hubKubeconfig)
+		apiExtensionClient := apiextensionsclient.NewForConfigOrDie(hubKubeconfig)
+		hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
+
 		hubInstance := HubInstance{
 			HubConfig:          hubConfig,
 			Cluster:            hubCluster,
 			Client:             hubCluster.GetClient(),
-			KubeClient:         kubernetes.NewForConfigOrDie(hubKubeconfig),
-			DynamicClient:      dynamic.NewForConfigOrDie(hubKubeconfig),
-			APIExtensionClient: apiextensionsclient.NewForConfigOrDie(hubKubeconfig),
+			KubeClient:         kubeClient,
+			DynamicClient:      dynamicClient,
+			APIExtensionClient: apiExtensionClient,
+			HubApplier:         hubApplier,
 		}
 
 		hubInstances = append(hubInstances, hubInstance)

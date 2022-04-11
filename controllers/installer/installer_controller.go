@@ -203,7 +203,7 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarCreation(clusterRegi
 		return giterrors.WithStack(err)
 	}
 
-	b, err := applier.MustTempalteAsset(readerDeploy, values, "", "webhook/webhook_validating_config.yaml")
+	b, err := applier.MustTemplateAsset(readerDeploy, values, "", "webhook/webhook_validating_config.yaml")
 	if err != nil {
 		return giterrors.WithStack(err)
 	}
@@ -220,7 +220,7 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarCreation(clusterRegi
 		}
 	}
 
-	b, err = applier.MustTempalteAsset(readerDeploy, values, "", "webhook/webhook_apiservice.yaml")
+	b, err = applier.MustTemplateAsset(readerDeploy, values, "", "webhook/webhook_apiservice.yaml")
 	if err != nil {
 		return giterrors.WithStack(err)
 	}

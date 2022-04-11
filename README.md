@@ -13,6 +13,14 @@ Please fork this repo and clone from the fork.  All your work should be against 
 You must meet the following requirements:
 
 - `kustomize` (ver. 4.2.0+)
+- The managed hub must be MCE 2.0.0+
+- On the managed hub, the multiclusterengine CR must have the managed-service-account enabled.
+`oc edit multiclusterengine`
+then set the following
+```
+    - enabled: true
+      name: managed-service-account
+```
 
 ## Ensure you are logged in to the correct cluster
 
@@ -37,7 +45,9 @@ kubectl cluster-info
 3. From the cloned cluster-registration-operator directory:
 
 ```bash
-export IMG=quay.io/<your_user>/cluster-registration-operator:<tag_you_want_to_use>
+export QUAY_USER=<your_user>
+export IMG_TAG=<tag_you_want_to_use>
+export IMG=quay.io/${QUAY_USER}/cluster-registration-operator:${IMG_TAG}
 make docker-build docker-push deploy
 ```
 
@@ -78,15 +88,79 @@ Check using the following command:
 oc get pods -n cluster-reg-config
 ```
 
+# Onboard a hub cluster
+
+## hub cluster pre-req
+- The managed hub must be MCE 2.0.0+
+- On the managed hub, the multiclusterengine CR must have the managed-service-account enabled.
+`oc edit multiclusterengine`
+then set the following
+```
+    - enabled: true
+      name: managed-service-account
+```
+## Onboarding
+
+1. Create config secret on the external cluster to access the hub cluster:
+
+To get the kubeconfig:
+
+- `export KUBECONFIG=$(mktemp)`
+- `oc login` to the hub cluster
+- `unset KUBECONFIG` or set it as before.
+
+```bash
+`oc login` to the external cluster
+oc create secret generic <secret_name> --from-file=kubeconfig=${KUBECONFIG} -n <your_namespace> # Expects a kubeconfig file named kubeconfig
+```
+
+2. Create the hub config:
+```bash
+echo '
+apiVersion: singapore.open-cluster-management.io/v1alpha1
+kind: HubConfig
+metadata:
+  name: <name_of_your_hub>
+  namespace: <your_namespace>
+spec:
+  kubeConfigSecretRef: 
+    name: <above_secret_name>
+' | kubectl create -f -
+```
+
+3. Restart the `cluster-registration-operator-manager` pods
+This will allow the operator to onboard the new hub config.
+
+# Import a cluster
+
+1. Create the registeredcluster CR
+
+```bash
+echo 'apiVersion: singapore.open-cluster-management.io/v1alpha1
+kind: RegisteredCluster
+metadata:
+  name: <name_of_cluster_to_import>
+  namespace: <your_namespace>
+spec: {}
+' | kubectl create -f -
+```
+
+2. Import the cluster
+
+- Run `oc get cm -n <your_namespace> <name_of_cluster_to_import>-import -o jsonpath='{.data.importCommand}'`
+- Copy the result
+- Login to the cluster to import
+- Paste the result
 # Local development
 
 To run the operator locally, you can:
+
 ```bash
 make generate
 oc apply -f config/crd/singapore.open-cluster-management.io_registeredclusters.yaml
 oc apply -f config/crd/singapore.open-cluster-management.io_hubconfigs.yaml
 oc apply -f hack/hubconfig.yaml
-oc create secret generic mce-kubeconfig-secret --from-file kubeConfig # Expects a kubeconfig file named kubeConfig
+oc create secret generic mce-kubeconfig-secret --from-file=kubeconfig=kubeconfig # Expects a kubeconfig file named kubeconfig
 export POD_NAMESPACE=default
 go run main.go manager
 ```

@@ -40,7 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-// +kubebuilder:rbac:groups="",resources={secrets},verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources={secrets},verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="singapore.open-cluster-management.io",resources={hubconfigs},verbs=get;list;watch
 // +kubebuilder:rbac:groups="singapore.open-cluster-management.io",resources={registeredclusters},verbs=get;list;watch;create;update;delete
 
@@ -62,6 +62,7 @@ type RegisteredClusterReconciler struct {
 	KubeClient         kubernetes.Interface
 	DynamicClient      dynamic.Interface
 	APIExtensionClient apiextensionsclient.Interface
+	HubApplier         clusteradmapply.Applier
 	Log                logr.Logger
 	Scheme             *runtime.Scheme
 	HubClusters        []helpers.HubInstance
@@ -185,8 +186,6 @@ func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev
 		return giterrors.WithStack(err)
 	}
 
-	applierBuilder := &clusteradmapply.ApplierBuilder{}
-	applier := applierBuilder.WithClient(r.KubeClient, r.APIExtensionClient, r.DynamicClient).Build()
 	readerDeploy := resources.GetScenarioResourcesReader()
 
 	files := []string{
@@ -211,7 +210,7 @@ func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev
 		ImportCommand: importCommand,
 	}
 
-	_, err = applier.ApplyDirectly(readerDeploy, values, false, "", files...)
+	_, err = r.HubApplier.ApplyDirectly(readerDeploy, values, false, "", files...)
 	if err != nil {
 		return giterrors.WithStack(err)
 	}
@@ -230,8 +229,6 @@ func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev
 func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance, ctx context.Context) error {
 	logger := r.Log.WithName("syncManagedServiceAccount").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
 
-	applierBuilder := &clusteradmapply.ApplierBuilder{}
-	applier := applierBuilder.WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).Build()
 	readerDeploy := resources.GetScenarioResourcesReader()
 
 	files := []string{
@@ -257,7 +254,7 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *sing
 
 	logger.V(1).Info("applying managedclusteraddon and managedserviceaccount")
 
-	_, err := applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
+	_, err := hubCluster.HubApplier.ApplyCustomResources(readerDeploy, values, false, "", files...)
 	if err != nil {
 		return giterrors.WithStack(err)
 	}
@@ -273,9 +270,11 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *sing
 		); err != nil {
 			return giterrors.WithStack(err)
 		}
-		applier = applierBuilder.
+		applierBuilder := clusteradmapply.NewApplierBuilder()
+		applier := applierBuilder.
 			WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).
 			WithOwner(msa, true, true, hubCluster.Client.Scheme()).
+			WithCache(hubCluster.HubApplier.GetCache()).
 			Build()
 
 		files = []string{
@@ -318,7 +317,7 @@ func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(regCluster *s
 	readerDeploy := resources.GetScenarioResourcesReader()
 	applier := applierBuilder.
 		WithClient(r.KubeClient, r.APIExtensionClient, r.DynamicClient).
-		WithOwner(regCluster, true, true, r.Scheme).
+		WithOwner(regCluster, false, true, r.Scheme).
 		Build()
 
 	files := []string{
