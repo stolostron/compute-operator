@@ -439,7 +439,9 @@ func managedClusterPredicate() predicate.Predicate {
 			new, okNew := event.ObjectNew.(*clusterapiv1.ManagedCluster)
 			old, okOld := event.ObjectOld.(*clusterapiv1.ManagedCluster)
 			if okNew && okOld {
-				return f(event.ObjectNew) && !equality.Semantic.DeepEqual(old.Status, new.Status)
+				return f(event.ObjectNew) &&
+					(!equality.Semantic.DeepEqual(old.Status, new.Status) ||
+						old.GetLabels()["clusterID"] != new.GetLabels()["clusterID"])
 			}
 			return false
 		},
