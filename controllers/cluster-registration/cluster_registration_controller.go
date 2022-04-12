@@ -13,6 +13,8 @@ import (
 	"github.com/go-logr/logr"
 	giterrors "github.com/pkg/errors"
 
+	b64 "encoding/base64"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -328,18 +330,21 @@ func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(regCluster *s
 		Build()
 
 	files := []string{
-		"cluster-registration/kubeconfig-secret.yaml",
+		"cluster-registration/kubeconfig_secret.yaml",
 	}
+
 	secretName := fmt.Sprintf("%s-cluster-secret", regCluster.Name)
 	values := struct {
 		ApiURL      string
 		Token       string
+		CABundle    string
 		SecretName  string
 		Namespace   string
 		ClusterName string
 	}{
 		ApiURL:      apiUrl,
 		Token:       string(token.Data["token"]),
+		CABundle:    b64.StdEncoding.EncodeToString(token.Data["ca.crt"]),
 		SecretName:  secretName,
 		ClusterName: regCluster.Name,
 		Namespace:   regCluster.Namespace,
