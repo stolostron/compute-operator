@@ -209,6 +209,14 @@ endif
 
 
 #### BUNDLING AND PUBLISHING ####
+.PHONY: publish
+
+## Build and push the operator, bundle, and catalog
+publish: docker-login docker-build docker-push
+	if [[ "${PUSH_LATEST}" = true ]]; then \
+		echo "Tagging operator image as latest and pushing"; \
+		$(MAKE) docker-push-latest; \
+	fi;
 
 .PHONY: docker-login
 ## Log in to the docker registry for ${BUNDLE_IMG}
@@ -224,7 +232,7 @@ check: check-copyright
 check-copyright:
 	@build/check-copyright.sh
 
-test: fmt vet manifests envtest-tools 
+test: fmt vet manifests envtest-tools
 	@ginkgo -r --cover --coverprofile=cover.out --coverpkg ./... &&\
 	COVERAGE=`go tool cover -func="cover.out" | grep "total:" | awk '{ print $$3 }' | sed 's/[][()><%]/ /g'` &&\
 	echo "-------------------------------------------------------------------------" &&\
@@ -265,14 +273,14 @@ undeploy:
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen yq/install
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." 
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..."
 	${YQ} e '.metadata.name = "cluster-registration-operator-manager-role"' config/rbac/role.yaml > deploy/cluster-registration-operator/clusterrole.yaml && \
 	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/cluster-registration-operator/leader_election_role.yaml
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
-	
+
 # Tag the IMG as latest and docker push
 docker-push-latest:
 	docker tag ${IMG} ${IMAGE_TAG_BASE}:latest
