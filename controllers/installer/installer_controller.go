@@ -89,14 +89,14 @@ var podName, podNamespace string
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *ClusterRegistrarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
-	_ = r.Log.WithValues("namespace", req.NamespacedName, "name", req.Name)
+	logger := r.Log.WithValues( "name", req.Name)
+	logger.Info("Reconciling...")
 
-	// your logic here
 	instance := &singaporev1alpha1.ClusterRegistrar{}
 
 	if err := r.Client.Get(
 		context.TODO(),
-		types.NamespacedName{Namespace: req.Namespace, Name: req.Name},
+		types.NamespacedName{Name: req.Name},
 		instance,
 	); err != nil {
 		if errors.IsNotFound(err) {
@@ -108,21 +108,23 @@ func (r *ClusterRegistrarReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
-
-	r.Log.Info("Instance", "instance", instance)
-	r.Log.Info("Running Reconcile for Cluster Registrar", "Name: ", instance.GetName(), " Namespace:", instance.GetNamespace())
+	
+	logger.Info("Instance", "instance", instance)
+	logger.Info("Running Reconcile for Cluster Registrar", "Name: ", instance.GetName())
 
 	if instance.DeletionTimestamp != nil {
 		if err := r.processClusterRegistrarDeletion(instance); err != nil {
 			return reconcile.Result{}, err
 		}
-		r.Log.Info("remove finalizer", "Finalizer:", helpers.ClusterRegistrarFinalizer, "name", instance.Name, "namespace", instance.Namespace)
+		logger.Info("remove finalizer", "Finalizer:", helpers.ClusterRegistrarFinalizer, "name", instance.Name)
 		controllerutil.RemoveFinalizer(instance, helpers.ClusterRegistrarFinalizer)
 		if err := r.Client.Update(context.TODO(), instance); err != nil {
 			return ctrl.Result{}, err
 		}
 		return reconcile.Result{}, nil
 	}
+
+	
 
 	// Add finalizer on clusterregistrar to make sure the installer process it.
 	controllerutil.AddFinalizer(instance, helpers.ClusterRegistrarFinalizer)
@@ -139,7 +141,7 @@ func (r *ClusterRegistrarReconciler) Reconcile(ctx context.Context, req ctrl.Req
 }
 
 func (r *ClusterRegistrarReconciler) processClusterRegistrarCreation(clusterRegistrar *singaporev1alpha1.ClusterRegistrar) error {
-	r.Log.Info("processClusterRegistrarCreation", "Name", clusterRegistrar.Name, "Namespace", clusterRegistrar.Namespace)
+	r.Log.Info("processClusterRegistrarCreation", "Name", clusterRegistrar.Name)
 	pod := &corev1.Pod{}
 	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: podNamespace}, pod); err != nil {
 		return err
@@ -240,7 +242,7 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarCreation(clusterRegi
 }
 
 func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(clusterRegistrar *singaporev1alpha1.ClusterRegistrar) error {
-	r.Log.Info("processClusterRegistrarDeletion", "Name", clusterRegistrar.Name, "Namespace", clusterRegistrar.Namespace)
+	r.Log.Info("processClusterRegistrarDeletion", "Name", clusterRegistrar.Name)
 	//Delete operator deployment
 	r.Log.Info("Delete deployment", "name", "cluster-registration-operator-manager", "namespace", podNamespace)
 	clusterRegOperatorDeployment := &appsv1.Deployment{}

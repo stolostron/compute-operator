@@ -27,10 +27,12 @@ type ClusterRegistrarStatus struct {
 }
 
 // +genclient
+// +genclient:nonNamespaced
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+//+kubebuilder:resource:scope=Cluster 
 
-// ClusterRegistrar is the Schema for the clusterregistrars API
+// ClusterRegistrar is the Schema for the clusterregistrars API. ClusterRegistrar is a cluster scoped resource.
 type ClusterRegistrar struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

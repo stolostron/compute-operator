@@ -13,12 +13,13 @@ spec:
     listKind: ClusterRegistrarList
     plural: clusterregistrars
     singular: clusterregistrar
-  scope: Namespaced
+  scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterRegistrar is the Schema for the clusterregistrars API
+        description: ClusterRegistrar is the Schema for the clusterregistrars API.
+          ClusterRegistrar is a cluster scoped resource.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation

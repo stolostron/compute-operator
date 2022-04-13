@@ -71,7 +71,6 @@ apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: ClusterRegistrar
 metadata:
   name: cluster-reg
-  namespace: cluster-reg-config
 spec:' | kubectl create -f -
 ```
 
