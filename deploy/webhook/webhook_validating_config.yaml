@@ -19,6 +19,14 @@ webhooks:
           - UPDATE
         resources:
           - registeredclusters
+      - apiGroups:
+          - singapore.open-cluster-management.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - clusterregistrars
     failurePolicy: Fail
     clientConfig:
       service:

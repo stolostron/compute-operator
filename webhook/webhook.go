@@ -3,6 +3,7 @@
 package webhook
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -24,10 +25,11 @@ const (
 )
 
 type RegisteredClusterAdmissionHook struct {
-	Client      dynamic.ResourceInterface
-	KubeClient  kubernetes.Interface
-	lock        sync.RWMutex
-	initialized bool
+	Client                 dynamic.ResourceInterface
+	ClusterRegistrarClient dynamic.ResourceInterface
+	KubeClient             kubernetes.Interface
+	lock                   sync.RWMutex
+	initialized            bool
 }
 
 // ValidatingResource is called by generic-admission-server on startup to register the returned REST resource through which the
@@ -55,6 +57,8 @@ func (a *RegisteredClusterAdmissionHook) Validate(admissionSpec *admissionv1beta
 	switch admissionSpec.Resource.Resource {
 	case "registeredclusters":
 		return a.ValidateRegisteredCluster(admissionSpec)
+	case "clusterregistrars":
+		return a.ValidateClusterRegistrar(admissionSpec)
 
 	}
 	status.Allowed = true
@@ -97,6 +101,45 @@ func (a *RegisteredClusterAdmissionHook) ValidateRegisteredCluster(admissionSpec
 	return status
 }
 
+func (a *RegisteredClusterAdmissionHook) ValidateClusterRegistrar(admissionSpec *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
+	status := &admissionv1beta1.AdmissionResponse{}
+
+	clusterRegistrar := &singaporev1alpha1.ClusterRegistrar{}
+
+	err := json.Unmarshal(admissionSpec.Object.Raw, clusterRegistrar)
+	if err != nil {
+		status.Allowed = false
+		status.Result = &metav1.Status{
+			Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+			Message: err.Error(),
+		}
+		return status
+	}
+
+	klog.V(4).Infof("Validate webhook for ClusterRegistrar name: %s", clusterRegistrar.Name)
+
+	l, err := a.ClusterRegistrarClient.List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		status.Allowed = false
+		status.Result = &metav1.Status{
+			Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonInternalError,
+			Message: err.Error(),
+		}
+		return status
+	}
+	if len(l.Items) > 0 {
+		status.Allowed = false
+		status.Result = &metav1.Status{
+			Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonForbidden,
+			Message: "a clusterregistrar custom resource already exists",
+		}
+		return status
+	}
+	status.Allowed = true
+	return status
+
+}
+
 // Initialize is called by generic-admission-server on startup to setup initialization that webhook needs.
 func (a *RegisteredClusterAdmissionHook) Initialize(kubeClientConfig *rest.Config, stopCh <-chan struct{}) error {
 	a.lock.Lock()
@@ -126,6 +169,12 @@ func (a *RegisteredClusterAdmissionHook) Initialize(kubeClientConfig *rest.Confi
 		Group:    GROUP_SUFFIX,
 		Version:  "v1alpha1",
 		Resource: "registeredclusters",
+	})
+
+	a.ClusterRegistrarClient = dynamicClient.Resource(schema.GroupVersionResource{
+		Group:    GROUP_SUFFIX,
+		Version:  "v1alpha1",
+		Resource: "clusterregistrars",
 	})
 
 	return nil

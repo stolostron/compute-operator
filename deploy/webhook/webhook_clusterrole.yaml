@@ -21,5 +21,7 @@ rules:
   resources: ["prioritylevelconfigurations", "flowschemas"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["singapore.open-cluster-management.io"]
-  resources: ["registeredclusters"]
+  resources: ["registeredclusters", "clusterregistrars"]
   verbs: ["get","list","watch"]
+
+
