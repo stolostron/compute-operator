@@ -37,6 +37,7 @@ oc cluster-info
 ```
 
 ## Install the operator from this repo
+**NOTE: This step is only required if you have not used the [infra-deployments repo](https://github.com/redhat-appstudio/infra-deployments) to deploy Cluster Registration and the other AppStudio pieces to your cluster**
 
 1. Fork and clone this repo
 
