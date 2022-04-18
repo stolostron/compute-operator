@@ -32,4 +32,4 @@ webhooks:
       service:
         namespace: default
         name: kubernetes
-        path: /apis/admission.singapore.open-cluster-management.io/v1alpha1/registeredclusters
+        path: /apis/admission.singapore.open-cluster-management.io/v1alpha1/registeredclustervalidators

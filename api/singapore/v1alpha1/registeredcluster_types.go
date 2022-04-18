@@ -8,10 +8,6 @@ import (
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 )
 
-// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ManagedClusterJoined")].status`,name="Joined",type=string
-// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ManagedClusterConditionAvailable")].status`,name="Available",type=string
-// +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
-
 // RegisteredClusterSpec defines the desired state of RegisteredCluster
 type RegisteredClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -54,11 +50,21 @@ type RegisteredClusterStatus struct {
 	// vendor or version specific and may not be included from all registered clusters.
 	// +optional
 	ClusterClaims []clusterv1.ManagedClusterClaim `json:"clusterClaims,omitempty"`
+	
+	//ApiURL the URL of apiserver endpoint of the registered cluster.
+	// +optional
+	ApiURL string `json:"apiURL,omitempty"`
+
 }
 
 // +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="HubAcceptedManagedCluster")].status`,name="Hub Accepted",type=string
+// +kubebuilder:printcolumn:JSONPath=`.status.apiURL`,name="Managed Cluster URLs",type=string
+// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ManagedClusterJoined")].status`,name="Joined",type=string
+// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ManagedClusterConditionAvailable")].status`,name="Available",type=string
+// +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date
 
 // RegisteredCluster represents the desired state and current status of registered
 // cluster. The name is the cluster

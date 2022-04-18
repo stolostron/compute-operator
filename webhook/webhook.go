@@ -38,9 +38,9 @@ func (a *RegisteredClusterAdmissionHook) ValidatingResource() (plural schema.Gro
 	return schema.GroupVersionResource{
 			Group:    "admission." + GROUP_SUFFIX,
 			Version:  "v1alpha1",
-			Resource: "registeredclusters",
+			Resource: "registeredclustervalidators",
 		},
-		"registeredcluster"
+		"registeredclustervalidators"
 }
 
 // Validate is called by generic-admission-server when the registered REST resource above is called with an admission request.

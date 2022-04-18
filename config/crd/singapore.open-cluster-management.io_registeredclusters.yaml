@@ -15,7 +15,23 @@ spec:
     singular: registeredcluster
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="HubAcceptedManagedCluster")].status
+      name: Hub Accepted
+      type: string
+    - jsonPath: .status.apiURL
+      name: Managed Cluster URLs
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="ManagedClusterJoined")].status
+      name: Joined
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="ManagedClusterConditionAvailable")].status
+      name: Available
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: RegisteredCluster represents the desired state and current status
@@ -49,6 +65,10 @@ spec:
                 description: Allocatable represents the total allocatable resources
                   on the registered cluster.
                 type: object
+              apiURL:
+                description: ApiURL the URL of apiserver endpoint of the registered
+                  cluster.
+                type: string
               capacity:
                 additionalProperties:
                   anyOf:

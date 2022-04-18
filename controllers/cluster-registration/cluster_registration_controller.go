@@ -157,6 +157,9 @@ func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(regCluster *
 		version := managedCluster.Status.Version
 		regCluster.Status.Version = version
 	}
+	if managedCluster.Spec.ManagedClusterClientConfigs != nil || len(managedCluster.Spec.ManagedClusterClientConfigs) > 0 {
+		regCluster.Status.ApiURL = managedCluster.Spec.ManagedClusterClientConfigs[0].URL
+	}
 	if err := r.Client.Status().Patch(ctx, regCluster, patch); err != nil {
 		return err
 	}

@@ -69,6 +69,9 @@ func GetConditionStatus(conditions []metav1.Condition, t string) (status metav1.
 
 func GetHubCluster(workspace string, hubInstances []HubInstance) (HubInstance, error) {
 	// For now, we always assume there is only one hub cluster. //TODO Later we will replace this with a lookup.
+	if len(hubInstances) == 0 {
+		return HubInstance{}, errors.New("hub cluster is not configured")
+	}
 	return hubInstances[0], nil
 }
 
