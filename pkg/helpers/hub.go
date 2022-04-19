@@ -151,7 +151,8 @@ func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
 			},
 		)
 		if err != nil {
-			setupLog.Error(err, "unable to setup MCE cluster")
+			setupLog.Error(err, "unable to setup MCE cluster.  For \"Unauthorized\" error messages, the HubConfig secret %s is expired.  Recreate the HubConfig secret.",
+				hubConfig.Spec.KubeConfigSecretRef.Name)
 			return nil, err
 		}
 
