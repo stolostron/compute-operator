@@ -60,8 +60,7 @@ type RegisteredClusterStatus struct {
 // +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="HubAcceptedManagedCluster")].status`,name="Hub Accepted",type=string
-// +kubebuilder:printcolumn:JSONPath=`.status.apiURL`,name="Managed Cluster URLs",type=string
+// +kubebuilder:printcolumn:JSONPath=`.status.apiURL`,name="Cluster URL",type=string
 // +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ManagedClusterJoined")].status`,name="Joined",type=string
 // +kubebuilder:printcolumn:JSONPath=`.status.conditions[?(@.type=="ManagedClusterConditionAvailable")].status`,name="Available",type=string
 // +kubebuilder:printcolumn:JSONPath=`.metadata.creationTimestamp`,name="Age",type=date

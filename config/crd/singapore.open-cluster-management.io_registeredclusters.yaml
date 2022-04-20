@@ -16,11 +16,8 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.conditions[?(@.type=="HubAcceptedManagedCluster")].status
-      name: Hub Accepted
-      type: string
     - jsonPath: .status.apiURL
-      name: Managed Cluster URLs
+      name: Cluster URL
       type: string
     - jsonPath: .status.conditions[?(@.type=="ManagedClusterJoined")].status
       name: Joined
