@@ -23,6 +23,9 @@ type RegisteredClusterStatus struct {
 	//ImportCommandRef is reference to configmap containing import command.
 	ImportCommandRef corev1.LocalObjectReference `json:"importCommandRef,omitempty"`
 
+	// ClusterID uniquely identifies this registered cluster
+	ClusterID string `json:"clusterID,omitempty"`
+
 	//ClusterSecretRef is a reference to the secret containing the registered cluster kubeconfig.
 	ClusterSecretRef corev1.LocalObjectReference `json:"clusterSecretRef,omitempty"`
 

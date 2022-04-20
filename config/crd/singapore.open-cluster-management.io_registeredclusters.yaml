@@ -101,6 +101,9 @@ spec:
                       type: string
                   type: object
                 type: array
+              clusterID:
+                description: ClusterID uniquely identifies this registered cluster
+                type: string
               clusterSecretRef:
                 description: ClusterSecretRef is a reference to the secret containing
                   the registered cluster kubeconfig.

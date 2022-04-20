@@ -263,7 +263,13 @@ var _ = Describe("Process registeredCluster: ", func() {
 				return nil
 			}, 30, 1).Should(BeNil())
 		})
+		By("Updating managedcluster label", func() {
+			managedCluster.ObjectMeta.Labels["clusterID"] = "8bcc855c-259f-46fd-adda-485ef99f2438"
+			err := k8sClient.Update(context.TODO(), managedCluster)
+			Expect(err).Should(BeNil())
+		})
 		By("Patching managedcluster status", func() {
+
 			// patch := client.MergeFrom(managedCluster.DeepCopy())
 			managedCluster.Status.Conditions = []metav1.Condition{
 				{
@@ -371,6 +377,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 				if err != nil {
 					return err
 				}
+				
 				if len(registeredCluster.Status.Conditions) == 0 {
 					return fmt.Errorf("Expecting 1 condtions got 0")
 				}
@@ -391,8 +398,11 @@ var _ = Describe("Process registeredCluster: ", func() {
 				if registeredCluster.Status.Version.Kubernetes != "1.19.2" {
 					return fmt.Errorf("Expecting Version 1.19.2, got %s", registeredCluster.Status.Version)
 				}
-				if len(managedCluster.Status.ClusterClaims) != 1 {
+				if len(registeredCluster.Status.ClusterClaims) != 1 {
 					return fmt.Errorf("Expecting 1 ClusterClaim got 0")
+				}
+				if registeredCluster.Status.ClusterID == "" {
+					return fmt.Errorf("Expecting clusterID to be not empty")
 				}
 				return nil
 			}, 60, 1).Should(BeNil())
