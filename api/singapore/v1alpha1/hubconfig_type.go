@@ -15,6 +15,16 @@ type HubConfigSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make generate" to regenerate code after modifying this file
 	KubeConfigSecretRef corev1.LocalObjectReference `json:"kubeConfigSecretRef,omitempty"`
+
+	// Maximum burst for throttle.
+	// If it's zero, the created Client will use DefaultBurst: 200.
+	// +optional
+	Burst int `json:"Burst,omitempty"`
+
+	// QPS indicates the maximum QPS to the master from this client.
+	// If it's zero, the created Client will use DefaultQPS: 100.0
+	// +optional
+	QPS string `json:"QPS,omitempty"`
 }
 
 // HubConfigStatus defines the observed state of HubConfig

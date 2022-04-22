@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strconv"
 
 	singaporev1alpha1 "github.com/stolostron/cluster-registration-operator/api/singapore/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -142,6 +143,22 @@ func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
 		if err != nil {
 			setupLog.Error(err, "unable to create REST config for MCE cluster")
 			return nil, err
+		}
+
+		if hubConfig.Spec.QPS != "" {
+			qps, err := strconv.ParseFloat(hubConfig.Spec.QPS, 32); 
+			if err != nil {
+				return nil, err
+			}
+			hubKubeconfig.QPS = float32(qps)
+		}
+		hubKubeconfig.Burst = hubConfig.Spec.Burst
+		
+		if hubConfig.Spec.Burst == 0 {
+			hubKubeconfig.Burst = 200
+		}
+		if hubConfig.Spec.QPS == "" {
+			hubKubeconfig.QPS = 100.0
 		}
 
 		// Add MCE cluster

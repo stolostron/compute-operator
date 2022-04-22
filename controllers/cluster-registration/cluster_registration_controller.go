@@ -579,10 +579,10 @@ func managedClusterPredicate() predicate.Predicate {
 			return false
 		},
 		GenericFunc: func(event event.GenericEvent) bool {
-			return f(event.Object)
+			return false
 		},
 		DeleteFunc: func(event event.DeleteEvent) bool {
-			return f(event.Object)
+			return false
 		},
 	}
 }
