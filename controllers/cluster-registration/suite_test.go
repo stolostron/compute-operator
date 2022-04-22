@@ -229,7 +229,7 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Process registeredCluster: ", func() {
-	It("Process registeredCluster creation", func() {
+	It("Process registeredCluster", func() {
 		var registeredCluster *singaporev1alpha1.RegisteredCluster
 		By("Create the RegisteredCluster", func() {
 			registeredCluster = &singaporev1alpha1.RegisteredCluster{
@@ -261,7 +261,17 @@ var _ = Describe("Process registeredCluster: ", func() {
 				}
 				managedCluster = &managedClusters.Items[0]
 				return nil
-			}, 30, 1).Should(BeNil())
+			}, 60, 3).Should(BeNil())
+		})
+		By("Patching manageecluster spec", func() {
+			managedCluster.Spec.ManagedClusterClientConfigs = []clusterapiv1.ClientConfig{
+				{
+					URL:      "https://example.com:443",
+					CABundle: []byte("cabbundle"),
+				},
+			}
+			err := k8sClient.Update(context.TODO(), managedCluster)
+			Expect(err).Should(BeNil())
 		})
 		By("Updating managedcluster label", func() {
 			managedCluster.ObjectMeta.Labels["clusterID"] = "8bcc855c-259f-46fd-adda-485ef99f2438"
@@ -278,6 +288,13 @@ var _ = Describe("Process registeredCluster: ", func() {
 					LastTransitionTime: metav1.Now(),
 					Reason:             "Succeeded",
 					Message:            "Managedcluster succeeded",
+				},
+				{
+					Type:               clusterapiv1.ManagedClusterConditionJoined,
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: metav1.Now(),
+					Reason:             "Joined",
+					Message:            "Managedcluster joined",
 				},
 			}
 			managedCluster.Status.Allocatable = clusterapiv1.ResourceList{
@@ -407,6 +424,121 @@ var _ = Describe("Process registeredCluster: ", func() {
 				return nil
 			}, 60, 1).Should(BeNil())
 		})
+		By("Checking managedclusteraddon", func() {
+			Eventually(func() error {
+				managedClusterAddon := &addonv1alpha1.ManagedClusterAddOn{}
+
+				if err := k8sClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      ManagedClusterAddOnName,
+						Namespace: managedCluster.Name,
+					},
+					managedClusterAddon); err != nil {
+					logf.Log.Info("Waiting managedClusteraddon", "Error", err)
+					return err
+				}
+				return nil
+			}, 30, 1).Should(BeNil())
+		})
+
+		By("Checking managedserviceaccount", func() {
+			Eventually(func() error {
+				managed := &authv1alpha1.ManagedServiceAccount{}
+
+				if err := k8sClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      ManagedServiceAccountName,
+						Namespace: managedCluster.Name,
+					},
+					managed); err != nil {
+					logf.Log.Info("Waiting managedserviceaccount", "Error", err)
+					return err
+				}
+				return nil
+			}, 30, 1).Should(BeNil())
+		})
+
+		By("Checking manifestwork", func() {
+			Eventually(func() error {
+				manifestwork := &manifestworkv1.ManifestWork{}
+
+				err := k8sClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      ManagedServiceAccountName,
+						Namespace: managedCluster.Name,
+					},
+					manifestwork)
+				if err != nil {
+					logf.Log.Info("Waiting manifestwork", "Error", err)
+					return err
+				}
+				return nil
+			}, 60, 5).Should(BeNil())
+		})
+
+		By("Patching manifestwork status", func() {
+
+			manifestwork := &manifestworkv1.ManifestWork{}
+
+			err := k8sClient.Get(context.TODO(),
+				types.NamespacedName{
+					Name:      ManagedServiceAccountName,
+					Namespace: managedCluster.Name,
+				},
+				manifestwork)
+			Expect(err).Should(BeNil())
+
+			manifestwork.Status.Conditions = []metav1.Condition{
+				{
+					Type:               manifestworkv1.WorkApplied,
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: metav1.Now(),
+					Reason:             "Applied",
+					Message:            "Manifestwork applied",
+				},
+			}
+			err = k8sClient.Update(context.TODO(), manifestwork)
+			Expect(err).Should(BeNil())
+		})
+
+		By("Create managedserviceaccount secret", func() {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ManagedServiceAccountName,
+					Namespace: managedCluster.Name,
+				},
+				Data: map[string][]byte{
+					"token":  []byte("token"),
+					"ca.crt": []byte("ca-cert"),
+				},
+			}
+			err := k8sClient.Create(context.TODO(), secret)
+			Expect(err).To(BeNil())
+		})
+
+		By("Deleting registeredcluster", func() {
+			Eventually(func() error {
+				registeredCluster := &singaporev1alpha1.RegisteredCluster{}
+
+				err := k8sClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      "registered-cluster",
+						Namespace: userNamespace,
+					},
+					registeredCluster)
+				if err != nil {
+					return err
+				}
+
+				if err := k8sClient.Delete(context.TODO(),
+					registeredCluster); err != nil {
+					logf.Log.Info("Waiting deletion of registeredcluster", "Error", err)
+					return err
+				}
+				return nil
+			}, 60, 1).Should(BeNil())
+		})
+
 	})
 
 })

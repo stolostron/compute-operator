@@ -53,11 +53,10 @@ type RegisteredClusterStatus struct {
 	// vendor or version specific and may not be included from all registered clusters.
 	// +optional
 	ClusterClaims []clusterv1.ManagedClusterClaim `json:"clusterClaims,omitempty"`
-	
+
 	//ApiURL the URL of apiserver endpoint of the registered cluster.
 	// +optional
 	ApiURL string `json:"apiURL,omitempty"`
-
 }
 
 // +genclient

@@ -89,7 +89,7 @@ var podName, podNamespace string
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *ClusterRegistrarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
-	logger := r.Log.WithValues( "name", req.Name)
+	logger := r.Log.WithValues("name", req.Name)
 	logger.Info("Reconciling...")
 
 	instance := &singaporev1alpha1.ClusterRegistrar{}
@@ -108,7 +108,7 @@ func (r *ClusterRegistrarReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
-	
+
 	logger.Info("Instance", "instance", instance)
 	logger.Info("Running Reconcile for Cluster Registrar", "Name: ", instance.GetName())
 
@@ -123,8 +123,6 @@ func (r *ClusterRegistrarReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 		return reconcile.Result{}, nil
 	}
-
-	
 
 	// Add finalizer on clusterregistrar to make sure the installer process it.
 	controllerutil.AddFinalizer(instance, helpers.ClusterRegistrarFinalizer)
