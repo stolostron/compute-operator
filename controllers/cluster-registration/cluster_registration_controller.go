@@ -204,7 +204,7 @@ func (r *RegisteredClusterReconciler) getManagedCluster(regCluster *singaporev1a
 	if regCluster.DeletionTimestamp != nil {
 		return managedCluster, nil
 	}
-	return managedCluster, fmt.Errorf("correct managed cluster not found")
+	return managedCluster, fmt.Errorf("correct managedcluster not found")
 }
 
 func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance, ctx context.Context) error {

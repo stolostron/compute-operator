@@ -14,6 +14,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
 	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
@@ -36,6 +37,7 @@ var (
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 	_ = clusterapiv1.AddToScheme(scheme)
+	_ = clusterv1beta1.AddToScheme(scheme)
 	_ = addonv1alpha1.AddToScheme(scheme)
 	_ = authv1alpha1.AddToScheme(scheme)
 	_ = manifestworkv1.AddToScheme(scheme)
