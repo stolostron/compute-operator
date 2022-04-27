@@ -11,7 +11,7 @@ spec:
   selector:
     matchLabels:
       control-plane: cluster-registration-webhook-service
-      
+
   replicas: 1
   template:
     metadata:
@@ -46,6 +46,7 @@ spec:
             - "--secure-port=6443"
             - "--tls-cert-file=/serving-cert/tls.crt"
             - "--tls-private-key-file=/serving-cert/tls.key"
+            - "--tls-min-version=VersionTLS13"
           image: {{ .Image }}
           name: webhook
           imagePullPolicy: Always
