@@ -148,14 +148,14 @@ func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
 		}
 
 		if hubConfig.Spec.QPS != "" {
-			qps, err := strconv.ParseFloat(hubConfig.Spec.QPS, 32); 
+			qps, err := strconv.ParseFloat(hubConfig.Spec.QPS, 32)
 			if err != nil {
 				return nil, err
 			}
 			hubKubeconfig.QPS = float32(qps)
 		}
 		hubKubeconfig.Burst = hubConfig.Spec.Burst
-		
+
 		if hubConfig.Spec.Burst == 0 {
 			hubKubeconfig.Burst = 200
 		}

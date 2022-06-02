@@ -65,6 +65,7 @@ const (
 // RegisteredClusterReconciler reconciles a RegisteredCluster object
 type RegisteredClusterReconciler struct {
 	client.Client
+	KCPClient          client.Client
 	KubeClient         kubernetes.Interface
 	DynamicClient      dynamic.Interface
 	APIExtensionClient apiextensionsclient.Interface
@@ -83,7 +84,9 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	if err := r.Client.Get(
 		context.TODO(),
-		types.NamespacedName{Namespace: req.Namespace, Name: req.Name},
+		client.ObjectKey{
+			NamespacedName: types.NamespacedName{Namespace: req.Namespace, Name: req.Name},
+		},
 		regCluster,
 	); err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -144,7 +147,7 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// sync ManagedClusterAddOn, ManagedServiceAccount, ...
 	if err := r.syncManagedServiceAccount(regCluster, &managedCluster, &hubCluster, ctx); err != nil {
-		logger.Error(err, "failed to sync managedclusteraddon")
+		logger.Error(err, "failed to sync ManagedClusterAddOn, ManagedServiceAccount, ...")
 		return ctrl.Result{}, err
 	}
 
@@ -210,20 +213,22 @@ func (r *RegisteredClusterReconciler) getManagedCluster(regCluster *singaporev1a
 func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance, ctx context.Context) error {
 	// get import secret from mce managecluster namespace
 	importSecret := &corev1.Secret{}
-	if err := hubCluster.Cluster.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: managedCluster.Name, Name: managedCluster.Name + "-import"}, importSecret); err != nil {
+	if err := hubCluster.Cluster.GetAPIReader().Get(ctx,
+		client.ObjectKey{
+			NamespacedName: types.NamespacedName{Namespace: managedCluster.Name, Name: managedCluster.Name + "-import"},
+		}, importSecret); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return err
 		}
 		return giterrors.WithStack(err)
 	}
 
-
 	applierBuilder := &clusteradmapply.ApplierBuilder{}
 	applier := applierBuilder.
 		WithClient(r.KubeClient, r.APIExtensionClient, r.DynamicClient).
 		WithOwner(regCluster, false, true, r.Scheme).
 		Build()
-	
+
 	readerDeploy := resources.GetScenarioResourcesReader()
 
 	files := []string{
@@ -306,7 +311,9 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *sing
 
 		if err := hubCluster.Client.Get(
 			context.TODO(),
-			types.NamespacedName{Namespace: managedCluster.Name, Name: ManagedServiceAccountName},
+			client.ObjectKey{
+				NamespacedName: types.NamespacedName{Namespace: managedCluster.Name, Name: ManagedServiceAccountName},
+			},
 			msa,
 		); err != nil {
 			return giterrors.WithStack(err)
@@ -328,7 +335,10 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(regCluster *sing
 
 		work := &manifestworkv1.ManifestWork{}
 
-		err = hubCluster.Client.Get(ctx, types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name}, work)
+		err = hubCluster.Client.Get(ctx,
+			client.ObjectKey{
+				NamespacedName: types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name},
+			}, work)
 		if err != nil {
 			return err
 		}
@@ -349,8 +359,10 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(regCluster *sing
 	manifestwork := &manifestworkv1.ManifestWork{}
 	err := hubCluster.Client.Get(context.TODO(),
 		client.ObjectKey{
-			Name:      ManagedServiceAccountName,
-			Namespace: managedCluster.Name},
+			NamespacedName: types.NamespacedName{
+				Name:      ManagedServiceAccountName,
+				Namespace: managedCluster.Name},
+		},
 		manifestwork)
 	switch {
 	case err == nil:
@@ -371,8 +383,10 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(regCluster *sing
 	managed := &authv1alpha1.ManagedServiceAccount{}
 	err = hubCluster.Client.Get(context.TODO(),
 		client.ObjectKey{
-			Name:      ManagedServiceAccountName,
-			Namespace: managedCluster.Name},
+			NamespacedName: types.NamespacedName{
+				Name:      ManagedServiceAccountName,
+				Namespace: managedCluster.Name},
+		},
 		managed)
 	switch {
 	case err == nil:
@@ -392,8 +406,11 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(regCluster *sing
 	addon := &addonv1alpha1.ManagedClusterAddOn{}
 	err = hubCluster.Client.Get(context.TODO(),
 		client.ObjectKey{
-			Name:      ManagedClusterAddOnName,
-			Namespace: managedCluster.Name},
+			NamespacedName: types.NamespacedName{
+				Name:      ManagedClusterAddOnName,
+				Namespace: managedCluster.Name,
+			},
+		},
 		addon)
 	switch {
 	case err == nil:
@@ -413,7 +430,9 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(regCluster *sing
 	cluster := &clusterapiv1.ManagedCluster{}
 	err = hubCluster.Client.Get(context.TODO(),
 		client.ObjectKey{
-			Name: managedCluster.Name},
+			NamespacedName: types.NamespacedName{
+				Name: managedCluster.Name},
+		},
 		cluster)
 	switch {
 	case err == nil:
@@ -444,7 +463,10 @@ func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(regCluster *s
 	// Retrieve the secret containing the managedserviceaccount token
 	token := &corev1.Secret{}
 
-	err := hubCluster.Client.Get(ctx, types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name}, token)
+	err := hubCluster.Client.Get(ctx,
+		client.ObjectKey{
+			NamespacedName: types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name},
+		}, token)
 	if err != nil {
 		return err
 	}
@@ -637,9 +659,11 @@ func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme 
 
 			req := make([]reconcile.Request, 0)
 			req = append(req, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Name:      managedCluster.GetLabels()[RegisteredClusterNamelabel],
-					Namespace: managedCluster.GetLabels()[RegisteredClusterNamespacelabel],
+				ObjectKey: client.ObjectKey{
+					NamespacedName: types.NamespacedName{
+						Name:      managedCluster.GetLabels()[RegisteredClusterNamelabel],
+						Namespace: managedCluster.GetLabels()[RegisteredClusterNamespacelabel],
+					},
 				},
 			})
 			return req
@@ -650,9 +674,11 @@ func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme 
 
 			req := make([]reconcile.Request, 0)
 			req = append(req, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Name:      manifestWork.GetLabels()[RegisteredClusterNamelabel],
-					Namespace: manifestWork.GetLabels()[RegisteredClusterNamespacelabel],
+				ObjectKey: client.ObjectKey{
+					NamespacedName: types.NamespacedName{
+						Name:      manifestWork.GetLabels()[RegisteredClusterNamelabel],
+						Namespace: manifestWork.GetLabels()[RegisteredClusterNamespacelabel],
+					},
 				},
 			})
 			return req

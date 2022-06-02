@@ -12,10 +12,11 @@ import (
 	giterrors "github.com/pkg/errors"
 	"github.com/stolostron/cluster-registration-operator/pkg/helpers"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -42,7 +43,7 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	logger := r.Log.WithValues("namespace", req.Namespace, "name", req.Name)
 	logger.Info("Reconciling...")
 
-	namespace, err := r.KubeClient.CoreV1().Namespaces().Get(context.TODO(),req.Name,metav1.GetOptions{})
+	namespace, err := r.KubeClient.CoreV1().Namespaces().Get(context.TODO(), req.Name, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -67,7 +68,6 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-
 	if err := r.syncManagedClusterSet(req.Name, &hubCluster, ctx); err != nil {
 		logger.Error(err, "failed to sync ManagedClusterSet")
 		//TODO - should we report a status on the namespace?
@@ -77,15 +77,15 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func (r *WorkspaceReconciler)processWorkspaceDeletion(namespace *corev1.Namespace,hubCluster *helpers.HubInstance)(ctrl.Result,error) {
+func (r *WorkspaceReconciler) processWorkspaceDeletion(namespace *corev1.Namespace, hubCluster *helpers.HubInstance) (ctrl.Result, error) {
 
 	mcsName := helpers.ManagedClusterSetNameForWorkspace(namespace.Name)
 	managedClusterSet := &clusterv1beta1.ManagedClusterSet{}
 	err := hubCluster.Client.Get(context.TODO(),
 		client.ObjectKey{
-			Name:      mcsName,
-			},
-			managedClusterSet)
+			NamespacedName: types.NamespacedName{Name: mcsName},
+		},
+		managedClusterSet)
 	switch {
 	case err == nil:
 		r.Log.Info("delete managedclusterset", "name", mcsName)
@@ -100,7 +100,7 @@ func (r *WorkspaceReconciler)processWorkspaceDeletion(namespace *corev1.Namespac
 		return ctrl.Result{}, giterrors.WithStack(err)
 	}
 	r.Log.Info("deleted managedclusterset", "name", mcsName)
-	return ctrl.Result{}, nil 
+	return ctrl.Result{}, nil
 }
 
 func (r *WorkspaceReconciler) syncManagedClusterSet(name string, hubCluster *helpers.HubInstance, ctx context.Context) error {

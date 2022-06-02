@@ -343,9 +343,11 @@ var _ = Describe("Process registeredCluster: ", func() {
 		By("Checking registeredCluster ImportCommandRef", func() {
 			Eventually(func() error {
 				err := k8sClient.Get(context.TODO(),
-					types.NamespacedName{
-						Name:      registeredCluster.Name,
-						Namespace: registeredCluster.Namespace,
+					client.ObjectKey{
+						NamespacedName: types.NamespacedName{
+							Name:      registeredCluster.Name,
+							Namespace: registeredCluster.Namespace,
+						},
 					},
 					registeredCluster)
 				if err != nil {
@@ -369,9 +371,11 @@ var _ = Describe("Process registeredCluster: ", func() {
 		By("Checking import configMap", func() {
 			Eventually(func() error {
 				err := k8sClient.Get(context.TODO(),
-					types.NamespacedName{
-						Name:      registeredCluster.Status.ImportCommandRef.Name,
-						Namespace: registeredCluster.Namespace,
+					client.ObjectKey{
+						NamespacedName: types.NamespacedName{
+							Name:      registeredCluster.Status.ImportCommandRef.Name,
+							Namespace: registeredCluster.Namespace,
+						},
 					},
 					cm)
 				if err != nil {
@@ -386,15 +390,17 @@ var _ = Describe("Process registeredCluster: ", func() {
 		By("Checking registeredCluster status", func() {
 			Eventually(func() error {
 				err := k8sClient.Get(context.TODO(),
-					types.NamespacedName{
-						Name:      registeredCluster.Name,
-						Namespace: registeredCluster.Namespace,
+					client.ObjectKey{
+						NamespacedName: types.NamespacedName{
+							Name:      registeredCluster.Name,
+							Namespace: registeredCluster.Namespace,
+						},
 					},
 					registeredCluster)
 				if err != nil {
 					return err
 				}
-				
+
 				if len(registeredCluster.Status.Conditions) == 0 {
 					return fmt.Errorf("Expecting 1 condtions got 0")
 				}
@@ -429,9 +435,11 @@ var _ = Describe("Process registeredCluster: ", func() {
 				managedClusterAddon := &addonv1alpha1.ManagedClusterAddOn{}
 
 				if err := k8sClient.Get(context.TODO(),
-					types.NamespacedName{
-						Name:      ManagedClusterAddOnName,
-						Namespace: managedCluster.Name,
+					client.ObjectKey{
+						NamespacedName: types.NamespacedName{
+							Name:      ManagedClusterAddOnName,
+							Namespace: managedCluster.Name,
+						},
 					},
 					managedClusterAddon); err != nil {
 					logf.Log.Info("Waiting managedClusteraddon", "Error", err)
@@ -446,9 +454,11 @@ var _ = Describe("Process registeredCluster: ", func() {
 				managed := &authv1alpha1.ManagedServiceAccount{}
 
 				if err := k8sClient.Get(context.TODO(),
-					types.NamespacedName{
-						Name:      ManagedServiceAccountName,
-						Namespace: managedCluster.Name,
+					client.ObjectKey{
+						NamespacedName: types.NamespacedName{
+							Name:      ManagedServiceAccountName,
+							Namespace: managedCluster.Name,
+						},
 					},
 					managed); err != nil {
 					logf.Log.Info("Waiting managedserviceaccount", "Error", err)
@@ -463,9 +473,11 @@ var _ = Describe("Process registeredCluster: ", func() {
 				manifestwork := &manifestworkv1.ManifestWork{}
 
 				err := k8sClient.Get(context.TODO(),
-					types.NamespacedName{
-						Name:      ManagedServiceAccountName,
-						Namespace: managedCluster.Name,
+					client.ObjectKey{
+						NamespacedName: types.NamespacedName{
+							Name:      ManagedServiceAccountName,
+							Namespace: managedCluster.Name,
+						},
 					},
 					manifestwork)
 				if err != nil {
@@ -481,9 +493,11 @@ var _ = Describe("Process registeredCluster: ", func() {
 			manifestwork := &manifestworkv1.ManifestWork{}
 
 			err := k8sClient.Get(context.TODO(),
-				types.NamespacedName{
-					Name:      ManagedServiceAccountName,
-					Namespace: managedCluster.Name,
+				client.ObjectKey{
+					NamespacedName: types.NamespacedName{
+						Name:      ManagedServiceAccountName,
+						Namespace: managedCluster.Name,
+					},
 				},
 				manifestwork)
 			Expect(err).Should(BeNil())
@@ -521,9 +535,11 @@ var _ = Describe("Process registeredCluster: ", func() {
 				registeredCluster := &singaporev1alpha1.RegisteredCluster{}
 
 				err := k8sClient.Get(context.TODO(),
-					types.NamespacedName{
-						Name:      "registered-cluster",
-						Namespace: userNamespace,
+					client.ObjectKey{
+						NamespacedName: types.NamespacedName{
+							Name:      "registered-cluster",
+							Namespace: userNamespace,
+						},
 					},
 					registeredCluster)
 				if err != nil {
