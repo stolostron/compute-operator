@@ -21,6 +21,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/kcp"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	clusterreg "github.com/stolostron/cluster-registration-operator/controllers/cluster-registration"
@@ -91,7 +92,7 @@ func (o *managerOptions) run() {
 		NewCache:               newCacheFunc,
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), opts)
+	mgr, err := kcp.NewClusterAwareManager(ctrl.GetConfigOrDie(), opts)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
@@ -125,7 +126,6 @@ func (o *managerOptions) run() {
 
 	if err = (&clusterreg.RegisteredClusterReconciler{
 		Client:             mgr.GetClient(),
-		KCPClient:          mgr.GetClient(),
 		KubeClient:         kubeClient,
 		DynamicClient:      dynamicClient,
 		APIExtensionClient: apiExtensionClient,

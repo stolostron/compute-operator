@@ -11,7 +11,10 @@ import (
 	singaporev1alpha1 "github.com/stolostron/cluster-registration-operator/api/singapore/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	kcpcache "github.com/kcp-dev/apimachinery/pkg/cache"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	k8scache "k8s.io/client-go/tools/cache"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -26,12 +29,21 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
 var (
-	scheme = runtime.NewScheme()
+	scheme       = runtime.NewScheme()
+	newCacheFunc = func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
+		opts.KeyFunction = kcpcache.ClusterAwareKeyFunc
+		opts.Indexers = k8scache.Indexers{
+			kcpcache.ClusterIndexName:             kcpcache.ClusterIndexFunc,
+			kcpcache.ClusterAndNamespaceIndexName: kcpcache.ClusterAndNamespaceIndexFunc,
+		}
+		return cache.New(config, opts)
+	}
 )
 
 func init() {
@@ -167,6 +179,7 @@ func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
 		hubCluster, err := cluster.New(hubKubeconfig,
 			func(o *cluster.Options) {
 				o.Scheme = scheme // Explicitly set the scheme which includes ManagedCluster
+				o.NewCache = newCacheFunc
 			},
 		)
 		if err != nil {
