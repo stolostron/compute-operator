@@ -13,6 +13,7 @@ import (
 
 	"github.com/ghodss/yaml"
 
+	kcpcache "github.com/kcp-dev/apimachinery/pkg/cache"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -26,6 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	k8scache "k8s.io/client-go/tools/cache"
 
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
@@ -33,6 +35,7 @@ import (
 
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -132,7 +135,21 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{Scheme: scheme})
+	newCacheFunc := func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
+		opts.KeyFunction = kcpcache.ClusterAwareKeyFunc
+		opts.Indexers = k8scache.Indexers{
+			kcpcache.ClusterIndexName:             kcpcache.ClusterIndexFunc,
+			kcpcache.ClusterAndNamespaceIndexName: kcpcache.ClusterAndNamespaceIndexFunc,
+		}
+		return cache.New(config, opts)
+	}
+
+	opts := ctrl.Options{
+		Scheme:   scheme,
+		NewCache: newCacheFunc,
+	}
+
+	mgr, err := ctrl.NewManager(cfg, opts)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(mgr).ToNot(BeNil())
 
