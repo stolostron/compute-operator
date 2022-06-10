@@ -15,8 +15,13 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 
+	kcpcache "github.com/kcp-dev/apimachinery/pkg/cache"
+	"k8s.io/client-go/rest"
+	k8scache "k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/kcp"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	clusterreg "github.com/stolostron/cluster-registration-operator/controllers/cluster-registration"
@@ -68,14 +73,26 @@ func (o *managerOptions) run() {
 
 	setupLog.Info("Setup Manager")
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	newCacheFunc := func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
+		opts.KeyFunction = kcpcache.ClusterAwareKeyFunc
+		opts.Indexers = k8scache.Indexers{
+			kcpcache.ClusterIndexName:             kcpcache.ClusterIndexFunc,
+			kcpcache.ClusterAndNamespaceIndexName: kcpcache.ClusterAndNamespaceIndexFunc,
+		}
+		return cache.New(config, opts)
+	}
+
+	opts := ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     o.metricsAddr,
 		Port:                   9443,
 		HealthProbeBindAddress: o.probeAddr,
 		LeaderElection:         o.enableLeaderElection,
 		LeaderElectionID:       "628f2987.cluster-registratiion.io",
-	})
+		NewCache:               newCacheFunc,
+	}
+
+	mgr, err := kcp.NewClusterAwareManager(ctrl.GetConfigOrDie(), opts)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
@@ -106,6 +123,7 @@ func (o *managerOptions) run() {
 	dynamicClient := dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie())
 	apiExtensionClient := apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie())
 	hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
+
 	if err = (&clusterreg.RegisteredClusterReconciler{
 		Client:             mgr.GetClient(),
 		KubeClient:         kubeClient,

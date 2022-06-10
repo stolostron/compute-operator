@@ -18,6 +18,7 @@ import (
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -190,8 +191,10 @@ var _ = Describe("Process installation: ", func() {
 				deployment := &appsv1.Deployment{}
 				if err := k8sClient.Get(context.TODO(),
 					client.ObjectKey{
-						Name:      "cluster-registration-operator-manager",
-						Namespace: installationNamespace,
+						NamespacedName: types.NamespacedName{
+							Name:      "cluster-registration-operator-manager",
+							Namespace: installationNamespace,
+						},
 					},
 					deployment); err != nil {
 					logf.Log.Info("Waiting deployment", "Error", err)
@@ -219,8 +222,10 @@ var _ = Describe("Process installation: ", func() {
 				deployment := &appsv1.Deployment{}
 				if err := k8sClient.Get(context.TODO(),
 					client.ObjectKey{
-						Name:      "cluster-registration-operator-manager",
-						Namespace: installationNamespace,
+						NamespacedName: types.NamespacedName{
+							Name:      "cluster-registration-operator-manager",
+							Namespace: installationNamespace,
+						},
 					},
 					deployment); err != nil {
 					if errors.IsNotFound(err) {
