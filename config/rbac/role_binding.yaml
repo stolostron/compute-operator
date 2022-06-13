@@ -8,5 +8,5 @@ roleRef:
   name: manager-role
 subjects:
 - kind: ServiceAccount
-  name: cluster-registration-installer-controller-manager
+  name: compute-operator-installer-controller-manager
   namespace: cluster-reg-config

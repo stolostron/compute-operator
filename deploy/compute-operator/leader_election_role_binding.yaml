@@ -3,7 +3,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: cluster-registration-operator-leader-election-rolebinding
+  name: compute-operator-leader-election-rolebinding
   namespace: {{ .Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -11,5 +11,5 @@ roleRef:
   name: leader-election-operator-role
 subjects:
 - kind: ServiceAccount
-  name: cluster-registration-operator-manager
+  name: compute-operator-manager
   namespace: cluster-registation-config

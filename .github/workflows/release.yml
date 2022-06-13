@@ -29,5 +29,5 @@ jobs:
         DOCKER_PASS: ${{ secrets.DOCKER_PASS }}
       run: |
         export VERSION=${GITHUB_REF##*/}
-        export IMG=quay.io/stolostron/cluster-registration-operator:${GITHUB_REF##*/}
+        export IMG=quay.io/stolostron/compute-operator:${GITHUB_REF##*/}
         make publish

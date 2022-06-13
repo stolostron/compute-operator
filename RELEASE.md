@@ -8,5 +8,5 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-# Release Process of Cluster Registration
+# Release Process of Compute
 

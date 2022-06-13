@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -31,9 +32,9 @@ import (
 
 	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
 
-	croconfig "github.com/stolostron/cluster-registration-operator/config"
+	croconfig "github.com/stolostron/compute-operator/config"
 
-	singaporev1alpha1 "github.com/stolostron/cluster-registration-operator/api/singapore/v1alpha1"
+	computeoperatorv1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -45,7 +46,7 @@ const (
 
 var (
 	cfg       *rest.Config
-	r         *ClusterRegistrarReconciler
+	r         *ComputeConfigReconciler
 	k8sClient client.Client
 	testEnv   *envtest.Environment
 	ctx       context.Context
@@ -76,26 +77,22 @@ var _ = BeforeSuite(func() {
 	// err = openshiftconfigv1.AddToScheme(scheme.Scheme)
 	// Expect(err).NotTo(HaveOccurred())
 
-	readerIDP := croconfig.GetScenarioResourcesReader()
-	clusterRegistrarsCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_clusterregistrars.yaml")
+	reader := croconfig.GetScenarioResourcesReader()
+	computeConfigsCRD, err := getCRD(reader, "crd/singapore.open-cluster-management.io_computeconfigs.yaml")
 	Expect(err).Should(BeNil())
 
-	hubConfigsCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_hubconfigs.yaml")
-	Expect(err).Should(BeNil())
-
-	registeredClustersCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_registeredclusters.yaml")
+	computesCRD, err := getCRD(reader, "crd/singapore.open-cluster-management.io_computes.yaml")
 	Expect(err).Should(BeNil())
 
 	testEnv = &envtest.Environment{
 		Scheme: scheme.Scheme,
 		CRDs: []*apiextensionsv1.CustomResourceDefinition{
-			clusterRegistrarsCRD,
-			hubConfigsCRD,
-			registeredClustersCRD,
+			computeConfigsCRD,
+			computesCRD,
 		},
-		// CRDDirectoryPaths: []string{
-		// 	filepath.Join("..", "..", "test", "config", "crd", "external"),
-		// },
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "test", "config", "crd", "external"),
+		},
 		ErrorIfCRDPathMissing:    true,
 		AttachControlPlaneOutput: true,
 		ControlPlaneStartTimeout: 1 * time.Minute,
@@ -118,7 +115,7 @@ var _ = BeforeSuite(func() {
 	})
 
 	By("Init the controller", func() {
-		r = &ClusterRegistrarReconciler{
+		r = &ComputeConfigReconciler{
 			Client:             k8sClient,
 			KubeClient:         kubernetes.NewForConfigOrDie(cfg),
 			DynamicClient:      dynamic.NewForConfigOrDie(cfg),
@@ -147,7 +144,7 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Process installation: ", func() {
-	It("Process ClusterRegistrar creation", func() {
+	It("Process ComputeConfig creation", func() {
 		By(fmt.Sprintf("creation of installation namespace %s", installationNamespace), func() {
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -175,13 +172,13 @@ var _ = Describe("Process installation: ", func() {
 			err := k8sClient.Create(context.TODO(), pod)
 			Expect(err).To(BeNil())
 		})
-		By("Create the ClusterRegistrar", func() {
-			clusterRegistrar := &singaporev1alpha1.ClusterRegistrar{
+		By("Create the ComputeConfig", func() {
+			clusterRegistrar := &computeoperatorv1alpha1.Compute{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-registrar",
+					Name:      "compute-config",
 					Namespace: installationNamespace,
 				},
-				Spec: singaporev1alpha1.ClusterRegistrarSpec{},
+				Spec: computeoperatorv1alpha1.ComputeSpec{},
 			}
 			err := k8sClient.Create(context.TODO(), clusterRegistrar)
 			Expect(err).To(BeNil())
@@ -192,7 +189,7 @@ var _ = Describe("Process installation: ", func() {
 				if err := k8sClient.Get(context.TODO(),
 					client.ObjectKey{
 						NamespacedName: types.NamespacedName{
-							Name:      "cluster-registration-operator-manager",
+							Name:      "compute-operator-manager",
 							Namespace: installationNamespace,
 						},
 					},
@@ -205,14 +202,14 @@ var _ = Describe("Process installation: ", func() {
 		})
 	})
 
-	It("Proccess ClusterRegistrar deletion", func() {
-		By("Delete the ClusterRegistrar", func() {
-			clusterRegistrar := &singaporev1alpha1.ClusterRegistrar{
+	It("Proccess ComputeConfig deletion", func() {
+		By("Delete the ComputeConfig", func() {
+			clusterRegistrar := &computeoperatorv1alpha1.Compute{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-registrar",
+					Name:      "compute-config",
 					Namespace: installationNamespace,
 				},
-				Spec: singaporev1alpha1.ClusterRegistrarSpec{},
+				Spec: computeoperatorv1alpha1.ComputeSpec{},
 			}
 			err := k8sClient.Delete(context.TODO(), clusterRegistrar)
 			Expect(err).To(BeNil())
@@ -223,7 +220,7 @@ var _ = Describe("Process installation: ", func() {
 				if err := k8sClient.Get(context.TODO(),
 					client.ObjectKey{
 						NamespacedName: types.NamespacedName{
-							Name:      "cluster-registration-operator-manager",
+							Name:      "compute-operator-manager",
 							Namespace: installationNamespace,
 						},
 					},

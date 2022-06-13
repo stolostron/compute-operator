@@ -33,7 +33,7 @@ endif
 export GO111MODULE=on
 
 # Catalog Deploy Namespace
-CATALOG_DEPLOY_NAMESPACE ?= cluster-registration-config
+CATALOG_DEPLOY_NAMESPACE ?= kcp-compute-config
 
 # Global things
 OS=$(shell uname -s | tr '[:upper:]' '[:lower:]')
@@ -242,7 +242,7 @@ test: fmt vet manifests envtest-tools
 
 # Build manager binary
 manager: fmt vet
-	go build -o bin/cluster-registration main.go
+	go build -o bin/kcp-compute main.go
 
 # Run go fmt against code
 fmt:
@@ -274,8 +274,8 @@ undeploy:
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen yq/install
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..."
-	${YQ} e '.metadata.name = "cluster-registration-operator-manager-role"' config/rbac/role.yaml > deploy/cluster-registration-operator/clusterrole.yaml && \
-	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/cluster-registration-operator/leader_election_role.yaml
+	${YQ} e '.metadata.name = "compute-operator-manager-role"' config/rbac/role.yaml > deploy/compute-operator/clusterrole.yaml && \
+	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen

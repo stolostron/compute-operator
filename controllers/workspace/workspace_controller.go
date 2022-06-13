@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/stolostron/cluster-registration-operator/resources"
+	"github.com/stolostron/compute-operator/resources"
 
 	giterrors "github.com/pkg/errors"
-	"github.com/stolostron/cluster-registration-operator/pkg/helpers"
+	clusterregistrarhelpers "github.com/stolostron/cluster-registration-operator/pkg/helpers"
+	"github.com/stolostron/compute-operator/pkg/helpers"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -36,7 +37,7 @@ type WorkspaceReconciler struct {
 	APIExtensionClient apiextensionsclient.Interface
 	Log                logr.Logger
 	Scheme             *runtime.Scheme
-	HubClusters        []helpers.HubInstance
+	HubClusters        []clusterregistrarhelpers.HubInstance
 }
 
 func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -55,7 +56,7 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, giterrors.WithStack(err)
 	}
 
-	hubCluster, err := helpers.GetHubCluster(req.Name, r.HubClusters)
+	hubCluster, err := clusterregistrarhelpers.GetHubCluster(req.Name, r.HubClusters)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -77,7 +78,7 @@ func (r *WorkspaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func (r *WorkspaceReconciler) processWorkspaceDeletion(namespace *corev1.Namespace, hubCluster *helpers.HubInstance) (ctrl.Result, error) {
+func (r *WorkspaceReconciler) processWorkspaceDeletion(namespace *corev1.Namespace, hubCluster *clusterregistrarhelpers.HubInstance) (ctrl.Result, error) {
 
 	mcsName := helpers.ManagedClusterSetNameForWorkspace(namespace.Name)
 	managedClusterSet := &clusterv1beta1.ManagedClusterSet{}
@@ -103,7 +104,7 @@ func (r *WorkspaceReconciler) processWorkspaceDeletion(namespace *corev1.Namespa
 	return ctrl.Result{}, nil
 }
 
-func (r *WorkspaceReconciler) syncManagedClusterSet(name string, hubCluster *helpers.HubInstance, ctx context.Context) error {
+func (r *WorkspaceReconciler) syncManagedClusterSet(name string, hubCluster *clusterregistrarhelpers.HubInstance, ctx context.Context) error {
 
 	applierBuilder := &clusteradmapply.ApplierBuilder{}
 	applier := applierBuilder.WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).Build()

@@ -86,7 +86,7 @@ make manifests
 ## How the installer operator works
 
 - The installer controller monitors the `clusterregistrars.singapore.open-cluster-management.io` CR and reconcile it.
-- When an ClusterRegistrar CR is created, the installer deploys the cluster-registration-operator.
-- The installer controller and other cluster-registration-operator controllers are baked in the same image and same executable. 
-- The installer is launched `cluster-registration installer` and the cluster-registration-operator controllers are launched using `cluster-registration manager`.
-- The cluster-registration-operator is deployed using this [deployment](https://github.com/stolostron/cluster-registration-operator/blob/main/deploy/cluster-registration-operator/manager.yaml) and the image is set as the same of the installer.
+- When an ClusterRegistrar CR is created, the installer deploys the compute-operator.
+- The installer controller and other compute-operator controllers are baked in the same image and same executable. 
+- The installer is launched `compute-operator installer` and the compute-operator controllers are launched using `compute-operator manager`.
+- The compute-operator is deployed using this [deployment](https://github.com/stolostron/compute-operator/blob/main/deploy/compute-operator/manager.yaml) and the image is set as the same of the installer.

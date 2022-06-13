@@ -3,7 +3,7 @@
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
-  name: cluster-registration-webhook-service
+  name: compute-operator-webhook-service
 webhooks:
   - name: admission.singapore.open-cluster-management.io
     admissionReviewVersions: 

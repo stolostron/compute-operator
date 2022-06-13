@@ -38,12 +38,8 @@ func init() {
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&ClusterRegistrar{},
-		&ClusterRegistrarList{},
-		&RegisteredCluster{},
-		&RegisteredClusterList{},
-		&HubConfig{},
-		&HubConfigList{},
+		&Compute{},
+		&ComputeList{},
 	)
 	// AddToGroupVersion allows the serialization of client types like ListOptions.
 	v1.AddToGroupVersion(scheme, SchemeGroupVersion)

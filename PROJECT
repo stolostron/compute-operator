@@ -1,6 +1,6 @@
 domain: open-cluster-management.io
-repo: github.com/stolostron/cluster-registration-operator
-projectName: cluster-registration-operator
+repo: github.com/stolostron/compute-operator
+projectName: compute-operator
 layout:
 - go.kubebuilder.io/v2
 plugins:

@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: cluster-registration-operator-manager-role
+  name: compute-operator-manager-role
 rules:
   - apiGroups:
       - ""
@@ -26,26 +26,6 @@ rules:
       - get
       - list
       - watch
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-    verbs:
-      - create
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ""
-      - events.k8s.io
-    resources:
-      - events
-    verbs:
-      - create
-      - patch
-      - update
   - apiGroups:
       - admissionregistration.k8s.io
     resources:
@@ -86,18 +66,6 @@ rules:
       - delete
       - get
       - list
-      - update
-      - watch
-  - apiGroups:
-      - coordination.k8s.io
-    resources:
-      - leases
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
       - update
       - watch
   - apiGroups:
@@ -166,7 +134,7 @@ rules:
   - apiGroups:
       - singapore.open-cluster-management.io
     resources:
-      - clusterregistrars
+      - computeconfigs
     verbs:
       - create
       - delete
@@ -174,29 +142,3 @@ rules:
       - list
       - update
       - watch
-  - apiGroups:
-      - singapore.open-cluster-management.io
-    resources:
-      - hubconfigs
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - singapore.open-cluster-management.io
-    resources:
-      - registeredclusters
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - update
-      - watch
-  - apiGroups:
-      - singapore.open-cluster-management.io
-    resources:
-      - registeredclusters/status
-    verbs:
-      - patch
-      - update

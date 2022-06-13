@@ -5,26 +5,26 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-  name: cluster-registration-config
+  name: kcp-compute-config
 ---
 
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cluster-registration-operator-manager
-  namespace: cluster-registration-config
+  name: compute-operator-manager
+  namespace: kcp-compute-config
   labels:
-    control-plane: cluster-registration-operator-manager
+    control-plane: compute-operator-manager
 spec:
   selector:
     matchLabels:
-      control-plane: cluster-registration-operator-manager
+      control-plane: compute-operator-manager
   replicas: 1
   template:
     metadata:
       labels:
-        control-plane: cluster-registration-operator-manager
-        cluster-antiaffinity-selector: cluster-registration-operator-controller
+        control-plane: compute-operator-manager
+        cluster-antiaffinity-selector: compute-operator-controller
     spec:
       affinity:
         podAntiAffinity:
@@ -35,7 +35,7 @@ spec:
                     - key: cluster-antiaffinity-selector
                       operator: In
                       values:
-                        - cluster-registration-operator-controller
+                        - compute-operator-controller
                 topologyKey: topology.kubernetes.io/zone
               weight: 70
             - podAffinityTerm:
@@ -44,7 +44,7 @@ spec:
                     - key: cluster-antiaffinity-selector
                       operator: In
                       values:
-                        - cluster-registration-operator-controller
+                        - compute-operator-controller
                 topologyKey: kubernetes.io/hostname
               weight: 35
       containers:
@@ -76,7 +76,7 @@ spec:
             requests:
               cpu: 50m
               memory: 150Mi
-      serviceAccountName: cluster-registration-operator-manager
+      serviceAccountName: compute-operator-manager
       terminationGracePeriodSeconds: 10
       tolerations:
         - key: node-role.kubernetes.io/infra

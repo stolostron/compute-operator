@@ -10,8 +10,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	singaporev1alpha1 "github.com/stolostron/cluster-registration-operator/api/singapore/v1alpha1"
-	"github.com/stolostron/cluster-registration-operator/controllers/installer"
+	"github.com/stolostron/compute-operator/controllers/installer"
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
@@ -39,7 +38,6 @@ type installerOptions struct {
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
-	_ = singaporev1alpha1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -47,7 +45,7 @@ func NewInstaller() *cobra.Command {
 	o := &installerOptions{}
 	cmd := &cobra.Command{
 		Use:   "installer",
-		Short: "installer for cluster-registration-operator",
+		Short: "installer for compute-operator",
 		Run: func(cmd *cobra.Command, args []string) {
 			o.run()
 			os.Exit(1)
@@ -82,7 +80,7 @@ func (o *installerOptions) run() {
 
 	setupLog.Info("Add Installer reconciler")
 
-	if err = (&installer.ClusterRegistrarReconciler{
+	if err = (&installer.ComputeConfigReconciler{
 		Client:             mgr.GetClient(),
 		KubeClient:         kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie()),
 		DynamicClient:      dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie()),

@@ -27,7 +27,7 @@ COPY config/resources.go config/resources.go
 COPY controllers/ controllers/
 COPY webhook/ webhook/
 
-RUN GOFLAGS="" go build -a -o cluster-registration main.go
+RUN GOFLAGS="" go build -a -o compute-operator main.go
 
 COPY config/ config/
 COPY build/bin/ build/bin/
@@ -35,11 +35,11 @@ COPY build/bin/ build/bin/
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 RUN microdnf update
 
-ENV OPERATOR=/usr/local/bin/cluster-registration \
+ENV OPERATOR=/usr/local/bin/compute-operator \
     USER_UID=1001 \
-    USER_NAME=cluster-registration-operator
+    USER_NAME=compute-operator
 
-COPY --from=builder /workspace/cluster-registration ${OPERATOR}
+COPY --from=builder /workspace/compute-operator ${OPERATOR}
 COPY --from=builder /workspace/build/bin /usr/local/bin
 
 RUN  /usr/local/bin/user_setup

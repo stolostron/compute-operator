@@ -5,15 +5,15 @@ package manager
 import (
 	"os"
 
-	singaporev1alpha1 "github.com/stolostron/cluster-registration-operator/api/singapore/v1alpha1"
-	"github.com/stolostron/cluster-registration-operator/pkg/helpers"
+	clusterregistrarhelpers "github.com/stolostron/cluster-registration-operator/pkg/helpers"
+	clusterregistrarv1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
+	computeoperatorv1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 
 	kcpcache "github.com/kcp-dev/apimachinery/pkg/cache"
 	"k8s.io/client-go/rest"
@@ -24,8 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	clusterreg "github.com/stolostron/cluster-registration-operator/controllers/cluster-registration"
-	"github.com/stolostron/cluster-registration-operator/controllers/workspace"
+	"github.com/stolostron/compute-operator/controllers/workspace"
 
 	"github.com/spf13/cobra"
 	// +kubebuilder:scaffold:imports
@@ -44,7 +43,8 @@ type managerOptions struct {
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
-	_ = singaporev1alpha1.AddToScheme(scheme)
+	_ = computeoperatorv1alpha1.AddToScheme(scheme)
+	_ = clusterregistrarv1alpha1.AddToScheme(scheme)
 
 	// +kubebuilder:scaffold:scheme
 }
@@ -53,7 +53,7 @@ func NewManager() *cobra.Command {
 	o := &managerOptions{}
 	cmd := &cobra.Command{
 		Use:   "manager",
-		Short: "manager for cluster-registration-operator",
+		Short: "manager for compute-operator",
 		Run: func(cmd *cobra.Command, args []string) {
 			o.run()
 			os.Exit(1)
@@ -113,28 +113,9 @@ func (o *managerOptions) run() {
 
 	setupLog.Info("Add RegisteredCluster reconciler")
 
-	hubInstances, err := helpers.GetHubClusters(mgr)
+	hubInstances, err := clusterregistrarhelpers.GetHubClusters(mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to retreive the hubCluster", "controller", "Cluster Registration")
-		os.Exit(1)
-	}
-
-	kubeClient := kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie())
-	dynamicClient := dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie())
-	apiExtensionClient := apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie())
-	hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
-
-	if err = (&clusterreg.RegisteredClusterReconciler{
-		Client:             mgr.GetClient(),
-		KubeClient:         kubeClient,
-		DynamicClient:      dynamicClient,
-		APIExtensionClient: apiExtensionClient,
-		HubApplier:         hubApplier,
-		Log:                ctrl.Log.WithName("controllers").WithName("RegistredCluster"),
-		Scheme:             mgr.GetScheme(),
-		HubClusters:        hubInstances,
-	}).SetupWithManager(mgr, scheme); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Cluster Registration")
 		os.Exit(1)
 	}
 

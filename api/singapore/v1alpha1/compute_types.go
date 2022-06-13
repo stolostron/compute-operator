@@ -9,15 +9,15 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// ClusterRegistrarSpec defines the desired state of ClusterRegistrar
-type ClusterRegistrarSpec struct {
+// ComputeSpec defines the desired state of ClusterRegistrar
+type ComputeSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make generate" to regenerate code after modifying this file
 
 }
 
-// ClusterRegistrarStatus defines the observed state of ClusterRegistrar
-type ClusterRegistrarStatus struct {
+// ComputeStatus defines the observed state of ClusterRegistrar
+type ComputeStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make generate" to regenerate code after modifying this file
 
@@ -32,24 +32,24 @@ type ClusterRegistrarStatus struct {
 // +kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
 
-// ClusterRegistrar is the Schema for the clusterregistrars API. ClusterRegistrar is a cluster scoped resource.
-type ClusterRegistrar struct {
+// Compute is the Schema for the clusterregistrars API. Compute is a cluster scoped resource.
+type Compute struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ClusterRegistrarSpec   `json:"spec,omitempty"`
-	Status ClusterRegistrarStatus `json:"status,omitempty"`
+	Spec   ComputeSpec   `json:"spec,omitempty"`
+	Status ComputeStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// ClusterRegistrarList contains a list of ClusterRegistrar
-type ClusterRegistrarList struct {
+// ComputeList contains a list of ClusterRegistrar
+type ComputeList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard list metadata.
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty"`
 	// List of ClusterRegistrar.
 	// +listType=set
-	Items []ClusterRegistrar `json:"items"`
+	Items []Compute `json:"items"`
 }
