@@ -114,13 +114,13 @@ func (r *ClusterRegistrarReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	logger.Info("Instance", "instance", instance)
-	logger.Info("Running Reconcile for Cluster Registrar", "Name: ", instance.GetName())
+	logger.Info("Running Reconcile for Cluster Registrar")
 
 	if instance.DeletionTimestamp != nil {
 		if err := r.processClusterRegistrarDeletion(ctx, instance); err != nil {
 			return reconcile.Result{}, err
 		}
-		logger.Info("remove finalizer", "Finalizer:", helpers.ClusterRegistrarFinalizer, "name", instance.Name)
+		logger.Info("remove finalizer", "Finalizer:", helpers.ClusterRegistrarFinalizer)
 		controllerutil.RemoveFinalizer(instance, helpers.ClusterRegistrarFinalizer)
 		if err := r.Client.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err

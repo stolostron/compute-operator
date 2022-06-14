@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stolostron/compute-operator/cmd/installer"
 	"github.com/stolostron/compute-operator/cmd/manager"
+	"github.com/stolostron/compute-operator/cmd/webhook"
 
 	utilflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
@@ -45,6 +46,7 @@ func newWorkCommand() *cobra.Command {
 
 	cmd.AddCommand(installer.NewInstaller())
 	cmd.AddCommand(manager.NewManager())
+	cmd.AddCommand(webhook.NewAdmissionHook())
 
 	return cmd
 }
