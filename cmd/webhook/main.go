@@ -7,7 +7,7 @@ import (
 
 	admissionserver "github.com/openshift/generic-admission-server/pkg/cmd/server"
 	"github.com/spf13/cobra"
-	"github.com/stolostron/cluster-registration-operator/webhook"
+	"github.com/stolostron/compute-operator/webhook"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 )
 

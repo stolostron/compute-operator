@@ -7,7 +7,7 @@ import (
 	"open-cluster-management.io/clusteradm/pkg/helpers/asset"
 )
 
-//go:embed compute-operator workspace
+//go:embed cluster-registration
 var files embed.FS
 
 func GetScenarioResourcesReader() *asset.ScenarioResourcesReader {

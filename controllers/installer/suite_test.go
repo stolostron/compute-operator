@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -34,7 +33,7 @@ import (
 
 	croconfig "github.com/stolostron/compute-operator/config"
 
-	computeoperatorv1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
+	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -46,7 +45,7 @@ const (
 
 var (
 	cfg       *rest.Config
-	r         *ComputeConfigReconciler
+	r         *ClusterRegistrarReconciler
 	k8sClient client.Client
 	testEnv   *envtest.Environment
 	ctx       context.Context
@@ -77,22 +76,26 @@ var _ = BeforeSuite(func() {
 	// err = openshiftconfigv1.AddToScheme(scheme.Scheme)
 	// Expect(err).NotTo(HaveOccurred())
 
-	reader := croconfig.GetScenarioResourcesReader()
-	computeConfigsCRD, err := getCRD(reader, "crd/singapore.open-cluster-management.io_computeconfigs.yaml")
+	readerIDP := croconfig.GetScenarioResourcesReader()
+	clusterRegistrarsCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_clusterregistrars.yaml")
 	Expect(err).Should(BeNil())
 
-	computesCRD, err := getCRD(reader, "crd/singapore.open-cluster-management.io_computes.yaml")
+	hubConfigsCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_hubconfigs.yaml")
+	Expect(err).Should(BeNil())
+
+	registeredClustersCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_registeredclusters.yaml")
 	Expect(err).Should(BeNil())
 
 	testEnv = &envtest.Environment{
 		Scheme: scheme.Scheme,
 		CRDs: []*apiextensionsv1.CustomResourceDefinition{
-			computeConfigsCRD,
-			computesCRD,
+			clusterRegistrarsCRD,
+			hubConfigsCRD,
+			registeredClustersCRD,
 		},
-		CRDDirectoryPaths: []string{
-			filepath.Join("..", "..", "test", "config", "crd", "external"),
-		},
+		// CRDDirectoryPaths: []string{
+		// 	filepath.Join("..", "..", "test", "config", "crd", "external"),
+		// },
 		ErrorIfCRDPathMissing:    true,
 		AttachControlPlaneOutput: true,
 		ControlPlaneStartTimeout: 1 * time.Minute,
@@ -115,7 +118,7 @@ var _ = BeforeSuite(func() {
 	})
 
 	By("Init the controller", func() {
-		r = &ComputeConfigReconciler{
+		r = &ClusterRegistrarReconciler{
 			Client:             k8sClient,
 			KubeClient:         kubernetes.NewForConfigOrDie(cfg),
 			DynamicClient:      dynamic.NewForConfigOrDie(cfg),
@@ -144,7 +147,7 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Process installation: ", func() {
-	It("Process ComputeConfig creation", func() {
+	It("Process ClusterRegistrar creation", func() {
 		By(fmt.Sprintf("creation of installation namespace %s", installationNamespace), func() {
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -172,13 +175,13 @@ var _ = Describe("Process installation: ", func() {
 			err := k8sClient.Create(context.TODO(), pod)
 			Expect(err).To(BeNil())
 		})
-		By("Create the ComputeConfig", func() {
-			clusterRegistrar := &computeoperatorv1alpha1.Compute{
+		By("Create the ClusterRegistrar", func() {
+			clusterRegistrar := &singaporev1alpha1.ClusterRegistrar{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "compute-config",
+					Name:      "cluster-registrar",
 					Namespace: installationNamespace,
 				},
-				Spec: computeoperatorv1alpha1.ComputeSpec{},
+				Spec: singaporev1alpha1.ClusterRegistrarSpec{},
 			}
 			err := k8sClient.Create(context.TODO(), clusterRegistrar)
 			Expect(err).To(BeNil())
@@ -202,14 +205,14 @@ var _ = Describe("Process installation: ", func() {
 		})
 	})
 
-	It("Proccess ComputeConfig deletion", func() {
-		By("Delete the ComputeConfig", func() {
-			clusterRegistrar := &computeoperatorv1alpha1.Compute{
+	It("Proccess ClusterRegistrar deletion", func() {
+		By("Delete the ClusterRegistrar", func() {
+			clusterRegistrar := &singaporev1alpha1.ClusterRegistrar{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "compute-config",
+					Name:      "cluster-registrar",
 					Namespace: installationNamespace,
 				},
-				Spec: computeoperatorv1alpha1.ComputeSpec{},
+				Spec: singaporev1alpha1.ClusterRegistrarSpec{},
 			}
 			err := k8sClient.Delete(context.TODO(), clusterRegistrar)
 			Expect(err).To(BeNil())

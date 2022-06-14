@@ -95,7 +95,7 @@ require (
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect
-	github.com/stolostron/cluster-registration-operator v0.0.0-00010101000000-000000000000 // indirect
+	github.com/stolostron/compute-operator v0.0.0-00010101000000-000000000000 // indirect
 	github.com/stretchr/testify v1.7.1 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.0 // indirect
@@ -155,5 +155,3 @@ replace (
 	k8s.io/client-go => github.com/kcp-dev/kubernetes/staging/src/k8s.io/client-go v0.0.0-20220524063253-5bb0eeecf2cf
 	sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.11.3-0.20220531195000-961c78a53e37
 )
-
-replace github.com/stolostron/cluster-registration-operator => github.com/itdove/cluster-registration-operator v0.0.0-20220602204654-b57fd6de2149

@@ -5,14 +5,14 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-  name: kcp-compute-config
+  name: compute-config
 ---
 
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: compute-operator-manager
-  namespace: kcp-compute-config
+  namespace: compute-config
   labels:
     control-plane: compute-operator-manager
 spec:

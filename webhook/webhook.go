@@ -3,12 +3,13 @@
 package webhook
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
 	"sync"
 
-	computesv1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
+	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +24,7 @@ const (
 	GROUP_SUFFIX = "singapore.open-cluster-management.io"
 )
 
-type ComputesAdmissionHook struct {
+type RegisteredClusterAdmissionHook struct {
 	Client                 dynamic.ResourceInterface
 	ClusterRegistrarClient dynamic.ResourceInterface
 	KubeClient             kubernetes.Interface
@@ -33,19 +34,19 @@ type ComputesAdmissionHook struct {
 
 // ValidatingResource is called by generic-admission-server on startup to register the returned REST resource through which the
 // webhook is accessed by the kube apiserver.
-func (a *ComputesAdmissionHook) ValidatingResource() (plural schema.GroupVersionResource, singular string) {
+func (a *RegisteredClusterAdmissionHook) ValidatingResource() (plural schema.GroupVersionResource, singular string) {
 	return schema.GroupVersionResource{
 			Group:    "admission." + GROUP_SUFFIX,
 			Version:  "v1alpha1",
-			Resource: "computevalidators",
+			Resource: "registeredclustervalidators",
 		},
-		"computevalidators"
+		"registeredclustervalidators"
 }
 
 // Validate is called by generic-admission-server when the registered REST resource above is called with an admission request.
-func (a *ComputesAdmissionHook) Validate(admissionSpec *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
+func (a *RegisteredClusterAdmissionHook) Validate(admissionSpec *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
 	status := &admissionv1beta1.AdmissionResponse{}
-	klog.V(4).Infof("Computes Validate %q operation for object %q, group: %s, resource: %s", admissionSpec.Operation, admissionSpec.Object, admissionSpec.Resource.Group, admissionSpec.Resource.Resource)
+	klog.V(4).Infof("RegisteredCluster Validate %q operation for object %q, group: %s, resource: %s", admissionSpec.Operation, admissionSpec.Object, admissionSpec.Resource.Group, admissionSpec.Resource.Resource)
 
 	// only validate the request for authrealm
 	if !strings.HasSuffix(admissionSpec.Resource.Group, GROUP_SUFFIX) {
@@ -54,22 +55,22 @@ func (a *ComputesAdmissionHook) Validate(admissionSpec *admissionv1beta1.Admissi
 	}
 
 	switch admissionSpec.Resource.Resource {
-	case "computes":
-		return a.ValidateComputes(admissionSpec)
-	case "computeconfigs":
-		return a.ValidateComputeConfigs(admissionSpec)
+	case "registeredclusters":
+		return a.ValidateRegisteredCluster(admissionSpec)
+	case "clusterregistrars":
+		return a.ValidateClusterRegistrar(admissionSpec)
 
 	}
 	status.Allowed = true
 	return status
 }
 
-func (a *ComputesAdmissionHook) ValidateComputes(admissionSpec *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
+func (a *RegisteredClusterAdmissionHook) ValidateRegisteredCluster(admissionSpec *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
 	status := &admissionv1beta1.AdmissionResponse{}
 
-	compute := &computesv1alpha1.Compute{}
+	regCluster := &singaporev1alpha1.RegisteredCluster{}
 
-	err := json.Unmarshal(admissionSpec.Object.Raw, compute)
+	err := json.Unmarshal(admissionSpec.Object.Raw, regCluster)
 	if err != nil {
 		status.Allowed = false
 		status.Result = &metav1.Status{
@@ -79,10 +80,20 @@ func (a *ComputesAdmissionHook) ValidateComputes(admissionSpec *admissionv1beta1
 		return status
 	}
 
-	klog.V(4).Infof("Validate webhook for RegisteredCluster name: %s, namespace: %s", compute.Name, compute.Namespace)
+	klog.V(4).Infof("Validate webhook for RegisteredCluster name: %s, namespace: %s", regCluster.Name, regCluster.Namespace)
 	switch admissionSpec.Operation {
 	case admissionv1beta1.Create:
-		klog.V(4).Info("Validate Compute create")
+		klog.V(4).Info("Validate RegisteredCluster create ")
+
+		if len(regCluster.Name) > 50 {
+			status.Allowed = false
+			status.Result = &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusForbidden, Reason: metav1.StatusReasonForbidden,
+				Message: "RegisteredCluster name is too long (max 50 characters)",
+			}
+			return status
+		}
+
 		status.Allowed = true
 		return status
 	}
@@ -90,12 +101,12 @@ func (a *ComputesAdmissionHook) ValidateComputes(admissionSpec *admissionv1beta1
 	return status
 }
 
-func (a *ComputesAdmissionHook) ValidateComputeConfigs(admissionSpec *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
+func (a *RegisteredClusterAdmissionHook) ValidateClusterRegistrar(admissionSpec *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
 	status := &admissionv1beta1.AdmissionResponse{}
 
-	computeConfig := &computesv1alpha1.ComputeConfig{}
+	clusterRegistrar := &singaporev1alpha1.ClusterRegistrar{}
 
-	err := json.Unmarshal(admissionSpec.Object.Raw, computeConfig)
+	err := json.Unmarshal(admissionSpec.Object.Raw, clusterRegistrar)
 	if err != nil {
 		status.Allowed = false
 		status.Result = &metav1.Status{
@@ -105,19 +116,36 @@ func (a *ComputesAdmissionHook) ValidateComputeConfigs(admissionSpec *admissionv
 		return status
 	}
 
-	klog.V(4).Infof("Validate webhook for ComputeConfig name: %s", computeConfig.Name)
+	klog.V(4).Infof("Validate webhook for ClusterRegistrar name: %s", clusterRegistrar.Name)
 
+	l, err := a.ClusterRegistrarClient.List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		status.Allowed = false
+		status.Result = &metav1.Status{
+			Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonInternalError,
+			Message: err.Error(),
+		}
+		return status
+	}
+	if len(l.Items) > 0 {
+		status.Allowed = false
+		status.Result = &metav1.Status{
+			Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonForbidden,
+			Message: "a clusterregistrar custom resource already exists",
+		}
+		return status
+	}
 	status.Allowed = true
 	return status
 
 }
 
 // Initialize is called by generic-admission-server on startup to setup initialization that webhook needs.
-func (a *ComputesAdmissionHook) Initialize(kubeClientConfig *rest.Config, stopCh <-chan struct{}) error {
+func (a *RegisteredClusterAdmissionHook) Initialize(kubeClientConfig *rest.Config, stopCh <-chan struct{}) error {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	klog.V(0).Infof("Initialize admission webhook for Compute")
+	klog.V(0).Infof("Initialize admission webhook for RegisteredCluster")
 
 	a.initialized = true
 
@@ -140,13 +168,13 @@ func (a *ComputesAdmissionHook) Initialize(kubeClientConfig *rest.Config, stopCh
 	a.Client = dynamicClient.Resource(schema.GroupVersionResource{
 		Group:    GROUP_SUFFIX,
 		Version:  "v1alpha1",
-		Resource: "computes",
+		Resource: "registeredclusters",
 	})
 
 	a.ClusterRegistrarClient = dynamicClient.Resource(schema.GroupVersionResource{
 		Group:    GROUP_SUFFIX,
 		Version:  "v1alpha1",
-		Resource: "computeconfigs",
+		Resource: "clusterregistrars",
 	})
 
 	return nil

@@ -21,7 +21,7 @@ spec:
     metadata:
       labels:
         control-plane: controller-manager
-        kcp-compute-antiaffinity-selector: kcp-compute-installer-controller
+        compute-antiaffinity-selector: compute-installer-controller
     spec:
       affinity:
         podAntiAffinity:
@@ -29,19 +29,19 @@ spec:
             - podAffinityTerm:
                 labelSelector:
                   matchExpressions:
-                    - key: kcp-compute-antiaffinity-selector
+                    - key: compute-antiaffinity-selector
                       operator: In
                       values:
-                        - kcp-compute-installer-controller
+                        - compute-installer-controller
                 topologyKey: topology.kubernetes.io/zone
               weight: 70
             - podAffinityTerm:
                 labelSelector:
                   matchExpressions:
-                    - key: kcp-compute-antiaffinity-selector
+                    - key: compute-antiaffinity-selector
                       operator: In
                       values:
-                        - kcp-compute-installer-controller
+                        - compute-installer-controller
                 topologyKey: kubernetes.io/hostname
               weight: 35
       containers:
@@ -80,7 +80,7 @@ spec:
           requests:
             cpu: 50m
             memory: 150Mi
-      serviceAccountName: kcp-compute-installer-controller-manager
+      serviceAccountName: compute-installer-controller-manager
       terminationGracePeriodSeconds: 10
       tolerations:
         - key: node-role.kubernetes.io/infra

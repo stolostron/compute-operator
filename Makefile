@@ -33,7 +33,7 @@ endif
 export GO111MODULE=on
 
 # Catalog Deploy Namespace
-CATALOG_DEPLOY_NAMESPACE ?= kcp-compute-config
+CATALOG_DEPLOY_NAMESPACE ?= compute-config
 
 # Global things
 OS=$(shell uname -s | tr '[:upper:]' '[:lower:]')
@@ -242,7 +242,7 @@ test: fmt vet manifests envtest-tools
 
 # Build manager binary
 manager: fmt vet
-	go build -o bin/kcp-compute main.go
+	go build -o bin/compute main.go
 
 # Run go fmt against code
 fmt:
