@@ -540,6 +540,9 @@ func (r *RegisteredClusterReconciler) createManagedCluster(regCluster *singapore
 					RegisteredClusterNamespacelabel: regCluster.Namespace,
 					ManagedClusterSetlabel:          mcsName,
 				},
+				Annotations: map[string]string{
+					"open-cluster-management/service-name": "compute",
+				},
 			},
 			Spec: clusterapiv1.ManagedClusterSpec{
 				HubAcceptsClient: true,

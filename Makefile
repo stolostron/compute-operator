@@ -152,6 +152,20 @@ ifeq (, $(shell which kubebuilder))
 	)
 endif
 
+.PHONY: kcp-plugin
+## Find or download kcp-plugin
+kcp-plugin:
+ifeq (, $(shell kubectl kcp))
+	@( \
+		set -ex ;\
+		KCP_TMP_DIR=$$(mktemp -d) ;\
+		cd $$KCP_TMP_DIR ;\
+		git clone https://github.com/kcp-dev/kcp.git ;\
+		cd kcp ;\
+		git checkout v0.5.0-alpha.1 ;\
+		make install WHAT="./cmd/kubectl-kcp"; \
+	)
+endif
 
 OPM = ./bin/opm
 .PHONY: opm
@@ -206,6 +220,7 @@ ifeq (, $(shell which ginkgo))
 	rm -rf $$ENVTEST_TMP_DIR ;\
 	}
 endif
+
 
 
 #### BUNDLING AND PUBLISHING ####
@@ -275,7 +290,9 @@ undeploy:
 manifests: controller-gen yq/install
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..."
 	${YQ} e '.metadata.name = "compute-operator-manager-role"' config/rbac/role.yaml > deploy/compute-operator/clusterrole.yaml && \
-	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml
+	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml && \
+	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix today-`date +%Y-%m-%d` \
+	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml 
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen

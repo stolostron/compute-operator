@@ -11,10 +11,7 @@ import (
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kcpcache "github.com/kcp-dev/apimachinery/pkg/cache"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
-	k8scache "k8s.io/client-go/tools/cache"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -29,21 +26,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
 var (
-	scheme       = runtime.NewScheme()
-	newCacheFunc = func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
-		opts.KeyFunction = kcpcache.ClusterAwareKeyFunc
-		opts.Indexers = k8scache.Indexers{
-			kcpcache.ClusterIndexName:             kcpcache.ClusterIndexFunc,
-			kcpcache.ClusterAndNamespaceIndexName: kcpcache.ClusterAndNamespaceIndexFunc,
-		}
-		return cache.New(config, opts)
-	}
+	scheme = runtime.NewScheme()
 )
 
 func init() {
@@ -90,21 +78,10 @@ func GetHubCluster(workspace string, hubInstances []HubInstance) (HubInstance, e
 	return hubInstances[0], nil
 }
 
-func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
+func GetHubClusters(mgr ctrl.Manager, kubeClient kubernetes.Interface, dynamicClient *dynamic.DynamicClient) ([]HubInstance, error) {
 	setupLog := ctrl.Log.WithName("setup")
 	setupLog.Info("setup registeredCluster manager")
 	setupLog.Info("create dynamic client")
-	dynamicClient, err := dynamic.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		return nil, err
-	}
-
-	setupLog.Info("create kube client")
-	kubeClient, err := kubernetes.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		return nil, err
-	}
-
 	setupLog.Info("retrieve POD namespace")
 	namespace := os.Getenv("POD_NAMESPACE")
 	if len(namespace) == 0 {
@@ -179,7 +156,7 @@ func GetHubClusters(mgr ctrl.Manager) ([]HubInstance, error) {
 		hubCluster, err := cluster.New(hubKubeconfig,
 			func(o *cluster.Options) {
 				o.Scheme = scheme // Explicitly set the scheme which includes ManagedCluster
-				o.NewCache = newCacheFunc
+				o.NewCache = NewCacheFunc
 			},
 		)
 		if err != nil {

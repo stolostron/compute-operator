@@ -104,7 +104,8 @@ oc cluster-info
 ```
 - Create the secret using the managed hub cluster kubeconfig
 ```bash
-oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/managed-hub-cluster/kubeconfig -n <your_namespace>
+cm get contexts --current > /tmp/hubkubeconfig.yaml
+oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/hubkubeconfig.yaml -n <your_namespace>
 ```
 
 ## Start the Cluster Registration controller
@@ -113,7 +114,50 @@ oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/managed-hub-c
 oc cluster-info
 ```
 
-2. Create the hub config on the AppStudio cluster:
+2. Create the kcp kubeconfig if you don't have one.
+
+- Connect to kcp
+- Create a service account in your workspace for example:
+```bash
+# kubectl create serviceaccount sa_name -n sa_namespace 
+kubectl create serviceaccount compute-operator -n default
+```
+- Generate the kubeconfig from this SA
+```bash
+# build/generate_kubeconfig_from_sa.sh sa_name sa_namespace
+build/generate_kubeconfig_from_sa.sh compute-operator default
+```
+The location of the new kubeconfig will be displayed
+```
+New kubeconfig at /tmp/kubeconfig-compute-operator.yaml
+```
+
+3. Create the clusterregistrar on the AppStudio cluster with the kcp kubeconfig secret as reference:
+
+- switch to ACM
+
+- Create the kubeconfig secret
+The secret must have the kcp kubeconfig in key `kubeconfig`.
+
+```bash
+kubectl create secret generic kcp-kubeconfig -n compute-config --from-file=kubeconfig=/tmp/kubeconfig-compute-operator.yaml
+```
+
+- Create the ClusterRegistrar
+```bash
+echo '
+apiVersion: singapore.open-cluster-management.io/v1alpha1
+kind: ClusterRegistrar
+metadata:
+  name: cluster-reg
+spec:
+  computeService:
+    computeKubeconfigSecretRef:
+      name: kcp-kubeconfig
+' | oc create -f -
+```
+
+4. Create the hub config on the AppStudio cluster:
 ```bash
 echo '
 apiVersion: singapore.open-cluster-management.io/v1alpha1
@@ -122,39 +166,28 @@ metadata:
   name: <name_of_your_hub>
   namespace: <your_namespace>
 spec:
-  kubeConfigSecretRef:
+  kubeconfigSecretRef:
     name: <above_secret_name>
 ' | oc create -f -
 ```
 
-3. Create the clusterregistrar on the AppStudio cluster:
-
-```bash
-echo '
-apiVersion: singapore.open-cluster-management.io/v1alpha1
-kind: ClusterRegistrar
-metadata:
-  name: cluster-reg
-spec:' | oc create -f -
-```
-
-4. Verify pods are running
+5. Verify pods are running
 
 There is now three pods that should be running
 
-- cluster-registration-installer-controller-manager
+- compute-operator-installer-controller-manager
 - compute-operator-manager
-- cluster-registration-webhook-service
+- compute-operator-webhook-service
 
 Check using the following command:
 
 ```bash
-oc get pods -n cluster-reg-config
+oc get pods -n compute-config
 ```
 
 
 **NOTE: Restart the `compute-operator-manager` pod
-if you make any changes to the HubConfig.  This will allow the operator to onboard the new hub config.**
+if you make any changes to the ClusterRegistrar or HubConfig.  This will allow the operator to onboard the new hub config.**
 
 ## Import a user cluster into AppStudio cluster
 1. Verify you are logged into the AppStudio cluster

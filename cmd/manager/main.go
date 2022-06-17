@@ -3,23 +3,25 @@
 package manager
 
 import (
+	"context"
+	"fmt"
 	"os"
 
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/rest"
 	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 
-	kcpcache "github.com/kcp-dev/apimachinery/pkg/cache"
-	"k8s.io/client-go/rest"
-	k8scache "k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -27,6 +29,9 @@ import (
 	clusterreg "github.com/stolostron/compute-operator/controllers/cluster-registration"
 
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	apisv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/apis/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -72,13 +77,58 @@ func (o *managerOptions) run() {
 
 	setupLog.Info("Setup Manager")
 
-	newCacheFunc := func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
-		opts.KeyFunction = kcpcache.ClusterAwareKeyFunc
-		opts.Indexers = k8scache.Indexers{
-			kcpcache.ClusterIndexName:             kcpcache.ClusterIndexFunc,
-			kcpcache.ClusterAndNamespaceIndexName: kcpcache.ClusterAndNamespaceIndexFunc,
-		}
-		return cache.New(config, opts)
+	// hub clients
+	kubeClient := kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie())
+	dynamicClient := dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie())
+	apiExtensionClient := apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie())
+	hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
+
+	// get the clusterRegistrar
+	clusterRegistrarList, err := dynamicClient.Resource(helpers.GvrCR).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		setupLog.Error(err, "unable to read the clusterRegistrar")
+		os.Exit(1)
+	}
+	if len(clusterRegistrarList.Items) != 1 {
+		setupLog.Error(fmt.Errorf("zero or more than one clusterRegistrar"), "zero or more than one clusterRegistrar")
+		os.Exit(1)
+	}
+
+	// convert to cluster registrar
+	clusterRegistrar := &singaporev1alpha1.ClusterRegistrar{}
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(clusterRegistrarList.Items[0].Object, clusterRegistrar)
+	if err != nil {
+		setupLog.Error(err, "unable to convert the clusterRegistrar")
+		os.Exit(1)
+	}
+
+	// get Compute kubeconfig secret
+	podNamespace := os.Getenv("POD_NAMESPACE")
+	if len(podNamespace) == 0 {
+		setupLog.Error(fmt.Errorf("POD_NAMESPACE not set"), "")
+		os.Exit(1)
+	}
+	computeKubeConfigSecret, err := kubeClient.CoreV1().
+		Secrets(podNamespace).
+		Get(context.TODO(), clusterRegistrar.Spec.ComputeService.ComputeKubeconfigSecretRef.Name, metav1.GetOptions{})
+	if err != nil {
+		setupLog.Error(err, fmt.Sprintf("unable to read the computeKubeconfigSecret: %s/%s",
+			podNamespace,
+			clusterRegistrar.Spec.ComputeService.ComputeKubeconfigSecretRef.Name))
+		os.Exit(1)
+	}
+
+	computeKubeConfigSecretData, ok := computeKubeConfigSecret.Data["kubeconfig"]
+	if !ok {
+		setupLog.Error(err, "computeKubeConfigSecret secret missing kubeconfig data")
+		os.Exit(1)
+	}
+
+	setupLog.Info("generate kubeConfigSecretData")
+	computeKubeconfig, err := clientcmd.RESTConfigFromKubeConfig(computeKubeConfigSecretData)
+	if err != nil {
+		setupLog.Error(err, "unable to create REST config for MCE cluster")
+		os.Exit(1)
 	}
 
 	opts := ctrl.Options{
@@ -87,11 +137,18 @@ func (o *managerOptions) run() {
 		Port:                   9443,
 		HealthProbeBindAddress: o.probeAddr,
 		LeaderElection:         o.enableLeaderElection,
-		LeaderElectionID:       "628f2987.cluster-registratiion.io",
-		NewCache:               newCacheFunc,
+		// The leader must be created on the hub and not on the compute service
+		LeaderElectionConfig: ctrl.GetConfigOrDie(),
+		LeaderElectionID:     "628f2987.cluster-registratiion.io",
+		NewCache:             helpers.NewCacheFunc,
 	}
 
-	mgr, err := kcp.NewClusterAwareManager(ctrl.GetConfigOrDie(), opts)
+	cfg, err := restConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-apis", scheme)
+	if err != nil {
+		setupLog.Error(err, "error looking up virtual workspace URL")
+	}
+
+	mgr, err := kcp.NewClusterAwareManager(cfg, opts)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
@@ -112,16 +169,11 @@ func (o *managerOptions) run() {
 
 	setupLog.Info("Add RegisteredCluster reconciler")
 
-	hubInstances, err := helpers.GetHubClusters(mgr)
+	hubInstances, err := helpers.GetHubClusters(mgr, kubeClient, dynamicClient)
 	if err != nil {
 		setupLog.Error(err, "unable to retreive the hubCluster", "controller", "Cluster Registration")
 		os.Exit(1)
 	}
-
-	kubeClient := kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie())
-	dynamicClient := dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie())
-	apiExtensionClient := apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie())
-	hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
 
 	if err = (&clusterreg.RegisteredClusterReconciler{
 		Client:             mgr.GetClient(),
@@ -143,4 +195,37 @@ func (o *managerOptions) run() {
 		os.Exit(1)
 	}
 
+}
+
+// restConfigForAPIExport returns a *rest.Config properly configured to communicate with the endpoint for the
+// APIExport's virtual workspace.
+func restConfigForAPIExport(ctx context.Context, cfg *rest.Config, apiExportName string, scheme *runtime.Scheme) (*rest.Config, error) {
+	if err := apisv1alpha1.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("error adding apis.kcp.dev/v1alpha1 to scheme: %w", err)
+	}
+
+	apiExportClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		return nil, fmt.Errorf("error creating APIExport client: %w", err)
+	}
+
+	var apiExport apisv1alpha1.APIExport
+
+	if err := apiExportClient.Get(ctx, client.ObjectKey{
+		NamespacedName: types.NamespacedName{
+			Name: apiExportName,
+		},
+	}, &apiExport); err != nil {
+		return nil, fmt.Errorf("error getting APIExport %q: %w", apiExportName, err)
+	}
+
+	if len(apiExport.Status.VirtualWorkspaces) < 1 {
+		return nil, fmt.Errorf("APIExport %q status.virtualWorkspaces is empty", apiExportName)
+	}
+
+	cfg = rest.CopyConfig(cfg)
+	// TODO(ncdc): sharding support
+	cfg.Host = apiExport.Status.VirtualWorkspaces[0].URL
+
+	return cfg, nil
 }
