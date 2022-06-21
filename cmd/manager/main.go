@@ -139,7 +139,7 @@ func (o *managerOptions) run() {
 		LeaderElection:         o.enableLeaderElection,
 		// The leader must be created on the hub and not on the compute service
 		LeaderElectionConfig: ctrl.GetConfigOrDie(),
-		LeaderElectionID:     "628f2987.cluster-registratiion.io",
+		LeaderElectionID:     "628f2987.cluster-registration.io",
 		NewCache:             helpers.NewCacheFunc,
 	}
 
