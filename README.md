@@ -78,36 +78,6 @@ oc get pods -n compute-config
 ```
 
 
-## Onboard a managed hub cluster
-
-**Ensure the managed hub cluster meets the prereq listed in the [Prereqs section above](https://github.com/stolostron/compute-operator#prereqs)**
-
-
-1. Get the kubeconfig of the managed hub cluster:
-```bash
-rm -rf /tmp/managed-hub-cluster
-mkdir -p /tmp/managed-hub-cluster
-touch /tmp/managed-hub-cluster/kubeconfig
-export KUBECONFIG=/tmp/managed-hub-cluster/kubeconfig
-```
-- `oc login` to the managed hub cluster
-- `unset KUBECONFIG` or set it as before.
-
-2. Create config secret on the AppStudio cluster to access the managed hub cluster.
-- Login to the AppStudio cluster
-```bash
-oc login
-```
-- Verify you are logged into the AppStudio cluster
-```bash
-oc cluster-info
-```
-- Create the secret using the managed hub cluster kubeconfig
-```bash
-cm get contexts --current > /tmp/hubkubeconfig.yaml
-oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/hubkubeconfig.yaml -n <your_namespace>
-```
-
 ## Start the Cluster Registration controller
 1. Verify you are logged into the AppStudio cluster
 ```bash
@@ -157,21 +127,7 @@ spec:
 ' | oc create -f -
 ```
 
-4. Create the hub config on the AppStudio cluster:
-```bash
-echo '
-apiVersion: singapore.open-cluster-management.io/v1alpha1
-kind: HubConfig
-metadata:
-  name: <name_of_your_hub>
-  namespace: <your_namespace>
-spec:
-  kubeconfigSecretRef:
-    name: <above_secret_name>
-' | oc create -f -
-```
-
-5. Verify pods are running
+4. Verify pods are running
 
 There is now three pods that should be running
 
@@ -189,6 +145,52 @@ oc get pods -n compute-config
 **NOTE: Restart the `compute-operator-manager` pod
 if you make any changes to the ClusterRegistrar or HubConfig.  This will allow the operator to onboard the new hub config.**
 
+## Onboard a managed hub cluster
+
+**Ensure the managed hub cluster meets the prereq listed in the [Prereqs section above](https://github.com/stolostron/compute-operator#prereqs)**
+
+
+1. Get the kubeconfig of the managed hub cluster:
+```bash
+rm -rf /tmp/managed-hub-cluster
+mkdir -p /tmp/managed-hub-cluster
+touch /tmp/managed-hub-cluster/kubeconfig
+export KUBECONFIG=/tmp/managed-hub-cluster/kubeconfig
+```
+- `oc login` to the managed hub cluster
+- `unset KUBECONFIG` or set it as before.
+
+2. Create config secret on the AppStudio cluster to access the managed hub cluster.
+
+- Login to the AppStudio cluster
+```bash
+oc login
+```
+- Verify you are logged into the AppStudio cluster
+```bash
+oc cluster-info
+```
+- Create the secret using the managed hub cluster kubeconfig
+```bash
+oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/hubkubeconfig.yaml -n <controller_namespace>
+```
+
+3. Create the hub config on the AppStudio cluster:
+```bash
+echo '
+apiVersion: singapore.open-cluster-management.io/v1alpha1
+kind: HubConfig
+metadata:
+  name: <name_of_your_hub>
+  namespace: <controller_namespace>
+spec:
+  kubeconfigSecretRef:
+    name: <above_secret_name>
+' | oc create -f -
+```
+
+- Restart the controller
+
 ## Import a user cluster into AppStudio cluster
 1. Verify you are logged into the AppStudio cluster
 ```bash
@@ -202,8 +204,8 @@ echo '
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: RegisteredCluster
 metadata:
-  name: <name_of_cluster_to_import>
-  namespace: <your_namespace>
+  name: itdove-spoke
+  namespace: itdove-ns
 spec: {}
 ' | oc create -f -
 ```

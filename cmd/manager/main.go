@@ -32,6 +32,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apisv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/apis/v1alpha1"
+	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	manifestworkv1 "open-cluster-management.io/api/work/v1"
+	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -49,6 +54,11 @@ type managerOptions struct {
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 	_ = singaporev1alpha1.AddToScheme(scheme)
+	_ = clusterapiv1.AddToScheme(scheme)
+	_ = clusterv1beta1.AddToScheme(scheme)
+	_ = addonv1alpha1.AddToScheme(scheme)
+	_ = authv1alpha1.AddToScheme(scheme)
+	_ = manifestworkv1.AddToScheme(scheme)
 
 	// +kubebuilder:scaffold:scheme
 }
@@ -140,7 +150,7 @@ func (o *managerOptions) run() {
 		// The leader must be created on the hub and not on the compute service
 		LeaderElectionConfig: ctrl.GetConfigOrDie(),
 		LeaderElectionID:     "628f2987.cluster-registration.io",
-		NewCache:             helpers.NewCacheFunc,
+		NewCache:             helpers.NewClusterAwareCacheFunc,
 	}
 
 	cfg, err := restConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-apis", scheme)

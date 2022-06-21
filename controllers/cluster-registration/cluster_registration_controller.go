@@ -85,6 +85,7 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		context.TODO(),
 		client.ObjectKey{
 			NamespacedName: types.NamespacedName{Namespace: req.Namespace, Name: req.Name},
+			Cluster:        req.Cluster,
 		},
 		regCluster,
 	); err != nil {
@@ -237,8 +238,14 @@ func (r *RegisteredClusterReconciler) updateImportCommand(regCluster *singaporev
 	// Get yaml representation of import command
 
 	crdsv1Yaml, err := yaml.Marshal(importSecret.Data["crdsv1.yaml"])
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
 
 	importYaml, err := yaml.Marshal(importSecret.Data["import.yaml"])
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
 
 	importCommand := "echo \"" + strings.TrimSpace(string(crdsv1Yaml)) + "\" | base64 --decode | kubectl apply -f - && sleep 2 && echo \"" + strings.TrimSpace(string(importYaml)) + "\" | base64 --decode | kubectl apply -f -"
 

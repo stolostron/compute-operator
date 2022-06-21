@@ -284,6 +284,7 @@ deploy: kustomize
 	mv config/installer/kustomization.yaml.tmp config/installer/kustomization.yaml
 
 undeploy:
+	kubectl delete --wait=true clusterregistrars --all
 	kubectl delete --wait=true -k config/default
 
 # Generate manifests e.g. CRD, RBAC etc.

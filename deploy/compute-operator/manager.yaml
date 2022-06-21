@@ -44,7 +44,6 @@ spec:
             - manager
             - --enable-leader-election
             - "--health-probe-bind-address=:8081"
-            - "--v=6"
           image: {{ .Image }}
           env:
           - name: POD_NAMESPACE
