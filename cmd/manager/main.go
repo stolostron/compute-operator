@@ -150,7 +150,7 @@ func (o *managerOptions) run() {
 		// The leader must be created on the hub and not on the compute service
 		LeaderElectionConfig: ctrl.GetConfigOrDie(),
 		LeaderElectionID:     "628f2987.cluster-registration.io",
-		NewCache:             helpers.NewClusterAwareCacheFunc,
+		// NewCache:             helpers.NewClusterAwareCacheFunc,
 	}
 
 	cfg, err := restConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-apis", scheme)
