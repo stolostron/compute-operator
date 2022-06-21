@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog/v2"
 	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 
 	// corev1 "k8s.io/api/core/v1"
@@ -107,6 +108,7 @@ func (r *RegisteredClusterReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	controllerutil.AddFinalizer(regCluster, helpers.RegisteredClusterFinalizer)
 
+	r.Log.Info("Add finalizer")
 	if err := r.Client.Update(context.TODO(), regCluster); err != nil {
 		return ctrl.Result{}, giterrors.WithStack(err)
 	}
@@ -526,12 +528,14 @@ func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(regCluster *s
 func (r *RegisteredClusterReconciler) createManagedCluster(regCluster *singaporev1alpha1.RegisteredCluster, hubCluster *helpers.HubInstance, ctx context.Context) error {
 
 	// check if managedcluster is already exists
+	klog.Info("get ManagedClusterList")
 	managedClusterList := &clusterapiv1.ManagedClusterList{}
 	if err := hubCluster.Client.List(context.Background(), managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
 		// Error reading the object - requeue the request.
 		return err
 	}
 
+	klog.Info("build ManagedClusterSetName")
 	mcsName := helpers.ManagedClusterSetNameForWorkspace(regCluster.Namespace)
 
 	if len(managedClusterList.Items) < 1 {

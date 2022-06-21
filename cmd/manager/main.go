@@ -192,7 +192,7 @@ func (o *managerOptions) run() {
 		APIExtensionClient: apiExtensionClient,
 		HubApplier:         hubApplier,
 		Log:                ctrl.Log.WithName("controllers").WithName("RegistredCluster"),
-		Scheme:             mgr.GetScheme(),
+		Scheme:             scheme,
 		HubClusters:        hubInstances,
 	}).SetupWithManager(mgr, scheme); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cluster Registration")
