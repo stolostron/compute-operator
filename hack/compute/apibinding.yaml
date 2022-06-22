@@ -1,9 +1,9 @@
 apiVersion: apis.kcp.dev/v1alpha1
 kind: APIBinding
 metadata:
-  name: acm-kubernetes
+  name: compute-operator
 spec:
   reference:
     workspace:
-      path: root:rh-sso-13066380:itdove
+      path: root:<your-account>:<your-workspace>
       exportName: compute-apis

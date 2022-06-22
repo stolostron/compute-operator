@@ -3,7 +3,7 @@ SERVICE_ACCOUNT_NAME=$1
 CONTEXT=$(kubectl config current-context)
 NAMESPACE=$2
 
-NEW_CONTEXT=itdove
+NEW_CONTEXT=ws-kcp-context
 KUBECONFIG_FILE="/tmp/kubeconfig-"$SERVICE_ACCOUNT_NAME.yaml
 
 CURRENT_DIR=`pwd`

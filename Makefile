@@ -288,7 +288,7 @@ undeploy:
 	kubectl delete --wait=true -k config/default
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: controller-gen yq/install
+manifests: controller-gen yq/install kcp-plugin
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..."
 	${YQ} e '.metadata.name = "compute-operator-manager-role"' config/rbac/role.yaml > deploy/compute-operator/clusterrole.yaml && \
 	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml && \

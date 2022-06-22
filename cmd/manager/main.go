@@ -147,7 +147,7 @@ func (o *managerOptions) run() {
 		Port:                   9443,
 		HealthProbeBindAddress: o.probeAddr,
 		LeaderElection:         o.enableLeaderElection,
-		// The leader must be created on the hub and not on the compute service
+		// The leader must be created on the compute-operator cluster and not on the compute service
 		LeaderElectionConfig: ctrl.GetConfigOrDie(),
 		LeaderElectionID:     "628f2987.cluster-registration.io",
 		NewCache:             helpers.NewClusterAwareCacheFunc,
