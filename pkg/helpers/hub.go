@@ -57,7 +57,7 @@ func GetHubCluster(workspace string, hubInstances []HubInstance) (HubInstance, e
 	return hubInstances[0], nil
 }
 
-func GetHubClusters(mgr ctrl.Manager, kubeClient kubernetes.Interface, dynamicClient *dynamic.DynamicClient) ([]HubInstance, error) {
+func GetHubClusters(ctx context.Context, mgr ctrl.Manager, kubeClient kubernetes.Interface, dynamicClient *dynamic.DynamicClient) ([]HubInstance, error) {
 	setupLog := ctrl.Log.WithName("setup")
 	setupLog.Info("setup registeredCluster manager")
 	setupLog.Info("create dynamic client")
@@ -74,7 +74,7 @@ func GetHubClusters(mgr ctrl.Manager, kubeClient kubernetes.Interface, dynamicCl
 		Resource: "hubconfigs"}
 
 	setupLog.Info("retrieve list of hubConfig")
-	hubConfigListU, err := dynamicClient.Resource(gvr).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
+	hubConfigListU, err := dynamicClient.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func GetHubClusters(mgr ctrl.Manager, kubeClient kubernetes.Interface, dynamicCl
 		}
 
 		setupLog.Info("get config secret", "name", hubConfig.Spec.KubeConfigSecretRef.Name)
-		configSecret, err := kubeClient.CoreV1().Secrets(hubConfig.Namespace).Get(context.TODO(),
+		configSecret, err := kubeClient.CoreV1().Secrets(hubConfig.Namespace).Get(ctx,
 			hubConfig.Spec.KubeConfigSecretRef.Name,
 			metav1.GetOptions{})
 		if err != nil {

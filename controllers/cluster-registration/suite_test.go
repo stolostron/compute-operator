@@ -199,7 +199,7 @@ var _ = BeforeSuite(func() {
 	By("Init the controller", func() {
 		kubeClient := kubernetes.NewForConfigOrDie(cfg)
 		dynamicClient := dynamic.NewForConfigOrDie(cfg)
-		hubClusters, err := helpers.GetHubClusters(mgr, kubeClient, dynamicClient)
+		hubClusters, err := helpers.GetHubClusters(context.Background(), mgr, kubeClient, dynamicClient)
 		Expect(err).To(BeNil())
 		apiExtensionClient := apiextensionsclient.NewForConfigOrDie(cfg)
 		hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()

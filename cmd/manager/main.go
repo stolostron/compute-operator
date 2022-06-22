@@ -150,19 +150,23 @@ func (o *managerOptions) run() {
 		// The leader must be created on the hub and not on the compute service
 		LeaderElectionConfig: ctrl.GetConfigOrDie(),
 		LeaderElectionID:     "628f2987.cluster-registration.io",
-		// NewCache:             helpers.NewClusterAwareCacheFunc,
+		NewCache:             helpers.NewClusterAwareCacheFunc,
 	}
 
+	setupLog.Info("server url:", "computeKubeconfig.Host", computeKubeconfig.Host)
 	cfg, err := restConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-apis", scheme)
 	if err != nil {
 		setupLog.Error(err, "error looking up virtual workspace URL")
 	}
 
+	setupLog.Info("server url:", "cfg.Host", cfg.Host)
 	mgr, err := kcp.NewClusterAwareManager(cfg, opts)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+
+	setupLog.Info("server url:", "cfg.Host", cfg.Host)
 
 	// add healthz/readyz check handler
 	setupLog.Info("Add health check")
@@ -179,7 +183,7 @@ func (o *managerOptions) run() {
 
 	setupLog.Info("Add RegisteredCluster reconciler")
 
-	hubInstances, err := helpers.GetHubClusters(mgr, kubeClient, dynamicClient)
+	hubInstances, err := helpers.GetHubClusters(context.Background(), mgr, kubeClient, dynamicClient)
 	if err != nil {
 		setupLog.Error(err, "unable to retreive the hubCluster", "controller", "Cluster Registration")
 		os.Exit(1)

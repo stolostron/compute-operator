@@ -186,7 +186,7 @@ metadata:
 spec:
   kubeconfigSecretRef:
     name: <above_secret_name>
-' | oc create -f -
+' | oc apply -f -
 ```
 
 - Restart the controller

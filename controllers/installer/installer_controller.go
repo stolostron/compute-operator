@@ -262,7 +262,7 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), clusterRegOperatorDeployment, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, clusterRegOperatorDeployment, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -271,13 +271,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete roleBinding", "name", "compute-operator-leader-election-rolebinding", "namespace", podNamespace)
 	clusterRegOperatorLeaderElectionRoleBinding := &rbacv1.RoleBinding{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "compute-operator-leader-election-rolebinding", Namespace: podNamespace}},
 		clusterRegOperatorLeaderElectionRoleBinding)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), clusterRegOperatorLeaderElectionRoleBinding, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, clusterRegOperatorLeaderElectionRoleBinding, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -286,13 +286,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete ClusterRoleBinding", "name", "compute-operator-manager-rolebinding", "namespace", podNamespace)
 	clusterRegOperatorClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "compute-operator-manager-rolebinding", Namespace: podNamespace}},
 		clusterRegOperatorClusterRoleBinding)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), clusterRegOperatorClusterRoleBinding, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, clusterRegOperatorClusterRoleBinding, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -301,13 +301,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete serviceAccount", "name", "compute-operator-manager", "namespace", podNamespace)
 	clusterRegOperatorServiceAccount := &corev1.ServiceAccount{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "compute-operator-manager", Namespace: podNamespace}},
 		clusterRegOperatorServiceAccount)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), clusterRegOperatorServiceAccount, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, clusterRegOperatorServiceAccount, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -316,13 +316,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete ClusterRole", "name", "compute-operator-manager-role", "namespace", podNamespace)
 	clusterRegOperatorClusterRole := &rbacv1.ClusterRole{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "compute-operator-manager-role"}},
 		clusterRegOperatorClusterRole)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), clusterRegOperatorClusterRole, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, clusterRegOperatorClusterRole, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -331,13 +331,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete Role", "name", "leader-election-operator-role", "namespace", podNamespace)
 	clusterRegOperatorRole := &rbacv1.Role{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "leader-election-operator-role", Namespace: podNamespace}},
 		clusterRegOperatorRole)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), clusterRegOperatorRole, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, clusterRegOperatorRole, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -346,7 +346,7 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	// // Do not delete webhook on functional test as it is not installed
 	// pod := &corev1.Pod{}
-	// if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: podNamespace}, pod); err != nil {
+	// if err := r.Client.Get(ctx, types.NamespacedName{Name: podName, Namespace: podNamespace}, pod); err != nil {
 	// 	return err
 	// }
 	// r.Log.Info("Pod", "Name", pod.Name, "Namespace", pod.Namespace, "deletiontimeStamp", pod.DeletionTimestamp)
@@ -357,13 +357,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 	//Delete webhook
 	r.Log.Info("Delete Deployment", "name", "compute-webhook-service", "namespace", podNamespace)
 	webhookDeployment := &appsv1.Deployment{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "compute-webhook-service", Namespace: podNamespace}},
 		webhookDeployment)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), webhookDeployment, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, webhookDeployment, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -372,13 +372,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete APIService", "name", "v1alpha1.admission.singapore.open-cluster-management.io")
 	apiService := &apiregistrationv1.APIService{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "v1alpha1.admission.singapore.open-cluster-management.io"}},
 		apiService)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), apiService, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, apiService, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -387,13 +387,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete ClusterRoleBinding", "name", "compute-webhook-service")
 	webHookClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "compute-webhook-service"}},
 		webHookClusterRoleBinding)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), webHookClusterRoleBinding, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, webHookClusterRoleBinding, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -402,13 +402,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete ClusterRole", "name", "compute-webhook-service")
 	webHookClusterRole := &rbacv1.ClusterRole{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "compute-webhook-service"}},
 		webHookClusterRole)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), webHookClusterRole, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, webHookClusterRole, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -417,13 +417,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete serviceAccount", "name", "compute-webhook-service", "namespace", podNamespace)
 	webHookServiceAccount := &corev1.ServiceAccount{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "compute-webhook-service", Namespace: podNamespace}},
 		webHookServiceAccount)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), webHookServiceAccount, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, webHookServiceAccount, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -432,13 +432,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete Service", "name", "compute-webhook-service", "namespace", podNamespace)
 	service := &corev1.Service{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "compute-webhook-service", Namespace: podNamespace}},
 		service)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), service, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, service, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
@@ -447,13 +447,13 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarDeletion(ctx context
 
 	r.Log.Info("Delete ValidatingWebhookConfiguration", "name", "compute-webhook-service", "namespace", podNamespace)
 	validationWebhook := &admissionregistration.ValidatingWebhookConfiguration{}
-	err = r.Client.Get(context.TODO(), client.ObjectKey{
+	err = r.Client.Get(ctx, client.ObjectKey{
 		NamespacedName: types.NamespacedName{Name: "compute-webhook-service", Namespace: podNamespace}},
 		validationWebhook)
 	switch {
 	case errors.IsNotFound(err):
 	case err == nil:
-		if err := r.Client.Delete(context.TODO(), validationWebhook, &client.DeleteOptions{}); err != nil {
+		if err := r.Client.Delete(ctx, validationWebhook, &client.DeleteOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
 	default:
