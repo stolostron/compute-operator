@@ -465,6 +465,8 @@ github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7V
 github.com/julienschmidt/httprouter v1.3.0/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/kcp-dev/apimachinery v0.0.0-20220518152549-f62703561e55 h1:nwrXHxVkTQ9BI6slgqWgg8CVC+7AbJR02byYq+iBOUg=
 github.com/kcp-dev/apimachinery v0.0.0-20220518152549-f62703561e55/go.mod h1:FIzhTU6DM3HYZhGv8w/1S/mbmSv1HzulZpjr/1/6i/I=
+github.com/kcp-dev/apimachinery v0.0.0-20220531174203-e90e6ca75c19 h1:yzYF16NLtVaaLeTEHHqWR0643koDxNhoz/kE+BIvBTY=
+github.com/kcp-dev/apimachinery v0.0.0-20220531174203-e90e6ca75c19/go.mod h1:FIzhTU6DM3HYZhGv8w/1S/mbmSv1HzulZpjr/1/6i/I=
 github.com/kcp-dev/controller-runtime v0.11.3-0.20220601041701-6ae831c93ef5 h1:sgRju96AvGYAxN6F6ZUIrMCdPcGdfNM//12Atkpn4LU=
 github.com/kcp-dev/controller-runtime v0.11.3-0.20220601041701-6ae831c93ef5/go.mod h1:7iVCCTX1SSLJl8cR7UQcwgQsZezCW+wv8VxeoYUGAX0=
 github.com/kcp-dev/kcp/pkg/apis v0.5.0-alpha.1 h1:Z8L4TOam02khARPvS0d3kdyFB1yfwYTCx9x+i09KRzY=

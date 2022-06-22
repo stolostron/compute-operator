@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/go-logr/logr v1.2.0
-	github.com/kcp-dev/apimachinery v0.0.0-20220518152549-f62703561e55
+	github.com/kcp-dev/apimachinery v0.0.0-20220531174203-e90e6ca75c19
 	github.com/kcp-dev/kcp/pkg/apis v0.5.0-alpha.1
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.18.0
