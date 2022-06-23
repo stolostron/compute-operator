@@ -18,7 +18,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -39,7 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
 
 	croconfig "github.com/stolostron/compute-operator/config"
@@ -201,17 +199,11 @@ var _ = BeforeSuite(func() {
 		dynamicClient := dynamic.NewForConfigOrDie(cfg)
 		hubClusters, err := helpers.GetHubClusters(context.Background(), mgr, kubeClient, dynamicClient)
 		Expect(err).To(BeNil())
-		apiExtensionClient := apiextensionsclient.NewForConfigOrDie(cfg)
-		hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
 		r = &RegisteredClusterReconciler{
-			Client:             k8sClient,
-			KubeClient:         kubernetes.NewForConfigOrDie(cfg),
-			DynamicClient:      dynamic.NewForConfigOrDie(cfg),
-			APIExtensionClient: apiextensionsclient.NewForConfigOrDie(cfg),
-			Log:                logf.Log,
-			Scheme:             scheme,
-			HubClusters:        hubClusters,
-			HubApplier:         hubApplier,
+			Client:      k8sClient,
+			Log:         logf.Log,
+			Scheme:      scheme,
+			HubClusters: hubClusters,
 		}
 		err = r.SetupWithManager(mgr, scheme)
 		Expect(err).To(BeNil())

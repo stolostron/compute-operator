@@ -25,12 +25,9 @@ import (
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 	"github.com/stolostron/compute-operator/resources"
-	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
@@ -68,13 +65,13 @@ const (
 // RegisteredClusterReconciler reconciles a RegisteredCluster object
 type RegisteredClusterReconciler struct {
 	client.Client
-	KubeClient         kubernetes.Interface
-	DynamicClient      dynamic.Interface
-	APIExtensionClient apiextensionsclient.Interface
-	HubApplier         clusteradmapply.Applier
-	Log                logr.Logger
-	Scheme             *runtime.Scheme
-	HubClusters        []helpers.HubInstance
+	// KubeClient         kubernetes.Interface
+	// DynamicClient      dynamic.Interface
+	// APIExtensionClient apiextensionsclient.Interface
+	ComputeApplierBuilder *clusteradmapply.ApplierBuilder
+	Log                   logr.Logger
+	Scheme                *runtime.Scheme
+	HubClusters           []helpers.HubInstance
 }
 
 func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -194,7 +191,7 @@ func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(computeConte
 	}
 
 	if err := r.Client.Status().Patch(computeContext, regCluster, patch); err != nil {
-		return err
+		return giterrors.WithStack(err)
 	}
 
 	return nil
@@ -205,7 +202,7 @@ func (r *RegisteredClusterReconciler) getManagedCluster(ctx context.Context, reg
 	managedCluster := clusterapiv1.ManagedCluster{}
 	if err := hubCluster.Client.List(ctx, managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
 		// Error reading the object - requeue the request.
-		return managedCluster, err
+		return managedCluster, giterrors.WithStack(err)
 	}
 
 	r.Log.V(4).Info("Number of managed cluster found with lables",
@@ -234,15 +231,14 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 			NamespacedName: types.NamespacedName{Namespace: managedCluster.Name, Name: managedCluster.Name + "-import"},
 		}, importSecret); err != nil {
 		if k8serrors.IsNotFound(err) {
-			return err
+			return giterrors.WithStack(err)
 		}
 		return giterrors.WithStack(err)
 	}
 
-	applierBuilder := &clusteradmapply.ApplierBuilder{}
-	applier := applierBuilder.
-		WithClient(r.KubeClient, r.APIExtensionClient, r.DynamicClient).
+	applier := r.ComputeApplierBuilder.
 		WithOwner(regCluster, false, true, r.Scheme).
+		WithContext(computeContext).
 		Build()
 
 	readerDeploy := resources.GetScenarioResourcesReader()
@@ -285,7 +281,7 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 		Name: regCluster.Name + "-import",
 	}
 	if err := r.Client.Status().Patch(computeContext, regCluster, patch); err != nil {
-		return err
+		return giterrors.WithStack(err)
 	}
 
 	return nil
@@ -321,7 +317,8 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(computeContext c
 
 	logger.V(1).Info("applying managedclusteraddon and managedserviceaccount")
 
-	_, err := hubCluster.HubApplier.ApplyCustomResources(readerDeploy, values, false, "", files...)
+	applier := hubCluster.ApplierBuilder.Build()
+	_, err := applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
 	if err != nil {
 		return giterrors.WithStack(err)
 	}
@@ -340,11 +337,8 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(computeContext c
 		); err != nil {
 			return giterrors.WithStack(err)
 		}
-		applierBuilder := clusteradmapply.NewApplierBuilder()
-		applier := applierBuilder.
-			WithClient(hubCluster.KubeClient, hubCluster.APIExtensionClient, hubCluster.DynamicClient).
+		applier := hubCluster.ApplierBuilder.
 			WithOwner(msa, true, true, hubCluster.Client.Scheme()).
-			WithCache(hubCluster.HubApplier.GetCache()).
 			Build()
 
 		files = []string{
@@ -362,7 +356,7 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(computeContext c
 				NamespacedName: types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name},
 			}, work)
 		if err != nil {
-			return err
+			return giterrors.WithStack(err)
 		}
 
 		if status, ok := helpers.GetConditionStatus(work.Status.Conditions, string(manifestworkv1.ManifestApplied)); ok && status == metav1.ConditionTrue {
@@ -490,13 +484,11 @@ func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(computeContex
 			NamespacedName: types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name},
 		}, token)
 	if err != nil {
-		return err
+		return giterrors.WithStack(err)
 	}
 
-	applierBuilder := &clusteradmapply.ApplierBuilder{}
 	readerDeploy := resources.GetScenarioResourcesReader()
-	applier := applierBuilder.
-		WithClient(r.KubeClient, r.APIExtensionClient, r.DynamicClient).
+	applier := r.ComputeApplierBuilder.
 		WithOwner(regCluster, false, true, r.Scheme).
 		Build()
 
@@ -533,7 +525,7 @@ func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(computeContex
 		Name: secretName,
 	}
 	if err := r.Client.Status().Patch(computeContext, regCluster, patch); err != nil {
-		return err
+		return giterrors.WithStack(err)
 	}
 
 	return nil
@@ -546,7 +538,7 @@ func (r *RegisteredClusterReconciler) createManagedCluster(ctx context.Context, 
 	managedClusterList := &clusterapiv1.ManagedClusterList{}
 	if err := hubCluster.Client.List(ctx, managedClusterList, client.MatchingLabels{RegisteredClusterNamelabel: regCluster.Name, RegisteredClusterNamespacelabel: regCluster.Namespace}); err != nil {
 		// Error reading the object - requeue the request.
-		return err
+		return giterrors.WithStack(err)
 	}
 
 	klog.Info("build ManagedClusterSetName")
@@ -575,7 +567,7 @@ func (r *RegisteredClusterReconciler) createManagedCluster(ctx context.Context, 
 		}
 
 		if err := hubCluster.Client.Create(ctx, managedCluster, &client.CreateOptions{}); err != nil {
-			return err
+			return giterrors.WithStack(err)
 		}
 	}
 	return nil

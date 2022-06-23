@@ -25,13 +25,10 @@ import (
 )
 
 type HubInstance struct {
-	HubConfig          *singaporev1alpha1.HubConfig
-	Cluster            cluster.Cluster
-	Client             client.Client
-	KubeClient         kubernetes.Interface
-	DynamicClient      dynamic.Interface
-	APIExtensionClient apiextensionsclient.Interface
-	HubApplier         clusteradmapply.Applier
+	HubConfig      *singaporev1alpha1.HubConfig
+	Cluster        cluster.Cluster
+	Client         client.Client
+	ApplierBuilder *clusteradmapply.ApplierBuilder
 }
 
 // GetConditionStatus returns the status for a given condition type and whether the condition was found
@@ -153,16 +150,14 @@ func GetHubClusters(ctx context.Context, mgr ctrl.Manager, kubeClient kubernetes
 		kubeClient := kubernetes.NewForConfigOrDie(hubKubeconfig)
 		dynamicClient := dynamic.NewForConfigOrDie(hubKubeconfig)
 		apiExtensionClient := apiextensionsclient.NewForConfigOrDie(hubKubeconfig)
-		hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
+		hubApplierBuilder := clusteradmapply.NewApplierBuilder().
+			WithClient(kubeClient, apiExtensionClient, dynamicClient)
 
 		hubInstance := HubInstance{
-			HubConfig:          hubConfig,
-			Cluster:            hubCluster,
-			Client:             hubCluster.GetClient(),
-			KubeClient:         kubeClient,
-			DynamicClient:      dynamicClient,
-			APIExtensionClient: apiExtensionClient,
-			HubApplier:         hubApplier,
+			HubConfig:      hubConfig,
+			Cluster:        hubCluster,
+			Client:         hubCluster.GetClient(),
+			ApplierBuilder: hubApplierBuilder,
 		}
 
 		hubInstances = append(hubInstances, hubInstance)

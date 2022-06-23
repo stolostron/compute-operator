@@ -23,7 +23,7 @@ require (
 	k8s.io/kube-aggregator v0.23.5
 	open-cluster-management.io/api v0.6.1-0.20220324065122-34f585d51995
 	open-cluster-management.io/clusteradm v0.2.1-0.20220411135356-0a2232080686
-	open-cluster-management.io/managed-serviceaccount v0.2.0
+	open-cluster-management.io/managed-serviceaccount v0.2.1-0.20220427065210-de6a7b7b5be8
 	sigs.k8s.io/controller-runtime v0.11.1
 )
 
@@ -74,7 +74,6 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kcp-dev/logicalcluster v1.0.0 // indirect
-	github.com/kr/pretty v0.2.1 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
@@ -155,3 +154,5 @@ replace (
 	k8s.io/client-go => github.com/kcp-dev/kubernetes/staging/src/k8s.io/client-go v0.0.0-20220524063253-5bb0eeecf2cf
 	sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.11.3-0.20220601041701-6ae831c93ef5
 )
+
+replace open-cluster-management.io/clusteradm => /Users/dvernier/acm-tools/clusteradm

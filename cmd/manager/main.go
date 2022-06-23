@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"os"
 
+	giterrors "github.com/pkg/errors"
+
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	"github.com/stolostron/compute-operator/pkg/helpers"
-	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
@@ -17,7 +18,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/rest"
-	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,11 +31,14 @@ import (
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+
 	apisv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/apis/v1alpha1"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
+	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -90,13 +93,13 @@ func (o *managerOptions) run() {
 	// hub clients
 	kubeClient := kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie())
 	dynamicClient := dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie())
-	apiExtensionClient := apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie())
-	hubApplier := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
+	// apiExtensionClient := apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie())
+	// hubApplierBuilder := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
 
 	// get the clusterRegistrar
 	clusterRegistrarList, err := dynamicClient.Resource(helpers.GvrCR).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		setupLog.Error(err, "unable to read the clusterRegistrar")
+		setupLog.Error(giterrors.WithStack(err), "unable to read the clusterRegistrar")
 		os.Exit(1)
 	}
 	if len(clusterRegistrarList.Items) != 1 {
@@ -108,7 +111,7 @@ func (o *managerOptions) run() {
 	clusterRegistrar := &singaporev1alpha1.ClusterRegistrar{}
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(clusterRegistrarList.Items[0].Object, clusterRegistrar)
 	if err != nil {
-		setupLog.Error(err, "unable to convert the clusterRegistrar")
+		setupLog.Error(giterrors.WithStack(err), "unable to convert the clusterRegistrar")
 		os.Exit(1)
 	}
 
@@ -122,7 +125,7 @@ func (o *managerOptions) run() {
 		Secrets(podNamespace).
 		Get(context.TODO(), clusterRegistrar.Spec.ComputeService.ComputeKubeconfigSecretRef.Name, metav1.GetOptions{})
 	if err != nil {
-		setupLog.Error(err, fmt.Sprintf("unable to read the computeKubeconfigSecret: %s/%s",
+		setupLog.Error(giterrors.WithStack(err), fmt.Sprintf("unable to read the computeKubeconfigSecret: %s/%s",
 			podNamespace,
 			clusterRegistrar.Spec.ComputeService.ComputeKubeconfigSecretRef.Name))
 		os.Exit(1)
@@ -130,14 +133,14 @@ func (o *managerOptions) run() {
 
 	computeKubeConfigSecretData, ok := computeKubeConfigSecret.Data["kubeconfig"]
 	if !ok {
-		setupLog.Error(err, "computeKubeConfigSecret secret missing kubeconfig data")
+		setupLog.Error(giterrors.WithStack(err), "computeKubeConfigSecret secret missing kubeconfig data")
 		os.Exit(1)
 	}
 
 	setupLog.Info("generate kubeConfigSecretData")
 	computeKubeconfig, err := clientcmd.RESTConfigFromKubeConfig(computeKubeConfigSecretData)
 	if err != nil {
-		setupLog.Error(err, "unable to create REST config for MCE cluster")
+		setupLog.Error(giterrors.WithStack(err), "unable to create REST config for MCE cluster")
 		os.Exit(1)
 	}
 
@@ -156,13 +159,19 @@ func (o *managerOptions) run() {
 	setupLog.Info("server url:", "computeKubeconfig.Host", computeKubeconfig.Host)
 	cfg, err := restConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-apis", scheme)
 	if err != nil {
-		setupLog.Error(err, "error looking up virtual workspace URL")
+		setupLog.Error(giterrors.WithStack(err), "error looking up virtual workspace URL")
 	}
+
+	computeKubeClient := kubernetes.NewForConfigOrDie(cfg)
+	computeDynamicClient := dynamic.NewForConfigOrDie(cfg)
+	computeApiExtensionClient := apiextensionsclient.NewForConfigOrDie(cfg)
+	computeApplierBuilder := clusteradmapply.NewApplierBuilder().
+		WithClient(computeKubeClient, computeApiExtensionClient, computeDynamicClient)
 
 	setupLog.Info("server url:", "cfg.Host", cfg.Host)
 	mgr, err := kcp.NewClusterAwareManager(cfg, opts)
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		setupLog.Error(giterrors.WithStack(err), "unable to start manager")
 		os.Exit(1)
 	}
 
@@ -171,13 +180,13 @@ func (o *managerOptions) run() {
 	// add healthz/readyz check handler
 	setupLog.Info("Add health check")
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to add healthz check handler ")
+		setupLog.Error(giterrors.WithStack(err), "unable to add healthz check handler ")
 		os.Exit(1)
 	}
 
 	setupLog.Info("Add ready check")
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to add readyz check handler ")
+		setupLog.Error(giterrors.WithStack(err), "unable to add readyz check handler ")
 		os.Exit(1)
 	}
 
@@ -185,27 +194,24 @@ func (o *managerOptions) run() {
 
 	hubInstances, err := helpers.GetHubClusters(context.Background(), mgr, kubeClient, dynamicClient)
 	if err != nil {
-		setupLog.Error(err, "unable to retreive the hubCluster", "controller", "Cluster Registration")
+		setupLog.Error(giterrors.WithStack(err), "unable to retreive the hubCluster", "controller", "Cluster Registration")
 		os.Exit(1)
 	}
 
 	if err = (&clusterreg.RegisteredClusterReconciler{
-		Client:             mgr.GetClient(),
-		KubeClient:         kubeClient,
-		DynamicClient:      dynamicClient,
-		APIExtensionClient: apiExtensionClient,
-		HubApplier:         hubApplier,
-		Log:                ctrl.Log.WithName("controllers").WithName("RegistredCluster"),
-		Scheme:             scheme,
-		HubClusters:        hubInstances,
+		Client:                mgr.GetClient(),
+		Log:                   ctrl.Log.WithName("controllers").WithName("RegistredCluster"),
+		Scheme:                scheme,
+		HubClusters:           hubInstances,
+		ComputeApplierBuilder: computeApplierBuilder,
 	}).SetupWithManager(mgr, scheme); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Cluster Registration")
+		setupLog.Error(giterrors.WithStack(err), "unable to create controller", "controller", "Cluster Registration")
 		os.Exit(1)
 	}
 
 	setupLog.Info("Starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
+		setupLog.Error(giterrors.WithStack(err), "problem running manager")
 		os.Exit(1)
 	}
 
