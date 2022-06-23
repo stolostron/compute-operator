@@ -1,3 +1,6 @@
+#!/bin/bash
+# Copyright Red Hat
+
 # Update these to match your environment
 SERVICE_ACCOUNT_NAME=$1
 CONTEXT=$(kubectl config current-context)
