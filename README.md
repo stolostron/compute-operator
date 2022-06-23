@@ -2,7 +2,7 @@
 
 # compute-operator
 
-The Cluster Registration operator enables users to register clusters to their AppStudio workspace. We leverage the [multicluster engine](https://stolostron.github.io/mce-docs/) to import each cluster and add it to a ManagedClusterSet per workspace.
+The Compute operator enables users to register clusters to kcp. Once registered, the Compute operator is responsible for maintaining a SyncTarget (WorkloadCluster) in the desired kcp Location workspace and installing and configuring the kcp syncer.
 
 Please fork this repo and clone from the fork.  All your work should be against the forked repo.
 
@@ -13,27 +13,8 @@ Please fork this repo and clone from the fork.  All your work should be against 
 You must meet the following requirements:
 
 - `kustomize` (ver. 4.2.0+)
-- The managed hub must be MCE 2.0.0+
-- On the managed hub, the multiclusterengine CR must have the managedserviceaccount-preview enabled. Ensure you are logged into the correct managed hub cluster:
-```bash
-oc cluster-info
-```
-and then use one of the two methods shown below to make the change:
-   - Manually edit using `oc edit multiclusterengine`
-     then ensure the following:
-```
-    - enabled: true
-      name: managedserviceaccount-preview
-```
-   - Run a command to make the change:
-```
-oc patch multiclusterengine multiclusterengine --type=merge -p '{"spec":{"overrides":{"components":[{"name":"managedserviceaccount-preview","enabled":true}]}}}'
-```
-or
-```
-cm enable component managedserviceaccount-preview
-cm get components #to verify
-```
+- current ACM/MCE/OCM hub (TODO: provide more specific requirements)
+
 ## Ensure you are logged in to the controller cluster
 
 ```bash
@@ -41,7 +22,6 @@ oc cluster-info
 ```
 
 ## Install the operator from this repo
-**NOTE: This step is only required if you have not used the [infra-deployments repo](https://github.com/redhat-appstudio/infra-deployments) to deploy Cluster Registration and the other AppStudio pieces to your cluster**
 
 1. Fork and clone this repo
 
