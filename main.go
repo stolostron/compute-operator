@@ -17,12 +17,14 @@ import (
 
 	utilflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
+	"k8s.io/klog/v2"
 )
 
 func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
+	klog.InitFlags(goflag.CommandLine)
 	pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
 
 	logs.InitLogs()

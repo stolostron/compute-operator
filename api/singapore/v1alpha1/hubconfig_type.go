@@ -14,7 +14,7 @@ import (
 type HubConfigSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make generate" to regenerate code after modifying this file
-	KubeConfigSecretRef corev1.LocalObjectReference `json:"kubeConfigSecretRef,omitempty"`
+	KubeConfigSecretRef corev1.LocalObjectReference `json:"kubeconfigSecretRef,omitempty"`
 
 	// Maximum burst for throttle.
 	// If it's zero, the created Client will use DefaultBurst: 200.

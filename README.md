@@ -34,7 +34,7 @@ or
 cm enable component managedserviceaccount-preview
 cm get components #to verify
 ```
-## Ensure you are logged in to the AppStudio cluster
+## Ensure you are logged in to the controller cluster
 
 ```bash
 oc cluster-info
@@ -50,7 +50,7 @@ git clone https://github.com/<git username>/compute-operator.git
 cd compute-operator
 ```
 
-2. Verify you are logged into the AppStudio cluster
+2. Verify you are logged into the controller cluster
 
 ```bash
 oc cluster-info
@@ -77,7 +77,6 @@ Check using the following command:
 oc get pods -n compute-config
 ```
 
-
 ## Onboard a managed hub cluster
 
 **Ensure the managed hub cluster meets the prereq listed in the [Prereqs section above](https://github.com/stolostron/compute-operator#prereqs)**
@@ -93,76 +92,109 @@ export KUBECONFIG=/tmp/managed-hub-cluster/kubeconfig
 - `oc login` to the managed hub cluster
 - `unset KUBECONFIG` or set it as before.
 
-2. Create config secret on the AppStudio cluster to access the managed hub cluster.
-- Login to the AppStudio cluster
+2. Create config secret on the controller cluster to access the managed hub cluster.
+
+- Login to the controller cluster
 ```bash
 oc login
 ```
-- Verify you are logged into the AppStudio cluster
+- Verify you are logged into the controller cluster
 ```bash
 oc cluster-info
 ```
 - Create the secret using the managed hub cluster kubeconfig
 ```bash
-oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/managed-hub-cluster/kubeconfig -n <your_namespace>
+oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/hubkubeconfig.yaml -n <controller_namespace>
 ```
 
-## Start the Cluster Registration controller
-1. Verify you are logged into the AppStudio cluster
-```bash
-oc cluster-info
-```
-
-2. Create the hub config on the AppStudio cluster:
+3. Create the hub config on the controller cluster:
 ```bash
 echo '
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: HubConfig
 metadata:
   name: <name_of_your_hub>
-  namespace: <your_namespace>
+  namespace: <controller_namespace>
 spec:
-  kubeConfigSecretRef:
+  kubeconfigSecretRef:
     name: <above_secret_name>
-' | oc create -f -
+' | oc apply -f -
 ```
 
-3. Create the clusterregistrar on the AppStudio cluster:
+- Restart the controller if the ClusterRegistrar CR was already created in order to take into account this new hub.
 
+## Start the Cluster Registration controller
+1. Create the kcp kubeconfig if you don't have one.
+
+- Connect to kcp
+- Create a service account in your workspace for example:
+```bash
+# kubectl create serviceaccount sa_name -n sa_namespace 
+kubectl create serviceaccount compute-operator -n default
+```
+- Generate the kubeconfig from this SA
+```bash
+# build/generate_kubeconfig_from_sa.sh sa_name sa_namespace
+build/generate_kubeconfig_from_sa.sh compute-operator default
+```
+The location of the new kubeconfig will be displayed
+```
+New kubeconfig at /tmp/kubeconfig-compute-operator.yaml
+```
+
+3. Create the clusterregistrar on the controller cluster with the kcp kubeconfig secret as reference:
+
+- switch to the controller cluster and Verify you are logged into the cluster
+```bash
+oc cluster-info
+```
+
+- Create the kubeconfig secret
+The secret must have the kcp kubeconfig in key `kubeconfig`.
+
+```bash
+kubectl create secret generic kcp-kubeconfig -n compute-config --from-file=kubeconfig=/tmp/kubeconfig-compute-operator.yaml
+```
+
+- Create the ClusterRegistrar
 ```bash
 echo '
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: ClusterRegistrar
 metadata:
   name: cluster-reg
-spec:' | oc create -f -
+spec:
+  computeService:
+    computeKubeconfigSecretRef:
+      name: kcp-kubeconfig
+' | oc create -f -
 ```
 
 4. Verify pods are running
 
 There is now three pods that should be running
 
-- cluster-registration-installer-controller-manager
+- compute-operator-installer-controller-manager
 - compute-operator-manager
-- cluster-registration-webhook-service
+- compute-operator-webhook-service
 
 Check using the following command:
 
 ```bash
-oc get pods -n cluster-reg-config
+oc get pods -n compute-config
 ```
 
 
 **NOTE: Restart the `compute-operator-manager` pod
-if you make any changes to the HubConfig.  This will allow the operator to onboard the new hub config.**
+if you make any changes to the ClusterRegistrar or HubConfig.  This will allow the operator to onboard the new hub config.**
 
-## Import a user cluster into AppStudio cluster
-1. Verify you are logged into the AppStudio cluster
+## Import a user cluster into controller cluster
+1. Verify you are logged into the controller cluster
 ```bash
 oc cluster-info
 ```
 
-2. Create a registeredcluster CR on the AppStudio cluster
+2. Create a registeredcluster CR on the controller cluster
 
 ```bash
 echo '
@@ -177,7 +209,7 @@ spec: {}
 
 3. Import the user cluster
 
-- On the AppStudio cluster, run `oc get configmap -n <your_namespace> <name_of_cluster_to_import>-import -o jsonpath='{.data.importCommand}'`
+- On the controller cluster, run `oc get configmap -n <your_namespace> <name_of_cluster_to_import>-import -o jsonpath='{.data.importCommand}'`
 - Copy the results.   This is the command that needs to be run on the user cluster to trigger the import process. **NOTE: This is a very large command, ensure you copy it completely!**
 - Login to the user cluster you want to import
 - Verify you are logged into the user cluster you want to import
@@ -185,8 +217,8 @@ spec: {}
 oc cluster-info
 ```
 - Paste the result and run the commands
-- Login to the AppStudio cluster
-- Verify you are logged into the AppStudio cluster
+- Login to the controller cluster
+- Verify you are logged into the controller cluster
 ```bash
 oc cluster-info
 ```
@@ -199,13 +231,13 @@ oc get registeredcluster -n <your_namespace> -oyaml
 oc get secrets <name_of_cluster_to_import>-cluster-secret -n <your_namespace> -ojsonpath='{.data.kubeconfig}' | base64 -d
 ```
 
-# Listing user clusters that are imported into AppStudio cluster
-1. Verify you are logged into the AppStudio cluster
+# Listing user clusters that are imported into controller cluster
+1. Verify you are logged into the controller cluster
 ```bash
 oc cluster-info
 ```
 
-2. List all registered clusters on the AppStudio cluster
+2. List all registered clusters on the controller cluster
 
 ```bash
 oc get registeredcluster -A

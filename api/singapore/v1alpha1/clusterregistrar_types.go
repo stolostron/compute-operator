@@ -3,6 +3,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -14,6 +15,14 @@ type ClusterRegistrarSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make generate" to regenerate code after modifying this file
 
+	ComputeService ComputeService `json:"computeService"`
+}
+
+// ComputeService contains information about the compute service
+type ComputeService struct {
+	// The secret to access the compute service kubeconfig
+	// +required
+	ComputeKubeconfigSecretRef corev1.LocalObjectReference `json:"computeKubeconfigSecretRef"`
 }
 
 // ClusterRegistrarStatus defines the observed state of ClusterRegistrar

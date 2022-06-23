@@ -8,15 +8,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	kcpcache "github.com/kcp-dev/apimachinery/pkg/cache"
 	// "k8s.io/client-go/rest"
-	k8scache "k8s.io/client-go/tools/cache"
 
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	"github.com/stolostron/compute-operator/controllers/installer"
+	"github.com/stolostron/compute-operator/pkg/helpers"
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
@@ -24,7 +22,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	// "sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
+
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
 	// "sigs.k8s.io/controller-runtime/pkg/kcp"
@@ -75,14 +73,6 @@ func (o *installerOptions) run() {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	setupLog.Info("Setup Installer")
-	newCacheFunc := func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
-		opts.KeyFunction = kcpcache.ClusterAwareKeyFunc
-		opts.Indexers = k8scache.Indexers{
-			kcpcache.ClusterIndexName:             kcpcache.ClusterIndexFunc,
-			kcpcache.ClusterAndNamespaceIndexName: kcpcache.ClusterAndNamespaceIndexFunc,
-		}
-		return cache.New(config, opts)
-	}
 
 	opts := ctrl.Options{
 		Scheme:                 scheme,
@@ -91,7 +81,7 @@ func (o *installerOptions) run() {
 		HealthProbeBindAddress: o.probeAddr,
 		LeaderElection:         o.enableLeaderElection,
 		LeaderElectionID:       "installer.open-cluster-management.io",
-		NewCache:               newCacheFunc,
+		NewCache:               helpers.NewCacheFunc,
 	}
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), opts)
 	if err != nil {

@@ -5,7 +5,8 @@ go 1.17
 require (
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/go-logr/logr v1.2.0
-	github.com/kcp-dev/apimachinery v0.0.0-20220518152549-f62703561e55
+	github.com/kcp-dev/apimachinery v0.0.0-20220531174203-e90e6ca75c19
+	github.com/kcp-dev/kcp/pkg/apis v0.5.0-alpha.1
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.18.0
 	github.com/openshift/generic-admission-server v1.14.1-0.20210422140326-da96454c926d
@@ -95,7 +96,6 @@ require (
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect
-	github.com/stolostron/compute-operator v0.0.0-00010101000000-000000000000 // indirect
 	github.com/stretchr/testify v1.7.1 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.0 // indirect
@@ -153,5 +153,5 @@ replace (
 	k8s.io/api => github.com/kcp-dev/kubernetes/staging/src/k8s.io/api v0.0.0-20220524063253-5bb0eeecf2cf
 	k8s.io/apimachinery => github.com/kcp-dev/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20220524063253-5bb0eeecf2cf
 	k8s.io/client-go => github.com/kcp-dev/kubernetes/staging/src/k8s.io/client-go v0.0.0-20220524063253-5bb0eeecf2cf
-	sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.11.3-0.20220531195000-961c78a53e37
+	sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.11.3-0.20220601041701-6ae831c93ef5
 )
