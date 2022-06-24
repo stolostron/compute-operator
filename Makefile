@@ -2,6 +2,8 @@
 # Copyright Red Hat
 SHELL := /bin/bash
 
+-include /opt/build-harness/Makefile.prow
+
 export PROJECT_DIR            = $(shell 'pwd')
 export PROJECT_NAME			  = $(shell basename ${PROJECT_DIR})
 
@@ -293,7 +295,7 @@ manifests: controller-gen yq/install kcp-plugin
 	${YQ} e '.metadata.name = "compute-operator-manager-role"' config/rbac/role.yaml > deploy/compute-operator/clusterrole.yaml && \
 	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml && \
 	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix today-`date +%Y-%m-%d` \
-	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml 
+	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen
