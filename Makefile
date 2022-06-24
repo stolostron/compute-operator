@@ -5,6 +5,8 @@ SHELL := /bin/bash
 export PROJECT_DIR            = $(shell 'pwd')
 export PROJECT_NAME			  = $(shell basename ${PROJECT_DIR})
 
+POD_NAMESPACE ?= compute-config
+
 # Version to apply to generated artifacts (for bundling/publishing). # This value is set by
 # GitHub workflows on push to main and tagging and is not expected to be bumped here.
 export VERSION ?= 0.0.1
@@ -292,12 +294,27 @@ manifests: controller-gen yq/install kcp-plugin
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..."
 	${YQ} e '.metadata.name = "compute-operator-manager-role"' config/rbac/role.yaml > deploy/compute-operator/clusterrole.yaml && \
 	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml && \
-	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix today-`date +%Y-%m-%d` \
+	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix latest \
 	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml 
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+
+install-local: generate manifests
+	kubectl delete secret mce-kubeconfig-secret -n ${POD_NAMESPACE} --ignore-not-found
+	kubectl create secret generic mce-kubeconfig-secret -n ${POD_NAMESPACE} --from-file=kubeconfig=${HUB_KUBECONFIG}
+	kubectl delete secret kcp-kubeconfig -n ${POD_NAMESPACE} --ignore-not-found
+	kubectl create secret generic kcp-kubeconfig -n ${POD_NAMESPACE} --from-file=kubeconfig=${KCP_KUBECONFIG}
+	kubectl apply -f config/crd/singapore.open-cluster-management.io_hubconfigs.yaml
+	kubectl apply -f config/crd/singapore.open-cluster-management.io_clusterregistrars.yaml
+	kubectl apply -f hack/hubconfig.yaml
+	kubectl apply -f hack/clusterregistrar.yaml
+	kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml --kubeconfig ${KCP_KUBECONFIG}
+	kubectl apply -f hack/compute/apiexport.yaml --kubeconfig ${KCP_KUBECONFIG}
+
+run-local: install-local
+	go run main.go manager
 
 # Tag the IMG as latest and docker push
 docker-push-latest:
