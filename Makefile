@@ -301,7 +301,7 @@ manifests: controller-gen yq/install kcp-plugin
 generate: kubebuilder-tools controller-gen register-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-install-local: generate manifests
+install-prereqs: generate manifests
 	kubectl delete secret mce-kubeconfig-secret -n ${POD_NAMESPACE} --ignore-not-found
 	kubectl create secret generic mce-kubeconfig-secret -n ${POD_NAMESPACE} --from-file=kubeconfig=${HUB_KUBECONFIG}
 	kubectl delete secret kcp-kubeconfig -n ${POD_NAMESPACE} --ignore-not-found
@@ -313,7 +313,7 @@ install-local: generate manifests
 	kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml --kubeconfig ${KCP_KUBECONFIG}
 	kubectl apply -f hack/compute/apiexport.yaml --kubeconfig ${KCP_KUBECONFIG}
 
-run-local: install-local
+run-local: install-prereqs
 	go run main.go manager
 
 # Tag the IMG as latest and docker push

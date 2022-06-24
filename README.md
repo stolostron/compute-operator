@@ -18,7 +18,8 @@ cd compute-operator
 You must meet the following requirements:
 
 - `kustomize` (ver. 4.2.0+)
-- current ACM/MCE/OCM hub (TODO: provide more specific requirements)
+- access to a current ACM/MCE/OCM hub (TODO: provide more specific requirements)
+- access to a kcp instance
 ## Prepare your kubeconfigs
 
 To use this operator, you will need kubeconfigs for a managed hub cluster and a KCP workspace.
