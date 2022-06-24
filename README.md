@@ -2,9 +2,14 @@
 
 # compute-operator
 
-The Cluster Registration operator enables users to register clusters to their AppStudio workspace. We leverage the [multicluster engine](https://stolostron.github.io/mce-docs/) to import each cluster and add it to a ManagedClusterSet per workspace.
+The Compute operator enables users to register clusters to kcp. Once registered, the Compute operator is responsible for maintaining a SyncTarget (WorkloadCluster) in the desired kcp Location workspace and installing and configuring the kcp syncer.
 
-Please fork this repo and clone from the fork.  All your work should be against the forked repo.
+Please fork this repo and clone from the fork.  All of your work should be against the forked repo.
+
+```bash
+git clone https://github.com/<git username>/compute-operator.git
+cd compute-operator
+```
 
 # Installing
 
@@ -13,50 +18,84 @@ Please fork this repo and clone from the fork.  All your work should be against 
 You must meet the following requirements:
 
 - `kustomize` (ver. 4.2.0+)
-- The managed hub must be MCE 2.0.0+
-- On the managed hub, the multiclusterengine CR must have the managedserviceaccount-preview enabled. Ensure you are logged into the correct managed hub cluster:
+- current ACM/MCE/OCM hub (TODO: provide more specific requirements)
+## Prepare your kubeconfigs
+
+To use this operator, you will need kubeconfigs for a managed hub cluster and a KCP workspace.
+
+### Generating a kubeconfig for your managed hub cluster
+
+Use one of the following techniques to generate a kubeconfig:
+
+A. Set a temporary KUBECONFIG and `oc login`
+1. Run the following:
+```bash
+rm -f /tmp/managed-hub-cluster.kubeconfig
+touch /tmp/managed-hub-cluster.kubeconfig
+export KUBECONFIG=/tmp/managed-hub-cluster.kubeconfig
+```
+2.  `oc login` to the managed hub cluster
+3.  `unset KUBECONFIG` or set it as before.
+
+-OR-
+
+B. Copy an existing context into a temp file
+```bash
+kubectl config view --context=ms/your-hub-cluster-claim-name --minify --flatten > /tmp/managed-hub-cluster.kubeconfig
+```
+
+### Generating a kubeconfig for your kcp cluster
+
+1. Login to kcp
+2. Create a new workspace or enter an existing workspace where you will install the APIResourceSchema and create a ServiceAccount for this operator
+3. Create a service account in your workspace for example:
+```bash
+# kubectl create serviceaccount sa_name -n sa_namespace 
+kubectl create serviceaccount compute-operator -n default
+```
+4. Generate the kubeconfig from this SA
+```bash
+# build/generate_kubeconfig_from_sa.sh sa_name sa_namespace
+build/generate_kubeconfig_from_sa.sh compute-operator default
+```
+The location of the new kubeconfig will be displayed
+```
+New kubeconfig at /tmp/kubeconfig-compute-operator.yaml
+```
+5. Create a ClusterRole and ClusterRoleBinding for this service account
+```bash
+kubectl apply -f hack/compute/role.yaml
+kubectl apply -f hack/compute/role_binding.yaml
+```
+
+## Run the code
+
+You can deploy the code from this repo onto a cluster, or you can run it locally.
+
+
+### Local development
+
+To run the operator locally, you can:
+
+```bash
+export POD_NAMESPACE=compute-config
+export HUB_KUBECONFIG=/tmp/managed-hub-cluster.kubeconfig
+export KCP_KUBECONFIG=/tmp/kubeconfig-compute-operator.yaml
+oc new-project $POD_NAMESPACE
+make run-local
+```
+
+TODO: Debug directions
+
+### Deploy operator to a cluster
+
+1. Verify you are logged into the cluster where you'd like to deploy the operator. This does not need to be the hub cluster.
+
 ```bash
 oc cluster-info
 ```
-and then use one of the two methods shown below to make the change:
-   - Manually edit using `oc edit multiclusterengine`
-     then ensure the following:
-```
-    - enabled: true
-      name: managedserviceaccount-preview
-```
-   - Run a command to make the change:
-```
-oc patch multiclusterengine multiclusterengine --type=merge -p '{"spec":{"overrides":{"components":[{"name":"managedserviceaccount-preview","enabled":true}]}}}'
-```
-or
-```
-cm enable component managedserviceaccount-preview
-cm get components #to verify
-```
-## Ensure you are logged in to the controller cluster
 
-```bash
-oc cluster-info
-```
-
-## Install the operator from this repo
-**NOTE: This step is only required if you have not used the [infra-deployments repo](https://github.com/redhat-appstudio/infra-deployments) to deploy Cluster Registration and the other AppStudio pieces to your cluster**
-
-1. Fork and clone this repo
-
-```bash
-git clone https://github.com/<git username>/compute-operator.git
-cd compute-operator
-```
-
-2. Verify you are logged into the controller cluster
-
-```bash
-oc cluster-info
-```
-
-3. From the cloned compute-operator directory:
+2. From the cloned compute-operator directory:
 
 ```bash
 export QUAY_USER=<your_user>
@@ -65,7 +104,7 @@ export IMG=quay.io/${QUAY_USER}/compute-operator:${IMG_TAG}
 make docker-build docker-push deploy
 ```
 
-4. Verify the installer is running
+3. Verify the installer is running
 
 There is one pod that should be running:
 
@@ -77,20 +116,12 @@ Check using the following command:
 oc get pods -n compute-config
 ```
 
-## Onboard a managed hub cluster
+#### Onboard a managed hub cluster
 
-**Ensure the managed hub cluster meets the prereq listed in the [Prereqs section above](https://github.com/stolostron/compute-operator#prereqs)**
+**Ensure the managed hub cluster meets the prereq listed in the [Prereqs section above](#prereqs)**
 
 
-1. Get the kubeconfig of the managed hub cluster:
-```bash
-rm -rf /tmp/managed-hub-cluster
-mkdir -p /tmp/managed-hub-cluster
-touch /tmp/managed-hub-cluster/kubeconfig
-export KUBECONFIG=/tmp/managed-hub-cluster/kubeconfig
-```
-- `oc login` to the managed hub cluster
-- `unset KUBECONFIG` or set it as before.
+1. Follow the steps above in [Generating a kubeconfig for your managed hub cluster](#generating-a-kubeconfig-for-your-managed-hub-cluster)
 
 2. Create config secret on the controller cluster to access the managed hub cluster.
 
@@ -123,26 +154,10 @@ spec:
 
 - Restart the controller if the ClusterRegistrar CR was already created in order to take into account this new hub.
 
-## Start the Cluster Registration controller
-1. Create the kcp kubeconfig if you don't have one.
+#### Start the Cluster Registration controller
+1. Follow the steps above in [Generating a kubeconfig for your kcp cluster](#generating-a-kubeconfig-for-your-kcp-cluster)
 
-- Connect to kcp
-- Create a service account in your workspace for example:
-```bash
-# kubectl create serviceaccount sa_name -n sa_namespace 
-kubectl create serviceaccount compute-operator -n default
-```
-- Generate the kubeconfig from this SA
-```bash
-# build/generate_kubeconfig_from_sa.sh sa_name sa_namespace
-build/generate_kubeconfig_from_sa.sh compute-operator default
-```
-The location of the new kubeconfig will be displayed
-```
-New kubeconfig at /tmp/kubeconfig-compute-operator.yaml
-```
-
-3. Create the clusterregistrar on the controller cluster with the kcp kubeconfig secret as reference:
+2. Create the clusterregistrar on the controller cluster with the kcp kubeconfig secret as reference:
 
 - switch to the controller cluster and Verify you are logged into the cluster
 ```bash
@@ -188,13 +203,23 @@ oc get pods -n compute-config
 **NOTE: Restart the `compute-operator-manager` pod
 if you make any changes to the ClusterRegistrar or HubConfig.  This will allow the operator to onboard the new hub config.**
 
+# Using
 ## Import a user cluster into controller cluster
-1. Verify you are logged into the controller cluster
+1. Create and enter a new workspace in kcp
+
+2. Create an APIBinding to the compute-apis APIExport
+
+Edit the file hack/compute/apibinding.yaml spec.reference.workspace.path to point at the workspace you created above in [Generating a kubeconfig for your kcp cluster](#generating-a-kubeconfig-for-your-kcp-cluster)
 ```bash
-oc cluster-info
+kubectl apply -f hack/compute/apibinding.yaml
+```
+3. Confirm the RegisteredCluster API is now available
+```bash
+% k api-resources | grep registered
+registeredclusters                             singapore.open-cluster-management.io/v1alpha1   true         RegisteredCluster
 ```
 
-2. Create a registeredcluster CR on the controller cluster
+4. Create a registeredcluster CR in the kcp workspace
 
 ```bash
 echo '
@@ -207,9 +232,9 @@ spec: {}
 ' | oc create -f -
 ```
 
-3. Import the user cluster
+5. Import the user cluster
 
-- On the controller cluster, run `oc get configmap -n <your_namespace> <name_of_cluster_to_import>-import -o jsonpath='{.data.importCommand}'`
+- In your kcp workspace, run `oc get configmap -n <your_namespace> <name_of_cluster_to_import>-import -o jsonpath='{.data.importCommand}'`
 - Copy the results.   This is the command that needs to be run on the user cluster to trigger the import process. **NOTE: This is a very large command, ensure you copy it completely!**
 - Login to the user cluster you want to import
 - Verify you are logged into the user cluster you want to import
@@ -231,7 +256,7 @@ oc get registeredcluster -n <your_namespace> -oyaml
 oc get secrets <name_of_cluster_to_import>-cluster-secret -n <your_namespace> -ojsonpath='{.data.kubeconfig}' | base64 -d
 ```
 
-# Listing user clusters that are imported into controller cluster
+## Listing user clusters that are imported into controller cluster
 1. Verify you are logged into the controller cluster
 ```bash
 oc cluster-info
@@ -243,16 +268,4 @@ oc cluster-info
 oc get registeredcluster -A
 ```
 
-# Local development
 
-To run the operator locally, you can:
-
-```bash
-make generate
-oc apply -f config/crd/singapore.open-cluster-management.io_registeredclusters.yaml
-oc apply -f config/crd/singapore.open-cluster-management.io_hubconfigs.yaml
-oc apply -f hack/hubconfig.yaml
-oc create secret generic mce-kubeconfig-secret --from-file=kubeconfig=kubeconfig # Expects a kubeconfig file named kubeconfig
-export POD_NAMESPACE=default
-go run main.go manager
-```

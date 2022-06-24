@@ -1,7 +1,7 @@
 apiVersion: apis.kcp.dev/v1alpha1
 kind: APIExport
 metadata:
-  name: compute-operator
+  name: compute-apis
 spec:
   latestResourceSchemas:
-  - today-2022-06-16.registeredclusters.singapore.open-cluster-management.io
+  - latest.registeredclusters.singapore.open-cluster-management.io

@@ -2,7 +2,7 @@ apiVersion: apis.kcp.dev/v1alpha1
 kind: APIResourceSchema
 metadata:
   creationTimestamp: null
-  name: today-2022-06-22.registeredclusters.singapore.open-cluster-management.io
+  name: latest.registeredclusters.singapore.open-cluster-management.io
 spec:
   group: singapore.open-cluster-management.io
   names:
