@@ -13,7 +13,7 @@ type RegisteredClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make generate" to regenerate code after modifying this file
 
-	//kcp Location
+	// kcp Location
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Location string `json:"location,omitempty"`
