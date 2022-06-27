@@ -208,6 +208,7 @@ ifeq (, $(shell which etcd))
 			K8S_VERSION=1.19.2 ;\
 			curl -sSLo envtest-bins.tar.gz https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-$$K8S_VERSION-$$(go env GOOS)-$$(go env GOARCH).tar.gz ;\
 			tar xf envtest-bins.tar.gz ;\
+			test -d $$HOME/kubebuilder && rm -rf $$HOME/kubebuilder ;\
 			mv $$ENVTEST_TMP_DIR/kubebuilder $$HOME ;\
 			rm -rf $$ENVTEST_TMP_DIR ;\
 	}
