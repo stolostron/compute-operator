@@ -1,3 +1,4 @@
+# Copyright Red Hat
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: RegisteredCluster
 metadata:
