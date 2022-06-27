@@ -14,6 +14,8 @@ type RegisteredClusterSpec struct {
 	// Important: Run "make generate" to regenerate code after modifying this file
 
 	//kcp Location
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	Location string `json:"location,omitempty"`
 }
 

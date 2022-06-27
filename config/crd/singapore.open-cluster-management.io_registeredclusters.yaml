@@ -51,6 +51,7 @@ spec:
             properties:
               location:
                 description: kcp Location
+                minLength: 1
                 type: string
             type: object
           status:
