@@ -157,7 +157,7 @@ endif
 .PHONY: kcp-plugin
 ## Find or download kcp-plugin
 kcp-plugin:
-ifeq (, $(shell kubectl kcp))
+ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 	@( \
 		set -ex ;\
 		KCP_TMP_DIR=$$(mktemp -d) ;\
@@ -295,7 +295,7 @@ manifests: controller-gen yq/install kcp-plugin
 	${YQ} e '.metadata.name = "compute-operator-manager-role"' config/rbac/role.yaml > deploy/compute-operator/clusterrole.yaml && \
 	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml && \
 	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix latest \
-	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml 
+	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen

@@ -188,6 +188,9 @@ spec:
                     TODO: Add other useful fields. apiVersion, kind, uid?'
                   type: string
               type: object
+            location:
+              description: kcp Location
+              type: string
             version:
               description: Version represents the kubernetes version of the registered
                 cluster.
