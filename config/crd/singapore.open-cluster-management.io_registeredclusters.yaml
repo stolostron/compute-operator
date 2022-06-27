@@ -48,6 +48,10 @@ spec:
             type: object
           spec:
             description: RegisteredClusterSpec defines the desired state of RegisteredCluster
+            properties:
+              location:
+                description: kcp Location
+                type: string
             type: object
           status:
             description: RegisteredClusterStatus defines the observed state of RegisteredCluster
@@ -192,9 +196,6 @@ spec:
                       TODO: Add other useful fields. apiVersion, kind, uid?'
                     type: string
                 type: object
-              location:
-                description: kcp Location
-                type: string
               version:
                 description: Version represents the kubernetes version of the registered
                   cluster.
