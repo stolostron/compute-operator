@@ -4,6 +4,7 @@ _generated.go
 hack/namespace.yaml
 hack/registeredcluster.yaml
 hack/hubconfig.yaml
+hack/clusterregistrar.yaml
 hack/compute/apibinding.yaml
 hack/compute/apiexport.yaml
 hack/compute/role.yaml
