@@ -61,7 +61,7 @@ TMP_DIR=$$(mktemp -d) ;\
 cd $$TMP_DIR ;\
 go mod init tmp ;\
 echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go get $(2) ;\
+GOBIN=$(PROJECT_DIR)/bin install get $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
 endef
@@ -76,7 +76,7 @@ ifeq (, $(shell which controller-gen))
 	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
 	cd $$CONTROLLER_GEN_TMP_DIR ;\
 	go mod init tmp ;\
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0 ;\
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0 ;\
 	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
 	)
 CONTROLLER_GEN=$(GOBIN)/controller-gen
@@ -90,11 +90,11 @@ register-gen:
 ifeq (, $(shell which register-gen))
 	@( \
 	set -e ;\
-	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
-	cd $$CONTROLLER_GEN_TMP_DIR ;\
+	REGISTER_GEN_TMP_DIR=$$(mktemp -d) ;\
+	cd $$REGISTER_GEN_TMP_DIR ;\
 	go mod init tmp ;\
-	go get k8s.io/code-generator/cmd/register-gen ;\
-	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
+	go install k8s.io/code-generator/cmd/register-gen ;\
+	rm -rf $$REGISTER_GEN_TMP_DIR ;\
 	)
 REGISTER_GEN=$(GOBIN)/register-gen
 else
@@ -109,7 +109,7 @@ ifeq (, $(shell which kustomize))
 	KUSTOMIZE_GEN_TMP_DIR=$$(mktemp -d) ;\
 	cd $$KUSTOMIZE_GEN_TMP_DIR ;\
 	go mod init tmp ;\
-	go get sigs.k8s.io/kustomize/kustomize/v3@v3.8.7 ;\
+	go install sigs.k8s.io/kustomize/kustomize/v3@v3.8.7 ;\
 	rm -rf $$KUSTOMIZE_GEN_TMP_DIR ;\
 	}
 KUSTOMIZE=$(GOBIN)/kustomize
@@ -219,7 +219,7 @@ ifeq (, $(shell which ginkgo))
 	set -ex ;\
 	ENVTEST_TMP_DIR=$$(mktemp -d) ;\
 	cd $$ENVTEST_TMP_DIR ;\
-	go get -u "github.com/onsi/ginkgo/v2/ginkgo@v2.1.1";\
+	go install -u "github.com/onsi/ginkgo/v2/ginkgo@v2.1.1";\
 	rm -rf $$ENVTEST_TMP_DIR ;\
 	}
 endif
