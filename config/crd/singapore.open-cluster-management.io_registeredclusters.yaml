@@ -50,7 +50,7 @@ spec:
             description: RegisteredClusterSpec defines the desired state of RegisteredCluster
             properties:
               location:
-                description: kcp Location
+                description: kcp workspace where SyncTarget will be created
                 minLength: 1
                 type: string
             type: object
