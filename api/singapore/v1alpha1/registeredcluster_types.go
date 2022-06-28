@@ -61,9 +61,6 @@ type RegisteredClusterStatus struct {
 	//ApiURL the URL of apiserver endpoint of the registered cluster.
 	// +optional
 	ApiURL string `json:"apiURL,omitempty"`
-
-	//kcp Location
-	Location string `json:"location,omitempty"`
 }
 
 // +genclient
