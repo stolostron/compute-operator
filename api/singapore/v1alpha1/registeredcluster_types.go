@@ -13,6 +13,10 @@ type RegisteredClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make generate" to regenerate code after modifying this file
 
+	// kcp workspace where SyncTarget will be created
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Location string `json:"location,omitempty"`
 }
 
 // RegisteredClusterStatus defines the observed state of RegisteredCluster

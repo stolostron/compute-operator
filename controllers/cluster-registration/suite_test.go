@@ -242,7 +242,9 @@ var _ = Describe("Process registeredCluster: ", func() {
 					Name:      "registered-cluster",
 					Namespace: userNamespace,
 				},
-				Spec: singaporev1alpha1.RegisteredClusterSpec{},
+				Spec: singaporev1alpha1.RegisteredClusterSpec{
+					Location: "FakeKcpLocation",
+				},
 			}
 			err := k8sClient.Create(context.TODO(), registeredCluster)
 			Expect(err).To(BeNil())
