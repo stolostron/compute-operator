@@ -194,15 +194,16 @@ if you make any changes to the ClusterRegistrar or HubConfig.  This will allow t
 oc cluster-info
 ```
 
-2. Create a registeredcluster CR on the controller cluster
+2. Create a registeredcluster CR in the workspace
 
 ```bash
+kubectl create ns itdove-ns
 echo '
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: RegisteredCluster
 metadata:
-  name: <name_of_cluster_to_import>
-  namespace: <your_namespace>
+  name: itdove-spoke
+  namespace: itdove-ns
 spec: {}
 ' | oc create -f -
 ```

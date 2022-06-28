@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -25,7 +27,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
+	apisv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/apis/v1alpha1"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
@@ -34,9 +38,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/kcp"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	kcpclient "github.com/kcp-dev/apimachinery/pkg/client"
+	"github.com/kcp-dev/logicalcluster"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
 	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
 
@@ -50,18 +58,27 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 const (
-	userNamespace      string = "user-namespace"
-	managedClusterName string = ""
+	workspace                  string = "user-workspace"
+	controllerNamespace        string = "controller-ns"
+	managerServiceAccount      string = "compute-operator"
+	workingComputeNamespace    string = "default"
+	clusterName                string = "root:default:user-workspace"
+	managedClusterName         string = "registered-cluster"
+	adminComputeKubeconfigFile string = ".kcp/admin.kubeconfig"
+	saComputeKubeconfigFile    string = "/tmp/kubeconfig-" + managerServiceAccount + ".yaml"
 )
 
 var (
-	cfg       *rest.Config
-	r         *RegisteredClusterReconciler
-	k8sClient client.Client
-	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
-	scheme    = runtime.NewScheme()
+	cfg                  *rest.Config
+	r                    *RegisteredClusterReconciler
+	hubRuntimeClient     client.Client
+	computeRuntimeClient client.Client
+	computeContext       context.Context
+	testEnv              *envtest.Environment
+	ctx                  context.Context
+	cancelManager        context.CancelFunc
+	scheme               = runtime.NewScheme()
+	kcpServer            *exec.Cmd
 )
 
 func TestAPIs(t *testing.T) {
@@ -95,6 +112,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	err = manifestworkv1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
+	err = apisv1alpha1.AddToScheme(scheme)
+	Expect(err).Should(BeNil())
 
 	readerIDP := croconfig.GetScenarioResourcesReader()
 	clusterRegistrarsCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_clusterregistrars.yaml")
@@ -126,24 +145,198 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
+	os.RemoveAll(".kcp")
+
+	// Set kubeconfig for compute server, the path must be absolute for the generate_kubeconfig_from_sa.sh script
+	adminComputeKubeconfigFile, err := filepath.Abs(adminComputeKubeconfigFile)
 	Expect(err).ToNot(HaveOccurred())
-	Expect(k8sClient).ToNot(BeNil())
+	os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)
+	go func() {
+		kcpServer = exec.Command("kcp",
+			"start",
+		)
+
+		kcpServer.Stdout = os.Stdout
+		kcpServer.Stderr = os.Stderr
+		err = kcpServer.Start()
+		Expect(err).To(BeNil())
+	}()
+
+	// Create workspace on compute server and enter in the ws
+	By(fmt.Sprintf("creation of workspace %s", workspace), func() {
+		Eventually(func() error {
+			logf.Log.Info("create workspace")
+			cmd := exec.Command("kubectl-kcp",
+				"ws",
+				"create",
+				workspace,
+				"--enter")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while create workspace")
+			}
+			return err
+		}, 60, 3).Should(BeNil())
+	})
+
+	// Create SA on compute server in workspace
+	By(fmt.Sprintf("creation of SA %s in workspace %s", managerServiceAccount, workspace), func() {
+		Eventually(func() error {
+			logf.Log.Info("create service account")
+			cmd := exec.Command("kubectl",
+				"create",
+				"serviceaccount",
+				managerServiceAccount,
+				"-n",
+				workingComputeNamespace)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while create managerServiceAccount")
+			}
+			return err
+		}, 60, 3).Should(BeNil())
+	})
+
+	By(fmt.Sprintf("generate kubeconfig for sa %s in workspace %s", managerServiceAccount, workspace), func() {
+		Eventually(func() error {
+			logf.Log.Info("/tmp/kubeconfig-compute-operator.yaml")
+			cmd := exec.Command("../../build/generate_kubeconfig_from_sa.sh",
+				managerServiceAccount,
+				workingComputeNamespace)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while generating sa kubeconfig")
+			}
+			return err
+		}, 60, 3).Should(BeNil())
+	})
+
+	// Create role for on compute server in workspace
+	By(fmt.Sprintf("creation of role in workspace %s", workspace), func() {
+		Eventually(func() error {
+			logf.Log.Info("create role")
+			cmd := exec.Command("kubectl",
+				"create",
+				"-f",
+				"../../test/resources/compute/role.yaml")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while create role")
+			}
+			return err
+		}, 60, 3).Should(BeNil())
+	})
+
+	// Create rolebinding for on compute server in workspace
+	By(fmt.Sprintf("creation of rolebinding in workspace %s", workspace), func() {
+		Eventually(func() error {
+			logf.Log.Info("create role")
+			cmd := exec.Command("kubectl",
+				"create",
+				"-f",
+				"../../test/resources/compute/role_binding.yaml")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while create role binding")
+			}
+			return err
+		}, 60, 3).Should(BeNil())
+	})
+
+	By(fmt.Sprintf("apply resourceschema on workspace %s", workspace), func() {
+		Eventually(func() error {
+			logf.Log.Info("apply resourceschema")
+			cmd := exec.Command("kubectl",
+				"apply",
+				"-f",
+				"../../config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while applying resourceschema")
+			}
+			return err
+		}, 60, 3).Should(BeNil())
+	})
+
+	By(fmt.Sprintf("apply APIExport on workspace %s", workspace), func() {
+		Eventually(func() error {
+			logf.Log.Info("apply APIExport")
+			cmd := exec.Command("kubectl",
+				"apply",
+				"-f",
+				"../../test/resources/compute/apiexport.yaml")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while applying apiexport")
+			}
+			return err
+		}, 60, 3).Should(BeNil())
+	})
+
+	By(fmt.Sprintf("apply APIBinding on workspace %s", workspace), func() {
+		Eventually(func() error {
+			logf.Log.Info("apply APIBinding")
+			cmd := exec.Command("kubectl",
+				"apply",
+				"-f",
+				"../../test/resources/compute/apibinding.yaml")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while applying APIBinding")
+			}
+			return err
+		}, 60, 3).Should(BeNil())
+	})
+
+	computeKubconfigData, err := ioutil.ReadFile(saComputeKubeconfigFile)
+	Expect(err).ToNot(HaveOccurred())
+	computeKubeconfig, err := clientcmd.RESTConfigFromKubeConfig(computeKubconfigData)
+	Expect(err).ToNot(HaveOccurred())
+	hubRuntimeClient, err = client.New(cfg, client.Options{Scheme: scheme})
+	Expect(err).ToNot(HaveOccurred())
+	Expect(hubRuntimeClient).ToNot(BeNil())
 
 	opts := ctrl.Options{
-		Scheme:   scheme,
-		NewCache: helpers.NewCacheFunc,
+		Scheme: scheme,
+		// NewCache: helpers.NewCacheFunc,
 	}
 
-	mgr, err := ctrl.NewManager(cfg, opts)
+	var controllerComputeConfig *rest.Config
+	By("waiting virtualworkspace", func() {
+		Eventually(func() error {
+			logf.Log.Info("waiting vitual workspace")
+			controllerComputeConfig, err = helpers.RestConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-operator", scheme)
+			return err
+		}, 60, 3).Should(BeNil())
+	})
+
+	mgr, err := kcp.NewClusterAwareManager(controllerComputeConfig, opts)
+	computeRuntimeClient = mgr.GetClient()
+	computeContext = kcpclient.WithCluster(context.Background(), logicalcluster.New(clusterName))
 	Expect(err).ToNot(HaveOccurred())
 	Expect(mgr).ToNot(BeNil())
 
 	os.Setenv("POD_NAME", "installer-pod")
-	os.Setenv("POD_NAMESPACE", userNamespace)
+	os.Setenv("POD_NAMESPACE", controllerNamespace)
 
 	adminInfo := envtest.User{Name: "admin", Groups: []string{"system:masters"}}
-	authenticatedUser, err := testEnv.AddUser(adminInfo, cfg)
+	authenticatedUser, err := testEnv.AddUser(adminInfo, controllerComputeConfig)
 	Expect(err).To(BeNil())
 	kubectl, err := authenticatedUser.Kubectl()
 	Expect(err).To(BeNil())
@@ -153,13 +346,13 @@ var _ = BeforeSuite(func() {
 	_, err = io.Copy(buf, out)
 	Expect(err).To(BeNil())
 
-	By(fmt.Sprintf("creation of namespace %s", userNamespace), func() {
+	By(fmt.Sprintf("creation of namepsace %s", controllerNamespace), func() {
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: userNamespace,
+				Name: controllerNamespace,
 			},
 		}
-		err := k8sClient.Create(context.TODO(), ns)
+		err := hubRuntimeClient.Create(context.TODO(), ns)
 		Expect(err).To(BeNil())
 	})
 
@@ -167,13 +360,13 @@ var _ = BeforeSuite(func() {
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-hub-kube-config",
-				Namespace: userNamespace,
+				Namespace: controllerNamespace,
 			},
 			Data: map[string][]byte{
 				"kubeconfig": []byte(buf.String()),
 			},
 		}
-		err := k8sClient.Create(context.TODO(), secret)
+		err := hubRuntimeClient.Create(context.TODO(), secret)
 		Expect(err).To(BeNil())
 	})
 
@@ -182,7 +375,7 @@ var _ = BeforeSuite(func() {
 		hubConfig = &singaporev1alpha1.HubConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-hubconfig",
-				Namespace: userNamespace,
+				Namespace: controllerNamespace,
 			},
 			Spec: singaporev1alpha1.HubConfigSpec{
 				KubeConfigSecretRef: corev1.LocalObjectReference{
@@ -190,7 +383,7 @@ var _ = BeforeSuite(func() {
 				},
 			},
 		}
-		err := k8sClient.Create(context.TODO(), hubConfig)
+		err := hubRuntimeClient.Create(context.TODO(), hubConfig)
 		Expect(err).To(BeNil())
 	})
 
@@ -199,11 +392,20 @@ var _ = BeforeSuite(func() {
 		dynamicClient := dynamic.NewForConfigOrDie(cfg)
 		hubClusters, err := helpers.GetHubClusters(context.Background(), mgr, kubeClient, dynamicClient)
 		Expect(err).To(BeNil())
+		computeKubeClient, err := kubernetes.NewClusterForConfig(controllerComputeConfig)
+		Expect(err).To(BeNil())
+		computeDynamicClient, err := dynamic.NewClusterForConfig(controllerComputeConfig)
+		Expect(err).To(BeNil())
+		computeApiExtensionClient, err := apiextensionsclient.NewClusterForConfig(controllerComputeConfig)
+		Expect(err).To(BeNil())
 		r = &RegisteredClusterReconciler{
-			Client:      k8sClient,
-			Log:         logf.Log,
-			Scheme:      scheme,
-			HubClusters: hubClusters,
+			Client:                    mgr.GetClient(),
+			Log:                       logf.Log,
+			Scheme:                    scheme,
+			HubClusters:               hubClusters,
+			ComputeKubeClient:         computeKubeClient,
+			ComputeDynamicClient:      computeDynamicClient,
+			ComputeAPIExtensionClient: computeApiExtensionClient,
 		}
 		err = r.SetupWithManager(mgr, scheme)
 		Expect(err).To(BeNil())
@@ -211,7 +413,7 @@ var _ = BeforeSuite(func() {
 
 	go func() {
 		defer GinkgoRecover()
-		ctx, cancel = context.WithCancel(ctrl.SetupSignalHandler())
+		ctx, cancelManager = context.WithCancel(ctrl.SetupSignalHandler())
 		err = mgr.Start(ctx)
 		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
 	}()
@@ -219,9 +421,19 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	cancel()
+	if kcpServer != nil {
+		err := kcpServer.Process.Signal(os.Interrupt)
+		Expect(err).NotTo(HaveOccurred())
+		err = kcpServer.Process.Signal(os.Interrupt)
+		Expect(err).NotTo(HaveOccurred())
+	}
+	err := kcpServer.Wait()
+	Expect(err).NotTo(HaveOccurred())
+	if cancelManager != nil {
+		cancelManager()
+	}
 	By("tearing down the test environment")
-	err := testEnv.Stop()
+	err = testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
 
@@ -229,22 +441,36 @@ var _ = Describe("Process registeredCluster: ", func() {
 	It("Process registeredCluster", func() {
 		var registeredCluster *singaporev1alpha1.RegisteredCluster
 		By("Create the RegisteredCluster", func() {
+			Eventually(func() error {
+				logf.Log.Info("apply registeredCluster")
+				cmd := exec.Command("kubectl",
+					"apply",
+					"-f",
+					"../../test/resources/compute/registeredCluster.yaml")
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				err := cmd.Run()
+				if err != nil {
+					logf.Log.Error(err, "while applying registeredCluster")
+				}
+				return err
+			}, 60, 3).Should(BeNil())
 			registeredCluster = &singaporev1alpha1.RegisteredCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "registered-cluster",
-					Namespace: userNamespace,
+					Namespace: workingComputeNamespace,
 				},
 				Spec: singaporev1alpha1.RegisteredClusterSpec{},
 			}
-			err := k8sClient.Create(context.TODO(), registeredCluster)
-			Expect(err).To(BeNil())
+			// err := hubRuntimeClient.Create(context.TODO(), registeredCluster)
+			// Expect(err).To(BeNil())
 		})
 		var managedCluster *clusterapiv1.ManagedCluster
 		By("Checking managedCluster", func() {
 			Eventually(func() error {
 				managedClusters := &clusterapiv1.ManagedClusterList{}
 
-				if err := k8sClient.List(context.TODO(),
+				if err := hubRuntimeClient.List(context.TODO(),
 					managedClusters,
 					client.MatchingLabels{
 						RegisteredClusterNamelabel:      registeredCluster.Name,
@@ -260,19 +486,19 @@ var _ = Describe("Process registeredCluster: ", func() {
 				return nil
 			}, 60, 3).Should(BeNil())
 		})
-		By("Patching manageecluster spec", func() {
+		By("Patching managecluster spec", func() {
 			managedCluster.Spec.ManagedClusterClientConfigs = []clusterapiv1.ClientConfig{
 				{
 					URL:      "https://example.com:443",
 					CABundle: []byte("cabbundle"),
 				},
 			}
-			err := k8sClient.Update(context.TODO(), managedCluster)
+			err := hubRuntimeClient.Update(context.TODO(), managedCluster)
 			Expect(err).Should(BeNil())
 		})
 		By("Updating managedcluster label", func() {
 			managedCluster.ObjectMeta.Labels["clusterID"] = "8bcc855c-259f-46fd-adda-485ef99f2438"
-			err := k8sClient.Update(context.TODO(), managedCluster)
+			err := hubRuntimeClient.Update(context.TODO(), managedCluster)
 			Expect(err).Should(BeNil())
 		})
 		By("Patching managedcluster status", func() {
@@ -309,7 +535,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					Value: registeredCluster.Name,
 				},
 			}
-			err := k8sClient.Status().Update(context.TODO(), managedCluster)
+			err := hubRuntimeClient.Status().Update(context.TODO(), managedCluster)
 			Expect(err).Should(BeNil())
 		})
 		By("Create managedcluster namespace", func() {
@@ -318,7 +544,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					Name: managedCluster.Name,
 				},
 			}
-			err := k8sClient.Create(context.TODO(), ns)
+			err := hubRuntimeClient.Create(context.TODO(), ns)
 			Expect(err).To(BeNil())
 		})
 		importSecret := &corev1.Secret{
@@ -334,17 +560,15 @@ var _ = Describe("Process registeredCluster: ", func() {
 			},
 		}
 		By("Create import secret", func() {
-			err := k8sClient.Create(context.TODO(), importSecret)
+			err := hubRuntimeClient.Create(context.TODO(), importSecret)
 			Expect(err).To(BeNil())
 		})
 		By("Checking registeredCluster ImportCommandRef", func() {
 			Eventually(func() error {
-				err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      registeredCluster.Name,
-							Namespace: registeredCluster.Namespace,
-						},
+				err := computeRuntimeClient.Get(computeContext,
+					types.NamespacedName{
+						Name:      registeredCluster.Name,
+						Namespace: registeredCluster.Namespace,
 					},
 					registeredCluster)
 				if err != nil {
@@ -367,12 +591,10 @@ var _ = Describe("Process registeredCluster: ", func() {
 
 		By("Checking import configMap", func() {
 			Eventually(func() error {
-				err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      registeredCluster.Status.ImportCommandRef.Name,
-							Namespace: registeredCluster.Namespace,
-						},
+				err := hubRuntimeClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      registeredCluster.Status.ImportCommandRef.Name,
+						Namespace: registeredCluster.Namespace,
 					},
 					cm)
 				if err != nil {
@@ -386,12 +608,10 @@ var _ = Describe("Process registeredCluster: ", func() {
 		})
 		By("Checking registeredCluster status", func() {
 			Eventually(func() error {
-				err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      registeredCluster.Name,
-							Namespace: registeredCluster.Namespace,
-						},
+				err := hubRuntimeClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      registeredCluster.Name,
+						Namespace: registeredCluster.Namespace,
 					},
 					registeredCluster)
 				if err != nil {
@@ -431,12 +651,10 @@ var _ = Describe("Process registeredCluster: ", func() {
 			Eventually(func() error {
 				managedClusterAddon := &addonv1alpha1.ManagedClusterAddOn{}
 
-				if err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      ManagedClusterAddOnName,
-							Namespace: managedCluster.Name,
-						},
+				if err := hubRuntimeClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      ManagedClusterAddOnName,
+						Namespace: managedCluster.Name,
 					},
 					managedClusterAddon); err != nil {
 					logf.Log.Info("Waiting managedClusteraddon", "Error", err)
@@ -450,12 +668,10 @@ var _ = Describe("Process registeredCluster: ", func() {
 			Eventually(func() error {
 				managed := &authv1alpha1.ManagedServiceAccount{}
 
-				if err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      ManagedServiceAccountName,
-							Namespace: managedCluster.Name,
-						},
+				if err := hubRuntimeClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      ManagedServiceAccountName,
+						Namespace: managedCluster.Name,
 					},
 					managed); err != nil {
 					logf.Log.Info("Waiting managedserviceaccount", "Error", err)
@@ -469,12 +685,10 @@ var _ = Describe("Process registeredCluster: ", func() {
 			Eventually(func() error {
 				manifestwork := &manifestworkv1.ManifestWork{}
 
-				err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      ManagedServiceAccountName,
-							Namespace: managedCluster.Name,
-						},
+				err := hubRuntimeClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      ManagedServiceAccountName,
+						Namespace: managedCluster.Name,
 					},
 					manifestwork)
 				if err != nil {
@@ -489,12 +703,10 @@ var _ = Describe("Process registeredCluster: ", func() {
 
 			manifestwork := &manifestworkv1.ManifestWork{}
 
-			err := k8sClient.Get(context.TODO(),
-				client.ObjectKey{
-					NamespacedName: types.NamespacedName{
-						Name:      ManagedServiceAccountName,
-						Namespace: managedCluster.Name,
-					},
+			err := hubRuntimeClient.Get(context.TODO(),
+				types.NamespacedName{
+					Name:      ManagedServiceAccountName,
+					Namespace: managedCluster.Name,
 				},
 				manifestwork)
 			Expect(err).Should(BeNil())
@@ -508,7 +720,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					Message:            "Manifestwork applied",
 				},
 			}
-			err = k8sClient.Update(context.TODO(), manifestwork)
+			err = hubRuntimeClient.Update(context.TODO(), manifestwork)
 			Expect(err).Should(BeNil())
 		})
 
@@ -523,7 +735,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					"ca.crt": []byte("ca-cert"),
 				},
 			}
-			err := k8sClient.Create(context.TODO(), secret)
+			err := hubRuntimeClient.Create(context.TODO(), secret)
 			Expect(err).To(BeNil())
 		})
 
@@ -531,19 +743,17 @@ var _ = Describe("Process registeredCluster: ", func() {
 			Eventually(func() error {
 				registeredCluster := &singaporev1alpha1.RegisteredCluster{}
 
-				err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      "registered-cluster",
-							Namespace: userNamespace,
-						},
+				err := hubRuntimeClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      "registered-cluster",
+						Namespace: workspace,
 					},
 					registeredCluster)
 				if err != nil {
 					return err
 				}
 
-				if err := k8sClient.Delete(context.TODO(),
+				if err := hubRuntimeClient.Delete(context.TODO(),
 					registeredCluster); err != nil {
 					logf.Log.Info("Waiting deletion of registeredcluster", "Error", err)
 					return err

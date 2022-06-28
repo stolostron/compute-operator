@@ -16,10 +16,12 @@ import (
 	b64 "encoding/base64"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
-	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 
 	// corev1 "k8s.io/api/core/v1"
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
@@ -43,6 +45,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	kcpclient "github.com/kcp-dev/apimachinery/pkg/client"
+	"github.com/kcp-dev/logicalcluster"
+
+	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 )
 
 // +kubebuilder:rbac:groups="",resources={secrets},verbs=get;list;watch;create;update;patch
@@ -68,18 +73,19 @@ type RegisteredClusterReconciler struct {
 	// KubeClient         kubernetes.Interface
 	// DynamicClient      dynamic.Interface
 	// APIExtensionClient apiextensionsclient.Interface
-	ComputeApplierBuilder *clusteradmapply.ApplierBuilder
-	Log                   logr.Logger
-	Scheme                *runtime.Scheme
-	HubClusters           []helpers.HubInstance
+	ComputeKubeClient         kubernetes.ClusterInterface
+	ComputeDynamicClient      dynamic.ClusterInterface
+	ComputeAPIExtensionClient apiextensionsclient.ClusterInterface
+	Log                       logr.Logger
+	Scheme                    *runtime.Scheme
+	HubClusters               []helpers.HubInstance
 }
 
 func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	ctx := context.TODO()
 	// Return a copy of the conext and injects the cluster name in the copied context
-	computeContext := kcpclient.WithCluster(computeContextOri, req.ObjectKey.Cluster)
-
+	computeContext := kcpclient.WithCluster(computeContextOri, logicalcluster.New(req.ClusterName))
 	logger := r.Log.WithValues("namespace", req.Namespace, "name", req.Name)
 	logger.Info("Reconciling...")
 
@@ -87,12 +93,8 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 
 	if err := r.Client.Get(
 		computeContext,
-		client.ObjectKey{
-			NamespacedName: types.NamespacedName{Namespace: req.Namespace, Name: req.Name},
-			Cluster:        req.Cluster,
-		},
-		regCluster,
-	); err != nil {
+		types.NamespacedName{Namespace: req.Namespace, Name: req.Name},
+		regCluster); err != nil {
 		if k8serrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
@@ -227,16 +229,20 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 	// get import secret from mce managecluster namespace
 	importSecret := &corev1.Secret{}
 	if err := hubCluster.Cluster.GetAPIReader().Get(ctx,
-		client.ObjectKey{
-			NamespacedName: types.NamespacedName{Namespace: managedCluster.Name, Name: managedCluster.Name + "-import"},
-		}, importSecret); err != nil {
+		types.NamespacedName{Namespace: managedCluster.Name, Name: managedCluster.Name + "-import"},
+		importSecret); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return giterrors.WithStack(err)
 		}
 		return giterrors.WithStack(err)
 	}
 
-	applier := r.ComputeApplierBuilder.
+	logicalClusterName, _ := kcpclient.ClusterFromContext(computeContext)
+
+	applier := clusteradmapply.NewApplierBuilder().
+		WithClient(r.ComputeKubeClient.Cluster(logicalClusterName),
+			r.ComputeAPIExtensionClient.Cluster(logicalClusterName),
+			r.ComputeDynamicClient.Cluster(logicalClusterName)).
 		WithOwner(regCluster, false, true, r.Scheme).
 		WithContext(computeContext).
 		Build()
@@ -265,10 +271,12 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 		Name          string
 		Namespace     string
 		ImportCommand string
+		ClusterName   string
 	}{
 		Name:          regCluster.Name,
 		Namespace:     regCluster.Namespace,
 		ImportCommand: importCommand,
+		ClusterName:   regCluster.ClusterName,
 	}
 
 	_, err = applier.ApplyDirectly(readerDeploy, values, false, "", files...)
@@ -330,9 +338,7 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(computeContext c
 
 		if err := hubCluster.Client.Get(
 			ctx,
-			client.ObjectKey{
-				NamespacedName: types.NamespacedName{Namespace: managedCluster.Name, Name: ManagedServiceAccountName},
-			},
+			types.NamespacedName{Namespace: managedCluster.Name, Name: ManagedServiceAccountName},
 			msa,
 		); err != nil {
 			return giterrors.WithStack(err)
@@ -352,9 +358,8 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(computeContext c
 		work := &manifestworkv1.ManifestWork{}
 
 		err = hubCluster.Client.Get(ctx,
-			client.ObjectKey{
-				NamespacedName: types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name},
-			}, work)
+			types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name},
+			work)
 		if err != nil {
 			return giterrors.WithStack(err)
 		}
@@ -374,11 +379,9 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(ctx context.Cont
 
 	manifestwork := &manifestworkv1.ManifestWork{}
 	err := hubCluster.Client.Get(ctx,
-		client.ObjectKey{
-			NamespacedName: types.NamespacedName{
-				Name:      ManagedServiceAccountName,
-				Namespace: managedCluster.Name},
-		},
+		types.NamespacedName{
+			Name:      ManagedServiceAccountName,
+			Namespace: managedCluster.Name},
 		manifestwork)
 	switch {
 	case err == nil:
@@ -398,11 +401,9 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(ctx context.Cont
 
 	managed := &authv1alpha1.ManagedServiceAccount{}
 	err = hubCluster.Client.Get(ctx,
-		client.ObjectKey{
-			NamespacedName: types.NamespacedName{
-				Name:      ManagedServiceAccountName,
-				Namespace: managedCluster.Name},
-		},
+		types.NamespacedName{
+			Name:      ManagedServiceAccountName,
+			Namespace: managedCluster.Name},
 		managed)
 	switch {
 	case err == nil:
@@ -421,11 +422,9 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(ctx context.Cont
 
 	addon := &addonv1alpha1.ManagedClusterAddOn{}
 	err = hubCluster.Client.Get(ctx,
-		client.ObjectKey{
-			NamespacedName: types.NamespacedName{
-				Name:      ManagedClusterAddOnName,
-				Namespace: managedCluster.Name,
-			},
+		types.NamespacedName{
+			Name:      ManagedClusterAddOnName,
+			Namespace: managedCluster.Name,
 		},
 		addon)
 	switch {
@@ -445,10 +444,8 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(ctx context.Cont
 
 	cluster := &clusterapiv1.ManagedCluster{}
 	err = hubCluster.Client.Get(ctx,
-		client.ObjectKey{
-			NamespacedName: types.NamespacedName{
-				Name: managedCluster.Name},
-		},
+		types.NamespacedName{
+			Name: managedCluster.Name},
 		cluster)
 	switch {
 	case err == nil:
@@ -480,15 +477,18 @@ func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(computeContex
 	token := &corev1.Secret{}
 
 	err := hubCluster.Client.Get(ctx,
-		client.ObjectKey{
-			NamespacedName: types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name},
-		}, token)
+		types.NamespacedName{Name: ManagedServiceAccountName, Namespace: managedCluster.Name},
+		token)
 	if err != nil {
 		return giterrors.WithStack(err)
 	}
 
+	logicalClusterName, _ := kcpclient.ClusterFromContext(computeContext)
 	readerDeploy := resources.GetScenarioResourcesReader()
-	applier := r.ComputeApplierBuilder.
+	applier := clusteradmapply.NewApplierBuilder().
+		WithClient(r.ComputeKubeClient.Cluster(logicalClusterName),
+			r.ComputeAPIExtensionClient.Cluster(logicalClusterName),
+			r.ComputeDynamicClient.Cluster(logicalClusterName)).
 		WithOwner(regCluster, false, true, r.Scheme).
 		Build()
 
@@ -678,11 +678,9 @@ func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme 
 
 			req := make([]reconcile.Request, 0)
 			req = append(req, reconcile.Request{
-				ObjectKey: client.ObjectKey{
-					NamespacedName: types.NamespacedName{
-						Name:      managedCluster.GetLabels()[RegisteredClusterNamelabel],
-						Namespace: managedCluster.GetLabels()[RegisteredClusterNamespacelabel],
-					},
+				NamespacedName: types.NamespacedName{
+					Name:      managedCluster.GetLabels()[RegisteredClusterNamelabel],
+					Namespace: managedCluster.GetLabels()[RegisteredClusterNamespacelabel],
 				},
 			})
 			return req
@@ -693,11 +691,9 @@ func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme 
 
 				req := make([]reconcile.Request, 0)
 				req = append(req, reconcile.Request{
-					ObjectKey: client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      manifestWork.GetLabels()[RegisteredClusterNamelabel],
-							Namespace: manifestWork.GetLabels()[RegisteredClusterNamespacelabel],
-						},
+					NamespacedName: types.NamespacedName{
+						Name:      manifestWork.GetLabels()[RegisteredClusterNamelabel],
+						Namespace: manifestWork.GetLabels()[RegisteredClusterNamespacelabel],
 					},
 				})
 				return req

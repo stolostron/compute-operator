@@ -190,11 +190,9 @@ var _ = Describe("Process installation: ", func() {
 			Eventually(func() error {
 				deployment := &appsv1.Deployment{}
 				if err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      "compute-operator-manager",
-							Namespace: installationNamespace,
-						},
+					types.NamespacedName{
+						Name:      "compute-operator-manager",
+						Namespace: installationNamespace,
 					},
 					deployment); err != nil {
 					logf.Log.Info("Waiting deployment", "Error", err)
@@ -221,11 +219,9 @@ var _ = Describe("Process installation: ", func() {
 			Eventually(func() error {
 				deployment := &appsv1.Deployment{}
 				if err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      "compute-operator-manager",
-							Namespace: installationNamespace,
-						},
+					types.NamespacedName{
+						Name:      "compute-operator-manager",
+						Namespace: installationNamespace,
 					},
 					deployment); err != nil {
 					if errors.IsNotFound(err) {

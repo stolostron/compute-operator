@@ -12,19 +12,16 @@ import (
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	clusterreg "github.com/stolostron/compute-operator/controllers/cluster-registration"
 
@@ -33,12 +30,10 @@ import (
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
-	apisv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/apis/v1alpha1"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
-	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -86,7 +81,8 @@ func NewManager() *cobra.Command {
 
 func (o *managerOptions) run() {
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	// ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	ctrl.SetLogger(klog.NewKlogr())
 
 	setupLog.Info("Setup Manager")
 
@@ -121,6 +117,7 @@ func (o *managerOptions) run() {
 		setupLog.Error(fmt.Errorf("POD_NAMESPACE not set"), "")
 		os.Exit(1)
 	}
+	var computeKubeConfigSecretData []byte
 	computeKubeConfigSecret, err := kubeClient.CoreV1().
 		Secrets(podNamespace).
 		Get(context.TODO(), clusterRegistrar.Spec.ComputeService.ComputeKubeconfigSecretRef.Name, metav1.GetOptions{})
@@ -153,20 +150,31 @@ func (o *managerOptions) run() {
 		// The leader must be created on the compute-operator cluster and not on the compute service
 		LeaderElectionConfig: ctrl.GetConfigOrDie(),
 		LeaderElectionID:     "628f2987.cluster-registration.io",
-		NewCache:             helpers.NewClusterAwareCacheFunc,
+		// NewCache:             helpers.NewClusterAwareCacheFunc,
 	}
 
-	setupLog.Info("server url:", "computeKubeconfig.Host", computeKubeconfig.Host)
-	cfg, err := restConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-apis", scheme)
+	setupLog.Info("server u:", "computeKubeconfig.Host", computeKubeconfig.Host)
+	cfg, err := helpers.RestConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-operator", scheme)
 	if err != nil {
 		setupLog.Error(giterrors.WithStack(err), "error looking up virtual workspace URL")
+		os.Exit(1)
 	}
 
-	computeKubeClient := kubernetes.NewForConfigOrDie(cfg)
-	computeDynamicClient := dynamic.NewForConfigOrDie(cfg)
-	computeApiExtensionClient := apiextensionsclient.NewForConfigOrDie(cfg)
-	computeApplierBuilder := clusteradmapply.NewApplierBuilder().
-		WithClient(computeKubeClient, computeApiExtensionClient, computeDynamicClient)
+	computeKubeClient, err := kubernetes.NewClusterForConfig(cfg)
+	if err != nil {
+		setupLog.Error(giterrors.WithStack(err), "error creating kubernetes.ClusterClient up virtual workspace URL")
+		os.Exit(1)
+	}
+	computeDynamicClient, err := dynamic.NewClusterForConfig(cfg)
+	if err != nil {
+		setupLog.Error(giterrors.WithStack(err), "error creating dynamic.ClusterClient up virtual workspace URL")
+		os.Exit(1)
+	}
+	computeApiExtensionClient, err := apiextensionsclient.NewClusterForConfig(cfg)
+	if err != nil {
+		setupLog.Error(giterrors.WithStack(err), "error creating apiextensionsclient.ClusterClient up virtual workspace URL")
+		os.Exit(1)
+	}
 
 	setupLog.Info("server url:", "cfg.Host", cfg.Host)
 	mgr, err := kcp.NewClusterAwareManager(cfg, opts)
@@ -197,13 +205,14 @@ func (o *managerOptions) run() {
 		setupLog.Error(giterrors.WithStack(err), "unable to retreive the hubCluster", "controller", "Cluster Registration")
 		os.Exit(1)
 	}
-
 	if err = (&clusterreg.RegisteredClusterReconciler{
-		Client:                mgr.GetClient(),
-		Log:                   ctrl.Log.WithName("controllers").WithName("RegistredCluster"),
-		Scheme:                scheme,
-		HubClusters:           hubInstances,
-		ComputeApplierBuilder: computeApplierBuilder,
+		Client:                    mgr.GetClient(),
+		Log:                       ctrl.Log.WithName("controllers").WithName("RegistredCluster"),
+		Scheme:                    scheme,
+		HubClusters:               hubInstances,
+		ComputeKubeClient:         computeKubeClient,
+		ComputeDynamicClient:      computeDynamicClient,
+		ComputeAPIExtensionClient: computeApiExtensionClient,
 	}).SetupWithManager(mgr, scheme); err != nil {
 		setupLog.Error(giterrors.WithStack(err), "unable to create controller", "controller", "Cluster Registration")
 		os.Exit(1)
@@ -215,37 +224,4 @@ func (o *managerOptions) run() {
 		os.Exit(1)
 	}
 
-}
-
-// restConfigForAPIExport returns a *rest.Config properly configured to communicate with the endpoint for the
-// APIExport's virtual workspace.
-func restConfigForAPIExport(ctx context.Context, cfg *rest.Config, apiExportName string, scheme *runtime.Scheme) (*rest.Config, error) {
-	if err := apisv1alpha1.AddToScheme(scheme); err != nil {
-		return nil, fmt.Errorf("error adding apis.kcp.dev/v1alpha1 to scheme: %w", err)
-	}
-
-	apiExportClient, err := client.New(cfg, client.Options{Scheme: scheme})
-	if err != nil {
-		return nil, fmt.Errorf("error creating APIExport client: %w", err)
-	}
-
-	var apiExport apisv1alpha1.APIExport
-
-	if err := apiExportClient.Get(ctx, client.ObjectKey{
-		NamespacedName: types.NamespacedName{
-			Name: apiExportName,
-		},
-	}, &apiExport); err != nil {
-		return nil, fmt.Errorf("error getting APIExport %q: %w", apiExportName, err)
-	}
-
-	if len(apiExport.Status.VirtualWorkspaces) < 1 {
-		return nil, fmt.Errorf("APIExport %q status.virtualWorkspaces is empty", apiExportName)
-	}
-
-	cfg = rest.CopyConfig(cfg)
-	// TODO(ncdc): sharding support
-	cfg.Host = apiExport.Status.VirtualWorkspaces[0].URL
-
-	return cfg, nil
 }

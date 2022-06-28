@@ -5,6 +5,9 @@ SHELL := /bin/bash
 export PROJECT_DIR            = $(shell 'pwd')
 export PROJECT_NAME			  = $(shell basename ${PROJECT_DIR})
 
+# Directory containing kcp project
+export KCP_TEST_SERVER_DIR=$(shell mktemp -d)
+
 # Version to apply to generated artifacts (for bundling/publishing). # This value is set by
 # GitHub workflows on push to main and tagging and is not expected to be bumped here.
 export VERSION ?= 0.0.1
@@ -164,8 +167,30 @@ ifeq (, $(shell kubectl kcp))
 		cd kcp ;\
 		git checkout v0.5.0-alpha.1 ;\
 		make install WHAT="./cmd/kubectl-kcp"; \
+		make install WHAT="./cmd/kcp"; \
 	)
 endif
+
+# Maybe not needed
+.PHONY: kcp-clone
+## Find or download kcp
+kcp-clone:
+	@( \
+		set -ex ;\
+		cd $$KCP_TEST_SERVER_DIR ;\
+		git clone https://github.com/kcp-dev/kcp.git ;\
+		cd kcp ;\
+		git checkout v0.5.0-alpha.1 ;\
+	)
+
+.PHONY: kcp-start
+## Find or download kcp
+kcp-start:
+	@( \
+		set -ex ;\
+		export KUBECONFIG=.kcp/admin.kubeconfig; \
+		kcp start; \
+	)
 
 OPM = ./bin/opm
 .PHONY: opm
@@ -265,7 +290,8 @@ fmt:
 
 # Run go vet against code
 vet:
-	go vet ./...
+	go vet $(go list ./... | grep -v /webhook/)
+# go vet ./...
 
 # Build the docker image
 docker-build: manifests #test
@@ -292,7 +318,7 @@ manifests: controller-gen yq/install kcp-plugin
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..."
 	${YQ} e '.metadata.name = "compute-operator-manager-role"' config/rbac/role.yaml > deploy/compute-operator/clusterrole.yaml && \
 	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml && \
-	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix today-`date +%Y-%m-%d` \
+	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix today \
 	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml 
 
 # Generate code

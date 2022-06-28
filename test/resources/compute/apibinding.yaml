@@ -5,5 +5,5 @@ metadata:
 spec:
   reference:
     workspace:
-      path: root:rh-sso-13066380:itdove
+      path: root:default:user-workspace
       exportName: compute-operator
