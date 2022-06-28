@@ -219,7 +219,7 @@ ifeq (, $(shell which ginkgo))
 	set -ex ;\
 	ENVTEST_TMP_DIR=$$(mktemp -d) ;\
 	cd $$ENVTEST_TMP_DIR ;\
-	go get -u "github.com/onsi/ginkgo/v2/ginkgo@v2.1.1";\
+	go install "github.com/onsi/ginkgo/v2/ginkgo@v2.1.1";\
 	rm -rf $$ENVTEST_TMP_DIR ;\
 	}
 endif
