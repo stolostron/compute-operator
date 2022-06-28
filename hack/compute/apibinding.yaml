@@ -1,3 +1,4 @@
+# Copyright Red Hat
 apiVersion: apis.kcp.dev/v1alpha1
 kind: APIBinding
 metadata:
@@ -5,5 +6,5 @@ metadata:
 spec:
   reference:
     workspace:
-      path: root:rh-sso-13066380:itdove
-      exportName: compute-operator
+      path: root:<your-account>:<your-workspace>
+      exportName: compute-apis

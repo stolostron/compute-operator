@@ -7,6 +7,7 @@ export PROJECT_NAME			  = $(shell basename ${PROJECT_DIR})
 
 # Directory containing kcp project
 export KCP_TEST_SERVER_DIR=$(shell mktemp -d)
+POD_NAMESPACE ?= compute-config
 
 # Version to apply to generated artifacts (for bundling/publishing). # This value is set by
 # GitHub workflows on push to main and tagging and is not expected to be bumped here.
@@ -62,7 +63,7 @@ TMP_DIR=$$(mktemp -d) ;\
 cd $$TMP_DIR ;\
 go mod init tmp ;\
 echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go get $(2) ;\
+GOBIN=$(PROJECT_DIR)/bin install get $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
 endef
@@ -77,7 +78,7 @@ ifeq (, $(shell which controller-gen))
 	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
 	cd $$CONTROLLER_GEN_TMP_DIR ;\
 	go mod init tmp ;\
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0 ;\
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0 ;\
 	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
 	)
 CONTROLLER_GEN=$(GOBIN)/controller-gen
@@ -91,11 +92,11 @@ register-gen:
 ifeq (, $(shell which register-gen))
 	@( \
 	set -e ;\
-	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
-	cd $$CONTROLLER_GEN_TMP_DIR ;\
+	REGISTER_GEN_TMP_DIR=$$(mktemp -d) ;\
+	cd $$REGISTER_GEN_TMP_DIR ;\
 	go mod init tmp ;\
 	go get k8s.io/code-generator/cmd/register-gen ;\
-	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
+	rm -rf $$REGISTER_GEN_TMP_DIR ;\
 	)
 REGISTER_GEN=$(GOBIN)/register-gen
 else
@@ -110,7 +111,7 @@ ifeq (, $(shell which kustomize))
 	KUSTOMIZE_GEN_TMP_DIR=$$(mktemp -d) ;\
 	cd $$KUSTOMIZE_GEN_TMP_DIR ;\
 	go mod init tmp ;\
-	go get sigs.k8s.io/kustomize/kustomize/v3@v3.8.7 ;\
+	go install sigs.k8s.io/kustomize/kustomize/v3@v3.8.7 ;\
 	rm -rf $$KUSTOMIZE_GEN_TMP_DIR ;\
 	}
 KUSTOMIZE=$(GOBIN)/kustomize
@@ -158,7 +159,7 @@ endif
 .PHONY: kcp-plugin
 ## Find or download kcp-plugin
 kcp-plugin:
-ifeq (, $(shell kubectl kcp))
+ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 	@( \
 		set -ex ;\
 		KCP_TMP_DIR=$$(mktemp -d) ;\
@@ -172,25 +173,6 @@ ifeq (, $(shell kubectl kcp))
 endif
 
 # Maybe not needed
-.PHONY: kcp-clone
-## Find or download kcp
-kcp-clone:
-	@( \
-		set -ex ;\
-		cd $$KCP_TEST_SERVER_DIR ;\
-		git clone https://github.com/kcp-dev/kcp.git ;\
-		cd kcp ;\
-		git checkout v0.5.0-alpha.1 ;\
-	)
-
-.PHONY: kcp-start
-## Find or download kcp
-kcp-start:
-	@( \
-		set -ex ;\
-		export KUBECONFIG=.kcp/admin.kubeconfig; \
-		kcp start; \
-	)
 
 OPM = ./bin/opm
 .PHONY: opm
@@ -231,6 +213,7 @@ ifeq (, $(shell which etcd))
 			K8S_VERSION=1.19.2 ;\
 			curl -sSLo envtest-bins.tar.gz https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-$$K8S_VERSION-$$(go env GOOS)-$$(go env GOARCH).tar.gz ;\
 			tar xf envtest-bins.tar.gz ;\
+			test -d $$HOME/kubebuilder && rm -rf $$HOME/kubebuilder ;\
 			mv $$ENVTEST_TMP_DIR/kubebuilder $$HOME ;\
 			rm -rf $$ENVTEST_TMP_DIR ;\
 	}
@@ -273,12 +256,12 @@ check-copyright:
 	@build/check-copyright.sh
 
 test: fmt vet manifests envtest-tools
-	@ginkgo -r --cover --coverprofile=cover.out --coverpkg ./... &&\
-	COVERAGE=`go tool cover -func="cover.out" | grep "total:" | awk '{ print $$3 }' | sed 's/[][()><%]/ /g'` &&\
+	@ginkgo -r --cover --coverprofile=coverage.out --coverpkg ./... &&\
+	COVERAGE=`go tool cover -func="coverage.out" | grep "total:" | awk '{ print $$3 }' | sed 's/[][()><%]/ /g'` &&\
 	echo "-------------------------------------------------------------------------" &&\
 	echo "TOTAL COVERAGE IS $$COVERAGE%" &&\
 	echo "-------------------------------------------------------------------------" &&\
-	go tool cover -html "cover.out" -o ${PROJECT_DIR}/cover.html
+	go tool cover -html "coverage.out" -o ${PROJECT_DIR}/cover.html
 
 # Build manager binary
 manager: fmt vet
@@ -314,16 +297,32 @@ undeploy:
 	kubectl delete --wait=true -k config/default
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: controller-gen yq/install kcp-plugin
+
+manifests: controller-gen yq/install kcp-plugin generate
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..."
 	${YQ} e '.metadata.name = "compute-operator-manager-role"' config/rbac/role.yaml > deploy/compute-operator/clusterrole.yaml && \
 	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml && \
-	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix today \
-	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml 
+	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix latest \
+	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+
+install-prereqs: generate manifests
+	kubectl delete secret mce-kubeconfig-secret -n ${POD_NAMESPACE} --ignore-not-found
+	kubectl create secret generic mce-kubeconfig-secret -n ${POD_NAMESPACE} --from-file=kubeconfig=${HUB_KUBECONFIG}
+	kubectl delete secret kcp-kubeconfig -n ${POD_NAMESPACE} --ignore-not-found
+	kubectl create secret generic kcp-kubeconfig -n ${POD_NAMESPACE} --from-file=kubeconfig=${KCP_KUBECONFIG}
+	kubectl apply -f config/crd/singapore.open-cluster-management.io_hubconfigs.yaml
+	kubectl apply -f config/crd/singapore.open-cluster-management.io_clusterregistrars.yaml
+	kubectl apply -f hack/hubconfig.yaml
+	kubectl apply -f hack/clusterregistrar.yaml
+	kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml --kubeconfig ${KCP_KUBECONFIG}
+	kubectl apply -f hack/compute/apiexport.yaml --kubeconfig ${KCP_KUBECONFIG}
+
+run-local: install-prereqs
+	go run main.go manager
 
 # Tag the IMG as latest and docker push
 docker-push-latest:

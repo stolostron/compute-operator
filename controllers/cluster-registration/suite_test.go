@@ -460,7 +460,9 @@ var _ = Describe("Process registeredCluster: ", func() {
 					Name:      "registered-cluster",
 					Namespace: workingComputeNamespace,
 				},
-				Spec: singaporev1alpha1.RegisteredClusterSpec{},
+				Spec: singaporev1alpha1.RegisteredClusterSpec{
+					Location: "FakeKcpLocation",
+				},
 			}
 			// err := hubRuntimeClient.Create(context.TODO(), registeredCluster)
 			// Expect(err).To(BeNil())

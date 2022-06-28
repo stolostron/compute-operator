@@ -4,4 +4,4 @@ metadata:
   name: compute-operator
 spec:
   latestResourceSchemas:
-  - today.registeredclusters.singapore.open-cluster-management.io
+  - latest.registeredclusters.singapore.open-cluster-management.io

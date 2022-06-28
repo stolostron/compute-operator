@@ -12,14 +12,17 @@ import (
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 
@@ -224,4 +227,37 @@ func (o *managerOptions) run() {
 		os.Exit(1)
 	}
 
+}
+
+// restConfigForAPIExport returns a *rest.Config properly configured to communicate with the endpoint for the
+// APIExport's virtual workspace.
+func restConfigForAPIExport(ctx context.Context, cfg *rest.Config, apiExportName string, scheme *runtime.Scheme) (*rest.Config, error) {
+	if err := apisv1alpha1.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("error adding apis.kcp.dev/v1alpha1 to scheme: %w", err)
+	}
+
+	apiExportClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		return nil, fmt.Errorf("error creating APIExport client: %w", err)
+	}
+
+	var apiExport apisv1alpha1.APIExport
+
+	if err := apiExportClient.Get(ctx, client.ObjectKey{
+		NamespacedName: types.NamespacedName{
+			Name: apiExportName,
+		},
+	}, &apiExport); err != nil {
+		return nil, fmt.Errorf("error getting APIExport %q: %w", apiExportName, err)
+	}
+
+	if len(apiExport.Status.VirtualWorkspaces) < 1 {
+		return nil, fmt.Errorf("APIExport %q status.virtualWorkspaces is empty", apiExportName)
+	}
+
+	cfg = rest.CopyConfig(cfg)
+	// TODO(ncdc): sharding support
+	cfg.Host = apiExport.Status.VirtualWorkspaces[0].URL
+
+	return cfg, nil
 }

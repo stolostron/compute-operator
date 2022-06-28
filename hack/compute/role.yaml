@@ -1,17 +1,20 @@
+# Copyright Red Hat
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: compute-operator-manager-role
 rules:
+# Setting this first rule as a convenience for installing the APIResourceSchema and APIExports
+# using service account kubeconfig file on hand via Makefile
 - apiGroups: ["apis.kcp.dev"]
-  resources: ["apiexports"]
-  verbs: ["get", "list"]
+  resources: ["apiresourceschemas", "apiexports"]
+  verbs: ["create", "update", "patch", "get", "list"]
 - apiGroups:
   - apis.kcp.dev
   resources:
   - apiexports/content
   resourceNames:
-  - compute-operator
+  - compute-apis
   verbs:
   - create
   - delete
@@ -30,4 +33,3 @@ rules:
   - list
   - update
   - watch
-

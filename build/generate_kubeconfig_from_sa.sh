@@ -2,7 +2,8 @@
 # Copyright Red Hat
 
 # Update these to match your environment
-set -ex
+# set -ex
+
 SERVICE_ACCOUNT_NAME=$1
 CONTEXT=$(kubectl config current-context)
 NAMESPACE=$2
