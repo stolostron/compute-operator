@@ -157,7 +157,7 @@ endif
 .PHONY: kcp-plugin
 ## Find or download kcp-plugin
 kcp-plugin:
-ifeq (, $(shell kubectl kcp))
+ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 	@( \
 		set -ex ;\
 		KCP_TMP_DIR=$$(mktemp -d) ;\
@@ -208,6 +208,7 @@ ifeq (, $(shell which etcd))
 			K8S_VERSION=1.19.2 ;\
 			curl -sSLo envtest-bins.tar.gz https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-$$K8S_VERSION-$$(go env GOOS)-$$(go env GOARCH).tar.gz ;\
 			tar xf envtest-bins.tar.gz ;\
+			test -d $$HOME/kubebuilder && rm -rf $$HOME/kubebuilder ;\
 			mv $$ENVTEST_TMP_DIR/kubebuilder $$HOME ;\
 			rm -rf $$ENVTEST_TMP_DIR ;\
 	}
@@ -250,12 +251,12 @@ check-copyright:
 	@build/check-copyright.sh
 
 test: fmt vet manifests envtest-tools
-	@ginkgo -r --cover --coverprofile=cover.out --coverpkg ./... &&\
-	COVERAGE=`go tool cover -func="cover.out" | grep "total:" | awk '{ print $$3 }' | sed 's/[][()><%]/ /g'` &&\
+	@ginkgo -r --cover --coverprofile=coverage.out --coverpkg ./... &&\
+	COVERAGE=`go tool cover -func="coverage.out" | grep "total:" | awk '{ print $$3 }' | sed 's/[][()><%]/ /g'` &&\
 	echo "-------------------------------------------------------------------------" &&\
 	echo "TOTAL COVERAGE IS $$COVERAGE%" &&\
 	echo "-------------------------------------------------------------------------" &&\
-	go tool cover -html "cover.out" -o ${PROJECT_DIR}/cover.html
+	go tool cover -html "coverage.out" -o ${PROJECT_DIR}/cover.html
 
 # Build manager binary
 manager: fmt vet
@@ -290,18 +291,18 @@ undeploy:
 	kubectl delete --wait=true -k config/default
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: controller-gen yq/install kcp-plugin
+manifests: controller-gen yq/install kcp-plugin generate
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..."
 	${YQ} e '.metadata.name = "compute-operator-manager-role"' config/rbac/role.yaml > deploy/compute-operator/clusterrole.yaml && \
 	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml && \
 	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix latest \
-	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml 
+	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-install-local: generate manifests
+install-prereqs: generate manifests
 	kubectl delete secret mce-kubeconfig-secret -n ${POD_NAMESPACE} --ignore-not-found
 	kubectl create secret generic mce-kubeconfig-secret -n ${POD_NAMESPACE} --from-file=kubeconfig=${HUB_KUBECONFIG}
 	kubectl delete secret kcp-kubeconfig -n ${POD_NAMESPACE} --ignore-not-found
@@ -313,7 +314,7 @@ install-local: generate manifests
 	kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml --kubeconfig ${KCP_KUBECONFIG}
 	kubectl apply -f hack/compute/apiexport.yaml --kubeconfig ${KCP_KUBECONFIG}
 
-run-local: install-local
+run-local: install-prereqs
 	go run main.go manager
 
 # Tag the IMG as latest and docker push
