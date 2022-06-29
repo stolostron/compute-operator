@@ -1222,6 +1222,8 @@ k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9 h1:HNSDgDCrr/6Ly3WEGKZftiE7IY19V
 k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9/go.mod h1:jPW/WVKK9YHAvNhRxK0md/EJ228hCsBRufyofKtW8HA=
 open-cluster-management.io/api v0.6.1-0.20220324065122-34f585d51995 h1:zhanfyBl6KelEaUF/Ag81CU91jXNg3OtZ7h+u0cRJGI=
 open-cluster-management.io/api v0.6.1-0.20220324065122-34f585d51995/go.mod h1:Wg7YOcVNxsNDj2G8ViWTD/utCfb9cZc9MpNb4fKlXSs=
+open-cluster-management.io/clusteradm v0.2.1-0.20220629010438-1f8dd0ce9286 h1:powhww1/WPoayqVlCz7TFL0OR+CAhLCC4ltnUP8qQ6w=
+open-cluster-management.io/clusteradm v0.2.1-0.20220629010438-1f8dd0ce9286/go.mod h1:NtcXi97tYjeShXtJvJLJPh4LJ97J70n3YvxCOw/CSvE=
 open-cluster-management.io/managed-serviceaccount v0.2.1-0.20220427065210-de6a7b7b5be8 h1:foP5RkSec9DkUA8sJ5FLna5We8VxJyu0179id5zNXgA=
 open-cluster-management.io/managed-serviceaccount v0.2.1-0.20220427065210-de6a7b7b5be8/go.mod h1:JQfA1L6GaYXaSaw/c4VY4GTgj8kqJx8cEeD4e/0M5gU=
 rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8=

@@ -17,8 +17,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+
+	"k8s.io/client-go/rest"
 
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -33,6 +34,7 @@ import (
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
+	apisv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/apis/v1alpha1"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -156,7 +158,7 @@ func (o *managerOptions) run() {
 		// NewCache:             helpers.NewClusterAwareCacheFunc,
 	}
 
-	setupLog.Info("server u:", "computeKubeconfig.Host", computeKubeconfig.Host)
+	setupLog.Info("server url:", "computeKubeconfig.Host", computeKubeconfig.Host)
 	cfg, err := helpers.RestConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-operator", scheme)
 	if err != nil {
 		setupLog.Error(giterrors.WithStack(err), "error looking up virtual workspace URL")
@@ -243,11 +245,11 @@ func restConfigForAPIExport(ctx context.Context, cfg *rest.Config, apiExportName
 
 	var apiExport apisv1alpha1.APIExport
 
-	if err := apiExportClient.Get(ctx, client.ObjectKey{
-		NamespacedName: types.NamespacedName{
+	if err := apiExportClient.Get(ctx,
+		types.NamespacedName{
 			Name: apiExportName,
 		},
-	}, &apiExport); err != nil {
+		&apiExport); err != nil {
 		return nil, fmt.Errorf("error getting APIExport %q: %w", apiExportName, err)
 	}
 

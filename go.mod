@@ -23,7 +23,7 @@ require (
 	k8s.io/klog/v2 v2.60.1
 	k8s.io/kube-aggregator v0.23.5
 	open-cluster-management.io/api v0.6.1-0.20220324065122-34f585d51995
-	open-cluster-management.io/clusteradm v0.2.1-0.20220411135356-0a2232080686
+	open-cluster-management.io/clusteradm v0.2.1-0.20220629010438-1f8dd0ce9286
 	open-cluster-management.io/managed-serviceaccount v0.2.1-0.20220427065210-de6a7b7b5be8
 	sigs.k8s.io/controller-runtime v0.11.1
 )
@@ -159,5 +159,3 @@ replace (
 	k8s.io/kube-aggregator => github.com/kcp-dev/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-20220524063253-5bb0eeecf2cf
 	sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.11.3-0.20220624161137-f6e5a2f56683
 )
-
-replace open-cluster-management.io/clusteradm => /Users/dvernier/acm-tools/clusteradm

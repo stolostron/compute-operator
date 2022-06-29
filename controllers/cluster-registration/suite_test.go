@@ -427,13 +427,12 @@ var _ = AfterSuite(func() {
 		err = kcpServer.Process.Signal(os.Interrupt)
 		Expect(err).NotTo(HaveOccurred())
 	}
-	err := kcpServer.Wait()
-	Expect(err).NotTo(HaveOccurred())
+	kcpServer.Wait()
 	if cancelManager != nil {
 		cancelManager()
 	}
 	By("tearing down the test environment")
-	err = testEnv.Stop()
+	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
 
