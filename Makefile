@@ -168,6 +168,7 @@ ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 		cd kcp ;\
 		git checkout v0.5.0-alpha.1 ;\
 		make install WHAT="./cmd/kubectl-kcp"; \
+		git checkout main ;\
 		make install WHAT="./cmd/kcp"; \
 	)
 endif

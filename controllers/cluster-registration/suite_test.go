@@ -28,6 +28,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 
 	apisv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/apis/v1alpha1"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
@@ -40,7 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	kcpclient "github.com/kcp-dev/apimachinery/pkg/client"
 	"github.com/kcp-dev/logicalcluster"
@@ -95,7 +95,7 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	logf.SetLogger(klog.NewKlogr())
 
 	By("bootstrapping test environment")
 	err := clientgoscheme.AddToScheme(scheme)
@@ -321,7 +321,7 @@ var _ = BeforeSuite(func() {
 	By("waiting virtualworkspace", func() {
 		Eventually(func() error {
 			logf.Log.Info("waiting vitual workspace")
-			controllerComputeConfig, err = helpers.RestConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-operator", scheme)
+			controllerComputeConfig, err = helpers.RestConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-apis", scheme)
 			return err
 		}, 60, 3).Should(BeNil())
 	})

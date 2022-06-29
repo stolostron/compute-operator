@@ -15,6 +15,7 @@ rules:
   - apiexports/content
   resourceNames:
   - compute-apis
+  - compute-apis/status
   verbs:
   - create
   - delete
@@ -22,6 +23,7 @@ rules:
   - list
   - update
   - watch
+  - patch
 - apiGroups:
   - ""
   resources:

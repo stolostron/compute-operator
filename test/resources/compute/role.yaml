@@ -4,14 +4,14 @@ metadata:
   name: compute-operator-manager-role
 rules:
 - apiGroups: ["apis.kcp.dev"]
-  resources: ["apiexports"]
-  verbs: ["get", "list"]
+  resources: ["apiresourceschemas", "apiexports"]
+  verbs: ["create", "update", "patch", "get", "list"]
 - apiGroups:
   - apis.kcp.dev
   resources:
   - apiexports/content
   resourceNames:
-  - compute-operator
+  - compute-apis
   verbs:
   - create
   - delete
@@ -19,7 +19,12 @@ rules:
   - list
   - update
   - watch
-- apiGroups:
+  resourceNames:
+  - compute-apis/status
+  verbs:
+  - get
+  - patch
+  apiGroups:
   - ""
   resources:
   - configmaps

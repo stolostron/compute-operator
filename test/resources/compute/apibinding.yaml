@@ -6,4 +6,4 @@ spec:
   reference:
     workspace:
       path: root:default:user-workspace
-      exportName: compute-operator
+      exportName: compute-apis
