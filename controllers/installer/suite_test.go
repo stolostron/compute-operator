@@ -76,14 +76,14 @@ var _ = BeforeSuite(func() {
 	// err = openshiftconfigv1.AddToScheme(scheme.Scheme)
 	// Expect(err).NotTo(HaveOccurred())
 
-	readerIDP := croconfig.GetScenarioResourcesReader()
-	clusterRegistrarsCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_clusterregistrars.yaml")
+	readerCROConfig := croconfig.GetScenarioResourcesReader()
+	clusterRegistrarsCRD, err := getCRD(readerCROConfig, "crd/singapore.open-cluster-management.io_clusterregistrars.yaml")
 	Expect(err).Should(BeNil())
 
-	hubConfigsCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_hubconfigs.yaml")
+	hubConfigsCRD, err := getCRD(readerCROConfig, "crd/singapore.open-cluster-management.io_hubconfigs.yaml")
 	Expect(err).Should(BeNil())
 
-	registeredClustersCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_registeredclusters.yaml")
+	registeredClustersCRD, err := getCRD(readerCROConfig, "crd/singapore.open-cluster-management.io_registeredclusters.yaml")
 	Expect(err).Should(BeNil())
 
 	testEnv = &envtest.Environment{

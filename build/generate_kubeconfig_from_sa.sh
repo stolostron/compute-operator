@@ -3,13 +3,13 @@
 
 # Update these to match your environment
 # set -ex
-
+set -e
 SERVICE_ACCOUNT_NAME=$1
 CONTEXT=$(kubectl config current-context)
 NAMESPACE=$2
 
 NEW_CONTEXT=ws-kcp-context
-KUBECONFIG_FILE="/tmp/kubeconfig-"$SERVICE_ACCOUNT_NAME.yaml
+KUBECONFIG_FILE=$3
 
 CURRENT_DIR=`pwd`
 echo $CURRENT_DIR

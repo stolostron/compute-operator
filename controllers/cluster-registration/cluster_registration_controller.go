@@ -86,8 +86,8 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 	ctx := context.TODO()
 	// Return a copy of the conext and injects the cluster name in the copied context
 	computeContext := kcpclient.WithCluster(computeContextOri, logicalcluster.New(req.ClusterName))
-	logger := r.Log.WithValues("namespace", req.Namespace, "name", req.Name)
-	logger.Info("Reconciling...")
+	logger := r.Log.WithValues("clusterName", req.ClusterName, "namespace", req.Namespace, "name", req.Name)
+	logger.Info("Reconciling....")
 
 	regCluster := &singaporev1alpha1.RegisteredCluster{}
 

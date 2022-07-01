@@ -45,3 +45,4 @@ kubeconfig
 
 #temp directories
 .kcp
+.testenv

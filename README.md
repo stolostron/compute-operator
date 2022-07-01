@@ -56,8 +56,8 @@ kubectl create serviceaccount compute-operator -n default
 ```
 4. Generate the kubeconfig from this SA
 ```bash
-# build/generate_kubeconfig_from_sa.sh sa_name sa_namespace
-build/generate_kubeconfig_from_sa.sh compute-operator default
+# build/generate_kubeconfig_from_sa.sh sa_name sa_namespace kubeconfig_filename
+build/generate_kubeconfig_from_sa.sh compute-operator default /tmp/kubeconfig-compute-operator.yaml
 ```
 The location of the new kubeconfig will be displayed
 ```

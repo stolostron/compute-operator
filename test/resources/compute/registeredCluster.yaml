@@ -1,6 +1,8 @@
+# Copyright Red Hat
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: RegisteredCluster
 metadata:
   name: registered-cluster
   namespace: default
-spec: {}
+spec:
+  location: "FakeKcpLocation"

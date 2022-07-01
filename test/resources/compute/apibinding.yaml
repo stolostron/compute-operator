@@ -1,9 +1,0 @@
-apiVersion: apis.kcp.dev/v1alpha1
-kind: APIBinding
-metadata:
-  name: compute-operator
-spec:
-  reference:
-    workspace:
-      path: root:default:user-workspace
-      exportName: compute-apis
