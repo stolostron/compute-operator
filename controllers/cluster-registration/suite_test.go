@@ -112,6 +112,7 @@ var (
 	readerHack                      *clusteradmasset.ScenarioResourcesReader
 	readerConfig                    *clusteradmasset.ScenarioResourcesReader
 	saComputeKubeconfigFileAbs      string
+	computeAdminKubconfigData       []byte
 )
 
 func TestAPIs(t *testing.T) {
@@ -281,6 +282,50 @@ var _ = BeforeSuite(func() {
 		Expect(err).To(BeNil())
 	}()
 
+	By("switch context system:admin", func() {
+		Eventually(func() error {
+			logf.Log.Info("switch context")
+			cmd := exec.Command("kubectl",
+				"config",
+				"use-context",
+				"system:admin")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while switching context")
+			}
+			return err
+		}, 30, 3).Should(BeNil())
+	})
+
+	By("reading the kcpkubeconfig", func() {
+		Eventually(func() error {
+			computeAdminKubconfigData, err = ioutil.ReadFile(adminComputeKubeconfigFile)
+			return err
+		}, 60, 3).Should(BeNil())
+	})
+
+	computeAdminRestConfig, err := clientcmd.RESTConfigFromKubeConfig(computeAdminKubconfigData)
+	Expect(err).ToNot(HaveOccurred())
+
+	By("switch context root", func() {
+		Eventually(func() error {
+			logf.Log.Info("switch context")
+			cmd := exec.Command("kubectl",
+				"config",
+				"use-context",
+				"root")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while switching context")
+			}
+			return err
+		}, 30, 3).Should(BeNil())
+	})
+
 	// Create workspace on compute server and enter in the ws
 	By(fmt.Sprintf("creation of organization %s", computeOrganization), func() {
 		Eventually(func() error {
@@ -300,11 +345,6 @@ var _ = BeforeSuite(func() {
 		}, 60, 3).Should(BeNil())
 	})
 
-	computeAdminKubconfigData, err := ioutil.ReadFile(adminComputeKubeconfigFile)
-	Expect(err).ToNot(HaveOccurred())
-	computeAdminRestConfig, err := clientcmd.RESTConfigFromKubeConfig(computeAdminKubconfigData)
-	Expect(err).ToNot(HaveOccurred())
-
 	computeContext = kcpclient.WithCluster(context.Background(), logicalcluster.New(clusterWorkspace))
 	organizationContext = kcpclient.WithCluster(context.Background(), logicalcluster.New(organizationWorkspace))
 	//Build compute admin applier
@@ -312,6 +352,7 @@ var _ = BeforeSuite(func() {
 	computeAdminAPIExtensionClient := apiextensionsclient.NewForConfigOrDie(computeAdminRestConfig)
 	computeAdminDynamicClient, err := dynamicapimachinery.NewClusterDynamicClientForConfig(computeAdminRestConfig)
 	Expect(err).ToNot(HaveOccurred())
+	// computeAdminDynamicClientDyn := dynamic.NewForConfigOrDie(computeAdminRestConfig)
 	computeAdminApplierBuilder = clusteradmapply.NewApplierBuilder().
 		WithClient(computeAdminKubernetesClient,
 			computeAdminAPIExtensionClient,
