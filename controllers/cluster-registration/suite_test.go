@@ -95,24 +95,27 @@ const (
 var existingConfig bool = false
 
 var (
-	controllerRestConfig            *rest.Config
-	computeContext                  context.Context
-	organizationContext             context.Context
-	testEnv                         *envtest.Environment
-	scheme                          = runtime.NewScheme()
-	controllerManager               *exec.Cmd
-	controllerRuntimeClient         client.Client
-	controllerApplierBuilder        *clusteradmapply.ApplierBuilder
-	computeServer                   *exec.Cmd
-	computeAdminApplierBuilder      *clusteradmapply.ApplierBuilder
-	organizationAdminApplierBuilder *clusteradmapply.ApplierBuilder
-	computeVWApplierBuilder         *clusteradmapply.ApplierBuilder
-	computeRuntimeClient            client.Client
-	readerTest                      *clusteradmasset.ScenarioResourcesReader
-	readerHack                      *clusteradmasset.ScenarioResourcesReader
-	readerConfig                    *clusteradmasset.ScenarioResourcesReader
-	saComputeKubeconfigFileAbs      string
-	computeAdminKubconfigData       []byte
+	controllerRestConfig             *rest.Config
+	computeContext                   context.Context
+	organizationContext              context.Context
+	testEnv                          *envtest.Environment
+	scheme                           = runtime.NewScheme()
+	controllerManager                *exec.Cmd
+	controllerRuntimeClient          client.Client
+	controllerApplierBuilder         *clusteradmapply.ApplierBuilder
+	computeServer                    *exec.Cmd
+	computeAdminApplierBuilder       *clusteradmapply.ApplierBuilder
+	organizationAdminApplierBuilder  *clusteradmapply.ApplierBuilder
+	computeVWApplierBuilder          *clusteradmapply.ApplierBuilder
+	computeRuntimeOrganizationClient client.Client
+	computeRuntimeWorkspaceClient    client.Client
+	readerTest                       *clusteradmasset.ScenarioResourcesReader
+	readerHack                       *clusteradmasset.ScenarioResourcesReader
+	readerConfig                     *clusteradmasset.ScenarioResourcesReader
+	saComputeKubeconfigFileAbs       string
+	computeAdminKubconfigData        []byte
+	computeWorkspaceKubconfigData    []byte
+	computeOrganizationKubconfigData []byte
 )
 
 func TestAPIs(t *testing.T) {
@@ -201,6 +204,8 @@ var _ = BeforeSuite(func() {
 		hubKubeconfigString, hubKubeconfig, err = persistAndGetRestConfig(*testEnv.UseExistingCluster)
 		Expect(err).ToNot(HaveOccurred())
 		testEnv.Config = hubKubeconfig
+	} else {
+		os.Setenv("KUBECONFIG", "")
 	}
 
 	controllerRestConfig, err = testEnv.Start()
@@ -208,7 +213,7 @@ var _ = BeforeSuite(func() {
 	Expect(controllerRestConfig).ToNot(BeNil())
 
 	if !*testEnv.UseExistingCluster {
-		_, _, err = persistAndGetRestConfig(*testEnv.UseExistingCluster)
+		hubKubeconfigString, _, err = persistAndGetRestConfig(*testEnv.UseExistingCluster)
 		Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -345,6 +350,9 @@ var _ = BeforeSuite(func() {
 		}, 60, 3).Should(BeNil())
 	})
 
+	computeOrganizationKubconfigData, err = ioutil.ReadFile(adminComputeKubeconfigFile)
+	Expect(err).ToNot(HaveOccurred())
+
 	computeContext = kcpclient.WithCluster(context.Background(), logicalcluster.New(clusterWorkspace))
 	organizationContext = kcpclient.WithCluster(context.Background(), logicalcluster.New(organizationWorkspace))
 	//Build compute admin applier
@@ -438,11 +446,11 @@ var _ = BeforeSuite(func() {
 		}, 60, 3).Should(BeNil())
 	})
 
-	computeKubconfigData, err := ioutil.ReadFile(saComputeKubeconfigFile)
+	computeSAKubconfigData, err := ioutil.ReadFile(saComputeKubeconfigFile)
 	Expect(err).ToNot(HaveOccurred())
-	computeRestConfig, err := clientcmd.RESTConfigFromKubeConfig(computeKubconfigData)
+	computeRestSAConfig, err := clientcmd.RESTConfigFromKubeConfig(computeSAKubconfigData)
 	Expect(err).ToNot(HaveOccurred())
-	computeRuntimeClient, err = client.New(computeRestConfig, client.Options{Scheme: scheme})
+	computeRuntimeOrganizationClient, err = client.New(computeRestSAConfig, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 
 	// Create role for on compute server in workspace
@@ -486,7 +494,7 @@ var _ = BeforeSuite(func() {
 	By("waiting virtualworkspace", func() {
 		Eventually(func() error {
 			logf.Log.Info("waiting virtual workspace")
-			computeVWeRestConfig, err = helpers.RestConfigForAPIExport(context.TODO(), computeRestConfig, "compute-apis", scheme)
+			computeVWeRestConfig, err = helpers.RestConfigForAPIExport(context.TODO(), computeRestSAConfig, "compute-apis", scheme)
 			return err
 		}, 60, 3).Should(BeNil())
 	})
@@ -517,6 +525,13 @@ var _ = BeforeSuite(func() {
 		}, 60, 3).Should(BeNil())
 	})
 
+	computeWorkspaceKubconfigData, err = ioutil.ReadFile(adminComputeKubeconfigFile)
+	Expect(err).ToNot(HaveOccurred())
+	computeRestWorkspaceConfig, err := clientcmd.RESTConfigFromKubeConfig(computeWorkspaceKubconfigData)
+	Expect(err).ToNot(HaveOccurred())
+	computeRuntimeWorkspaceClient, err = client.New(computeRestWorkspaceConfig, client.Options{Scheme: scheme})
+	Expect(err).ToNot(HaveOccurred())
+
 	By(fmt.Sprintf("apply APIBinding on workspace %s", workspace), func() {
 		Eventually(func() error {
 			logf.Log.Info("create APIBinding")
@@ -526,13 +541,6 @@ var _ = BeforeSuite(func() {
 				"compute/apibinding.yaml",
 			}
 			_, err := computeApplier.ApplyCustomResources(readerHack, values, false, "", files...)
-			// cmd := exec.Command("kubectl",
-			// 	"apply",
-			// 	"-f",
-			// 	"../../test/resources/compute/apibinding.yaml")
-			// cmd.Stdout = os.Stdout
-			// cmd.Stderr = os.Stderr
-			// err = cmd.Run()
 			if err != nil {
 				logf.Log.Error(err, "while applying APIBinding")
 			}
@@ -542,7 +550,7 @@ var _ = BeforeSuite(func() {
 
 	//Build compute admin applier
 	By("Create a kcpconfig secret", func() {
-		b, err := ioutil.ReadFile(adminComputeKubeconfigFile)
+		b, err := ioutil.ReadFile(saComputeKubeconfigFileAbs)
 		Expect(err).To(BeNil())
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -766,7 +774,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 		})
 		By("Checking registeredCluster ImportCommandRef", func() {
 			Eventually(func() error {
-				err := computeRuntimeClient.Get(computeContext,
+				err := computeRuntimeWorkspaceClient.Get(computeContext,
 					types.NamespacedName{
 						Name:      registeredCluster.Name,
 						Namespace: registeredCluster.Namespace,
@@ -792,7 +800,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 
 		By("Checking import configMap", func() {
 			Eventually(func() error {
-				err := controllerRuntimeClient.Get(context.TODO(),
+				err := computeRuntimeWorkspaceClient.Get(context.TODO(),
 					types.NamespacedName{
 						Name:      registeredCluster.Status.ImportCommandRef.Name,
 						Namespace: registeredCluster.Namespace,
@@ -809,7 +817,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 		})
 		By("Checking registeredCluster status", func() {
 			Eventually(func() error {
-				err := controllerRuntimeClient.Get(context.TODO(),
+				err := computeRuntimeWorkspaceClient.Get(context.TODO(),
 					types.NamespacedName{
 						Name:      registeredCluster.Name,
 						Namespace: registeredCluster.Namespace,
