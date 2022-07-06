@@ -279,11 +279,19 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 		ClusterName:   regCluster.ClusterName,
 	}
 
+	r.Log.V(4).Info("create config map on compute",
+		"cluster", regCluster.ClusterName,
+		"namespace", regCluster.Namespace,
+		"name", regCluster.Name)
 	_, err = applier.ApplyDirectly(readerDeploy, values, false, "", files...)
 	if err != nil {
 		return giterrors.WithStack(err)
 	}
 
+	r.Log.V(4).Info("patch registeredCluster on compute",
+		"cluster", regCluster.ClusterName,
+		"namespace", regCluster.Namespace,
+		"name", regCluster.Name)
 	patch := client.MergeFrom(regCluster.DeepCopy())
 	regCluster.Status.ImportCommandRef = corev1.LocalObjectReference{
 		Name: regCluster.Name + "-import",

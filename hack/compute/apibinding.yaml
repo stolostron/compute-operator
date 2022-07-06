@@ -6,5 +6,5 @@ metadata:
 spec:
   reference:
     workspace:
-      path: root:{{ .Organization }}:{{ .Workspace }}
+      path: root:{{ .Organization }}
       exportName: compute-apis

@@ -42,7 +42,7 @@ export KUBECONFIG=/tmp/managed-hub-cluster.kubeconfig
 
 B. Copy an existing context into a temp file
 ```bash
-kubectl config view --context=ms/your-hub-cluster-claim-name --minify --flatten > /tmp/managed-hub-cluster.kubeconfig
+kubectl config view --context=<context_of_the_managed_hub_cluster> --minify --flatten > /tmp/managed-hub-cluster.kubeconfig
 ```
 
 ### Generating a kubeconfig for your kcp cluster
@@ -136,7 +136,7 @@ oc cluster-info
 ```
 - Create the secret using the managed hub cluster kubeconfig
 ```bash
-oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/hubkubeconfig.yaml -n <controller_namespace>
+oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/managed-hub-cluster.kubeconfig -n <controller_namespace>
 ```
 
 3. Create the hub config on the controller cluster:
