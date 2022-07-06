@@ -321,3 +321,10 @@ run-local: install-prereqs
 docker-push-latest:
 	docker tag ${IMG} ${IMAGE_TAG_BASE}:latest
 	$(MAKE) docker-push IMG=${IMAGE_TAG_BASE}:latest
+
+.PHONY: build-e2e-test-image
+build-e2e-test-image:
+	@echo "Building $(IMAGE_E2E_TEST)"
+	docker build . \
+	-f Dockerfile.cypress \
+	-t ${IMG_E2E_TEST}

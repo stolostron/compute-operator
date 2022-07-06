@@ -1,0 +1,184 @@
+#!/bin/bash
+# Copyright Red Hat
+
+set -e
+
+###############################################################################
+# Test Setup
+###############################################################################
+
+echo $SHARED_DIR
+
+
+BROWSER=chrome
+BUILD_WEB_URL=https://prow.ci.openshift.org/view/gs/origin-ci-test/${JOB_NAME}/${BUILD_ID}
+GIT_PULL_NUMBER=$PULL_NUMBER
+GIT_REPO_SLUG=${REPO_OWNER}/${REPO_NAME}
+HUB_CREDS=$(cat "${SHARED_DIR}/hub-1.json")
+OCM_NAMESPACE=open-cluster-management
+OCM_ROUTE=multicloud-console
+# Hub cluster
+export KUBECONFIG="${SHARED_DIR}/hub-1.kc"
+
+OCM_ADDRESS=https://`oc -n $OCM_NAMESPACE get route $OCM_ROUTE -o json | jq -r '.spec.host'`
+# export CYPRESS_BASE_URL=$OCM_ADDRESS
+# export CYPRESS_OC_CLUSTER_URL=$(echo $HUB_CREDS | jq -r '.api_url')
+# export CYPRESS_OC_CLUSTER_USER=$(echo $HUB_CREDS | jq -r '.username')
+# export CYPRESS_OC_CLUSTER_PASS=$(echo $HUB_CREDS | jq -r '.password')
+# # Slightly different for IDP cypress tests
+# export CYPRESS_OPTIONS_HUB_USER=${CYPRESS_OC_CLUSTER_USER}
+# export CYPRESS_OPTIONS_HUB_PASSWORD=${CYPRESS_OC_CLUSTER_PASS}
+# export CYPRESS_BASE_URL=${OCM_ADDRESS}
+
+# # Cypress env variables
+# #export ANSIBLE_URL=$(cat "/etc/e2e-secrets/ansible-url")
+# #export ANSIBLE_TOKEN=$(cat "/etc/e2e-secrets/ansible-token")
+# export BROWSER=$BROWSER
+# export BUILD_WEB_URL=$BUILD_WEB_URL
+# export CYPRESS_JOB_ID=$PROW_JOB_ID
+# #export CYPRESS_RBAC_TEST=$(cat "/etc/e2e-secrets/cypress-rbac-test")
+# export CYPRESS_TEST_MODE=BVT
+# For pulling source from Git.  install-signed-cert.sh needs this
+export GITHUB_USER=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-user")
+export GITHUB_TOKEN=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-token")
+
+# # GitHub OAuth App for testing Auth Realm with GitHub IDP (Ginkgo tests)
+# export GITHUB_APP_CLIENT_ID=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-app-client-id")
+# export GITHUB_APP_CLIENT_SECRET=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-app-client-secret")
+
+# # GitHub Credentials for creating OAuth apps for testing
+# export CYPRESS_OPTIONS_GH_USER=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-oauth-user")
+# export CYPRESS_OPTIONS_GH_PASSWORD=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-oauth-password")
+# export CYPRESS_OPTIONS_GH_OAUTH_APPS_URL=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-oauth-apps-url")
+# export CYPRESS_OPTIONS_GH_SECRET_KEY_FOR_TOTP=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-secret-key-for-totp")
+
+# # LDAP (Azure Active Directory)
+# export LDAP_AZURE_HOST=$(cat "/etc/ocm-mgdsvcs-e2e-test/ldap-azure-host")
+# export LDAP_AZURE_BIND_DN=$(cat "/etc/ocm-mgdsvcs-e2e-test/ldap-azure-bind-dn")
+# export LDAP_AZURE_BIND_PASSWORD=$(cat "/etc/ocm-mgdsvcs-e2e-test/ldap-azure-bind-password")
+# export LDAP_AZURE_BASE_DN=$(cat "/etc/ocm-mgdsvcs-e2e-test/ldap-azure-base-dn")
+# export LDAP_AZURE_SERVER_CERT=$(cat "/etc/ocm-mgdsvcs-e2e-test/ldap-azure-server-cert")
+
+export ACME_REPO="github.com/acmesh-official/acme.sh"
+export COMPUTE_OPERATOR_REPO="github.com/stolostron/compute-operator"
+
+#export GITHUB_PRIVATE_URL=$(cat "/etc/e2e-secrets/github-private-url")
+export GIT_PULL_NUMBER=$PULL_NUMBER
+export GIT_REPO_SLUG=$GIT_REPO_SLUG
+#export SLACK_TOKEN=$(cat "/etc/e2e-secrets/slack-token")
+
+#In order to verify the signed certifiate, we need to use AWS for route53 domain stuff
+export AWS_ACCESS_KEY_ID=$(cat "/etc/ocm-mgdsvcs-e2e-test/aws-access-key")
+export AWS_SECRET_ACCESS_KEY=$(cat "/etc/ocm-mgdsvcs-e2e-test/aws-secret-access-key")
+
+# # Generate a random password for OpenID client secret
+# export OPENID_CLIENT_SECRET=$(head /dev/urandom | LC_CTYPE=C tr -dc a-z0-9 | head -c 16 ; echo '')
+
+
+# Workaround for "error: x509: certificate signed by unknown authority" problem with oc login
+mkdir -p ${HOME}/certificates
+OAUTH_POD=$(oc -n openshift-authentication get pods -o jsonpath='{.items[0].metadata.name}')
+export CYPRESS_OC_CLUSTER_INGRESS_CA=/certificates/ingress-ca.crt
+oc rsh -n openshift-authentication $OAUTH_POD cat /run/secrets/kubernetes.io/serviceaccount/ca.crt > ${HOME}${CYPRESS_OC_CLUSTER_INGRESS_CA}
+
+# managed cluster
+MANAGED_CREDS=$(cat "${SHARED_DIR}/managed-1.json")
+export CYPRESS_MANAGED_OCP_URL=$(echo $MANAGED_CREDS | jq -r '.api_url')
+export CYPRESS_MANAGED_OCP_USER=$(echo $MANAGED_CREDS | jq -r '.username')
+export CYPRESS_MANAGED_OCP_PASS=$(echo $MANAGED_CREDS | jq -r '.password')
+export CYPRESS_PROW="true"
+
+# Set up git credentials.
+echo "--- Setting up git credentials."
+{
+  echo "https://${GITHUB_USER}:${GITHUB_TOKEN}@${ACME_REPO}.git"
+  echo "https://${GITHUB_USER}:${GITHUB_TOKEN}@${COMPUTE_OPERATOR_REPO}.git"
+} >> ghcreds
+git config --global credential.helper 'store --file=ghcreds'
+
+
+
+# Set up Quay credentials.
+echo "--- Setting up Quay credentials."
+export QUAY_TOKEN=$(cat "/etc/acm-cicd-quay-pull")
+
+
+echo "--- Check current hub cluster info"
+oc cluster-info
+
+echo "--- Show managed cluster"
+oc get managedclusters
+
+# Make sure the managed cluster is ready to be used
+echo "Waiting up to 15 minutes for managed cluster to be ready"
+_timeout=900 _elapsed='' _step=30
+while true; do
+    # Wait for _step seconds, except for first iteration.
+    if [[ -z "$_elapsed" ]]; then
+        _elapsed=0
+    else
+        sleep $_step
+        _elapsed=$(( _elapsed + _step ))
+    fi
+
+    mc_url=`oc get managedclusters --selector name!=local-cluster --no-headers -o jsonpath='{.items[0].spec.managedClusterClientConfigs[0].url}'`
+    if [[ ! -z "$mc_url" ]]; then
+        echo "Managed cluster is ready after ${_elapsed}s"
+        break
+    fi
+
+    # Check timeout
+    if (( _elapsed > _timeout )); then
+            echo "Timeout (${_timeout}s) managed cluster is not ready"
+            return 1
+    fi
+
+    echo "Managed cluster is not ready. Will retry (${_elapsed}/${_timeout}s)"
+done
+
+echo "--- Show managed cluster"
+oc get managedclusters
+
+# echo "--- Configure OpenShift to use a signed certificate..."
+# ./install-signed-cert.sh
+
+# Location of repo in docker test image
+export COMPUTE_OPERATOR_DIR=${COMPUTE_OPERATOR_DIR:-"/compute-operator"}
+
+
+## Grab the repo contents
+#idp_dir=$(mktemp -d -t idp-XXXXX)
+#cd "$idp_dir" || exit 1
+#export HOME="$idp_dir"
+
+## Set up repo URLs.
+## PULL_BASE_REF is a Prow variable as described here:
+## https://github.com/kubernetes/test-infra/blob/master/prow/jobs.md#job-environment-variables
+#echo "--- Cloning branch idp-mgmt-operator ${PULL_BASE_REF}"
+#COMPUTE_OPERATOR_url="https://${COMPUTE_OPERATOR_REPO}.git"
+#export COMPUTE_OPERATOR_DIR="${idp_dir}/idp-mgmt-operator"
+#git clone -b "${PULL_BASE_REF}" "$COMPUTE_OPERATOR_url" "$COMPUTE_OPERATOR_DIR" || {
+#    echo "ERROR Could not clone branch ${PULL_BASE_REF} from idp-mgmt-operator repo $idp_mgmt_operator_url"
+#    exit 1
+#}
+
+
+
+echo "--- Install compute operator ..."
+./install-compute-operator.sh
+
+# echo "--- Install keycloak for OpenID tests ..."
+# ./install-keycloak.sh
+#
+# # export variable saved from keycloak install/config
+# export OPENID_ISSUER=$(cat "/tmp/openid/openid_issuer")
+# echo "OPENID_ISSUER is ${OPENID_ISSUER}"
+#
+#
+# echo "--- Running ginkgo E2E tests"
+# ./run-ginkgo-e2e-tests.sh
+#
+#
+#
+# echo "--- Running Cypress tests"
+# ./start-cypress-tests.sh
