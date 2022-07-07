@@ -153,7 +153,7 @@ func getHubInstance(kubeConfigData []byte, mgr ctrl.Manager, hubConfig *singapor
 	hubCluster, err := cluster.New(hubKubeconfig,
 		func(o *cluster.Options) {
 			o.Scheme = mgr.GetScheme() // Explicitly set the scheme which includes ManagedCluster
-			o.NewCache = NewCacheFunc
+			// o.NewCache = NewCacheFunc
 		},
 	)
 	if err != nil {

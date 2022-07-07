@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -92,7 +94,7 @@ const (
 )
 
 // Set it to true when using a actual cluster
-var existingConfig bool = false
+var existingConfig bool
 
 var (
 	controllerRestConfig             *rest.Config
@@ -181,6 +183,11 @@ var _ = BeforeSuite(func() {
 	err = os.MkdirAll(testEnvDir, 0700)
 	Expect(err).To(BeNil())
 
+	//set useExistingCluster
+	useExistingClusterEnvVar := os.Getenv("USE_EXISTING_CLUSTER")
+	existingCluster, err := strconv.ParseBool(useExistingClusterEnvVar)
+	Expect(err).To(BeNil())
+
 	testEnv = &envtest.Environment{
 		Scheme: scheme,
 		CRDs: []*apiextensionsv1.CustomResourceDefinition{
@@ -195,7 +202,7 @@ var _ = BeforeSuite(func() {
 		AttachControlPlaneOutput: true,
 		ControlPlaneStartTimeout: 1 * time.Minute,
 		ControlPlaneStopTimeout:  1 * time.Minute,
-		UseExistingCluster:       &existingConfig,
+		UseExistingCluster:       &existingCluster,
 	}
 
 	var hubKubeconfigString string
@@ -281,8 +288,19 @@ var _ = BeforeSuite(func() {
 			"start",
 		)
 
-		// kcpServer.Stdout = os.Stdout
-		// kcpServer.Stderr = os.Stderr
+		// Create io.writer for kcp log
+		kcpLogFile := os.Getenv("KCP_LOG")
+		if len(kcpLogFile) == 0 {
+			computeServer.Stdout = os.Stdout
+			computeServer.Stderr = os.Stderr
+		} else {
+			f, err := os.OpenFile(filepath.Clean(kcpLogFile), os.O_WRONLY|os.O_CREATE, 0600)
+			Expect(err).To(BeNil())
+			defer f.Close()
+			computeServer.Stdout = f
+			computeServer.Stderr = f
+		}
+
 		err = computeServer.Start()
 		Expect(err).To(BeNil())
 	}()
@@ -589,17 +607,28 @@ var _ = BeforeSuite(func() {
 		Expect(err).To(BeNil())
 
 		logf.Log.Info("run controller")
+
 		os.Setenv("POD_NAME", "installer-pod")
 		os.Setenv("POD_NAMESPACE", controllerNamespace)
 		controllerManager = exec.Command(controllerExecutable,
 			"manager",
 			"--kubeconfig",
 			testEnvKubeconfigFile,
-			"--v=6",
+			// "--v=6",
 		)
 
-		controllerManager.Stdout = os.Stdout
-		controllerManager.Stderr = os.Stderr
+		// Create io.writer for manager log
+		managerLogFile := os.Getenv("MANAGER_LOG")
+		if len(managerLogFile) == 0 {
+			controllerManager.Stdout = os.Stdout
+			controllerManager.Stderr = os.Stderr
+		} else {
+			f, err := os.OpenFile(filepath.Clean(managerLogFile), os.O_WRONLY|os.O_CREATE, 0600)
+			Expect(err).To(BeNil())
+			defer f.Close()
+			controllerManager.Stdout = f
+			controllerManager.Stderr = f
+		}
 		err = controllerManager.Start()
 		Expect(err).To(BeNil())
 	}()
@@ -950,24 +979,41 @@ var _ = Describe("Process registeredCluster: ", func() {
 
 		By("Deleting registeredcluster", func() {
 			Eventually(func() error {
-				registeredCluster := &singaporev1alpha1.RegisteredCluster{}
-
-				err := controllerRuntimeClient.Get(context.TODO(),
+				err := computeRuntimeWorkspaceClient.Get(context.TODO(),
 					types.NamespacedName{
-						Name:      registeredClusterName,
-						Namespace: workspace,
+						Name:      registeredCluster.Name,
+						Namespace: registeredCluster.Namespace,
 					},
 					registeredCluster)
 				if err != nil {
 					return err
 				}
 
-				if err := controllerRuntimeClient.Delete(context.TODO(),
+				if err := computeRuntimeWorkspaceClient.Delete(context.TODO(),
 					registeredCluster); err != nil {
-					logf.Log.Info("Waiting deletion of registeredcluster", "Error", err)
+					logf.Log.Info("While deleting registeredcluster", "Error", err)
 					return err
 				}
 				return nil
+			}, 60, 1).Should(BeNil())
+		})
+
+		By("Check registeredcluster deletion", func() {
+			Eventually(func() error {
+				err := computeRuntimeWorkspaceClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      registeredCluster.Name,
+						Namespace: registeredCluster.Namespace,
+					},
+					registeredCluster)
+				switch {
+				case err == nil:
+					return fmt.Errorf("registeredCluster still exists %s/%s", registeredCluster.Namespace, registeredCluster.Name)
+				case errors.IsNotFound(err):
+					return nil
+				default:
+					return err
+				}
 			}, 60, 1).Should(BeNil())
 		})
 

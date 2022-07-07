@@ -349,6 +349,7 @@ func (r *RegisteredClusterReconciler) syncManagedServiceAccount(computeContext c
 			types.NamespacedName{Namespace: managedCluster.Name, Name: ManagedServiceAccountName},
 			msa,
 		); err != nil {
+			r.Log.Error(giterrors.WithStack(err), "managedServiceAccount", "namespace", managedCluster.Name, "name", ManagedServiceAccountName)
 			return giterrors.WithStack(err)
 		}
 		applier := hubCluster.ApplierBuilder.
