@@ -158,6 +158,7 @@ endif
 
 .PHONY: kcp-plugin
 ## Find or download kcp-plugin
+## 		git checkout v0.5.0-alpha.1
 kcp-plugin:
 ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 	@( \
@@ -166,9 +167,7 @@ ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 		cd $$KCP_TMP_DIR ;\
 		git clone https://github.com/kcp-dev/kcp.git ;\
 		cd kcp ;\
-		git checkout v0.5.0-alpha.1 ;\
 		make install WHAT="./cmd/kubectl-kcp"; \
-		git checkout main ;\
 		make install WHAT="./cmd/kcp"; \
 	)
 endif

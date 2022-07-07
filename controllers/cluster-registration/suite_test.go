@@ -185,8 +185,11 @@ var _ = BeforeSuite(func() {
 
 	//set useExistingCluster
 	useExistingClusterEnvVar := os.Getenv("USE_EXISTING_CLUSTER")
-	existingCluster, err := strconv.ParseBool(useExistingClusterEnvVar)
-	Expect(err).To(BeNil())
+	var existingCluster bool
+	if len(useExistingClusterEnvVar) != 0 {
+		existingCluster, err = strconv.ParseBool(useExistingClusterEnvVar)
+		Expect(err).To(BeNil())
+	}
 
 	testEnv = &envtest.Environment{
 		Scheme: scheme,
