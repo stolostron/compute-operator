@@ -97,7 +97,7 @@ var _ = BeforeSuite(func() {
 		// 	filepath.Join("..", "..", "test", "config", "crd", "external"),
 		// },
 		ErrorIfCRDPathMissing:    true,
-		AttachControlPlaneOutput: true,
+		AttachControlPlaneOutput: false,
 		ControlPlaneStartTimeout: 1 * time.Minute,
 		ControlPlaneStopTimeout:  1 * time.Minute,
 	}

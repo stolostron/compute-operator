@@ -93,9 +93,6 @@ const (
 	computeKubeconfigSecret string = "kcp-kubeconfig"
 )
 
-// Set it to true when using a actual cluster
-var existingConfig bool
-
 var (
 	controllerRestConfig             *rest.Config
 	computeContext                   context.Context
@@ -104,19 +101,14 @@ var (
 	scheme                           = runtime.NewScheme()
 	controllerManager                *exec.Cmd
 	controllerRuntimeClient          client.Client
-	controllerApplierBuilder         *clusteradmapply.ApplierBuilder
 	computeServer                    *exec.Cmd
 	computeAdminApplierBuilder       *clusteradmapply.ApplierBuilder
 	organizationAdminApplierBuilder  *clusteradmapply.ApplierBuilder
-	computeVWApplierBuilder          *clusteradmapply.ApplierBuilder
-	computeRuntimeOrganizationClient client.Client
-	computeRuntimeWorkspaceClient    client.Client
 	readerTest                       *clusteradmasset.ScenarioResourcesReader
 	readerHack                       *clusteradmasset.ScenarioResourcesReader
 	readerConfig                     *clusteradmasset.ScenarioResourcesReader
 	saComputeKubeconfigFileAbs       string
 	computeAdminKubconfigData        []byte
-	computeWorkspaceKubconfigData    []byte
 	computeOrganizationKubconfigData []byte
 )
 
@@ -136,17 +128,10 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(klog.NewKlogr())
 
-	values := struct {
-		KcpKubeconfigSecret string
-		Organization        string
-		Workspace           string
-	}{
-		KcpKubeconfigSecret: computeKubeconfigSecret,
-		Organization:        computeOrganization,
-		Workspace:           workspace,
-	}
-
-	// DeferCleanup(cleanup)
+	// Generate readers for appliers
+	readerTest = test.GetScenarioResourcesReader()
+	readerHack = hack.GetScenarioResourcesReader()
+	readerConfig = croconfig.GetScenarioResourcesReader()
 
 	By("bootstrapping test environment")
 	err := clientgoscheme.AddToScheme(scheme)
@@ -166,9 +151,7 @@ var _ = BeforeSuite(func() {
 	err = apisv1alpha1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 
-	readerTest = test.GetScenarioResourcesReader()
-	readerHack = hack.GetScenarioResourcesReader()
-	readerConfig = croconfig.GetScenarioResourcesReader()
+	// Get the CRDs
 	clusterRegistrarsCRD, err := getCRD(readerConfig, "crd/singapore.open-cluster-management.io_clusterregistrars.yaml")
 	Expect(err).Should(BeNil())
 
@@ -178,12 +161,8 @@ var _ = BeforeSuite(func() {
 	registeredClustersCRD, err := getCRD(readerConfig, "crd/singapore.open-cluster-management.io_registeredclusters.yaml")
 	Expect(err).Should(BeNil())
 
-	// Clean testEnv Directory
-	os.RemoveAll(testEnvDir)
-	err = os.MkdirAll(testEnvDir, 0700)
-	Expect(err).To(BeNil())
-
-	//set useExistingCluster
+	// set useExistingCluster, if set to true then the cluster with
+	// the $KUBECONFIG will be used as target instead of the in memory envtest
 	useExistingClusterEnvVar := os.Getenv("USE_EXISTING_CLUSTER")
 	var existingCluster bool
 	if len(useExistingClusterEnvVar) != 0 {
@@ -202,12 +181,18 @@ var _ = BeforeSuite(func() {
 			filepath.Join("..", "..", "test", "config", "crd", "external"),
 		},
 		ErrorIfCRDPathMissing:    true,
-		AttachControlPlaneOutput: true,
+		AttachControlPlaneOutput: false,
 		ControlPlaneStartTimeout: 1 * time.Minute,
 		ControlPlaneStopTimeout:  1 * time.Minute,
 		UseExistingCluster:       &existingCluster,
 	}
 
+	// Clean testEnv Directory
+	os.RemoveAll(testEnvDir)
+	err = os.MkdirAll(testEnvDir, 0700)
+	Expect(err).To(BeNil())
+
+	// Set and save the testEnv.Config if using an existing cluster
 	var hubKubeconfigString string
 	var hubKubeconfig *rest.Config
 	if *testEnv.UseExistingCluster {
@@ -218,70 +203,21 @@ var _ = BeforeSuite(func() {
 		os.Setenv("KUBECONFIG", "")
 	}
 
+	// Start the testEnv.
 	controllerRestConfig, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(controllerRestConfig).ToNot(BeNil())
 
+	// Save the testenv kubeconfig
 	if !*testEnv.UseExistingCluster {
 		hubKubeconfigString, _, err = persistAndGetRestConfig(*testEnv.UseExistingCluster)
 		Expect(err).ToNot(HaveOccurred())
 	}
 
-	controllerRuntimeClient, err = client.New(controllerRestConfig, client.Options{Scheme: scheme})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(controllerRuntimeClient).ToNot(BeNil())
-
-	//Build hub applier
-	controllerKubernetesClient := kubernetes.NewForConfigOrDie(controllerRestConfig)
-	controllerAPIExtensionClient := apiextensionsclient.NewForConfigOrDie(controllerRestConfig)
-	controllerDynamicClient := dynamic.NewForConfigOrDie(controllerRestConfig)
-	controllerApplierBuilder = clusteradmapply.NewApplierBuilder().
-		WithClient(controllerKubernetesClient, controllerAPIExtensionClient, controllerDynamicClient)
-
 	// Clean kcp
 	os.RemoveAll(".kcp")
 
-	By(fmt.Sprintf("creation of namespace %s", controllerNamespace), func() {
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: controllerNamespace,
-			},
-		}
-		err := controllerRuntimeClient.Create(context.TODO(), ns)
-		Expect(err).To(BeNil())
-	})
-
-	By("Create a hubconfig secret", func() {
-		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-hub-kube-config",
-				Namespace: controllerNamespace,
-			},
-			Data: map[string][]byte{
-				"kubeconfig": []byte(hubKubeconfigString),
-			},
-		}
-		err = controllerRuntimeClient.Create(context.TODO(), secret)
-		Expect(err).To(BeNil())
-	})
-
-	var hubConfig *singaporev1alpha1.HubConfig
-	By("Create a HubConfig", func() {
-		hubConfig = &singaporev1alpha1.HubConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-hubconfig",
-				Namespace: controllerNamespace,
-			},
-			Spec: singaporev1alpha1.HubConfigSpec{
-				KubeConfigSecretRef: corev1.LocalObjectReference{
-					Name: "my-hub-kube-config",
-				},
-			},
-		}
-		err := controllerRuntimeClient.Create(context.TODO(), hubConfig)
-		Expect(err).To(BeNil())
-	})
-
+	// Launch KCP
 	go func() {
 		defer GinkgoRecover()
 		adminComputeKubeconfigFile, err := filepath.Abs(adminComputeKubeconfigFile)
@@ -297,6 +233,7 @@ var _ = BeforeSuite(func() {
 			computeServer.Stdout = os.Stdout
 			computeServer.Stderr = os.Stderr
 		} else {
+			os.MkdirAll(filepath.Dir(filepath.Clean(kcpLogFile)), 0700)
 			f, err := os.OpenFile(filepath.Clean(kcpLogFile), os.O_WRONLY|os.O_CREATE, 0600)
 			Expect(err).To(BeNil())
 			defer f.Close()
@@ -308,6 +245,7 @@ var _ = BeforeSuite(func() {
 		Expect(err).To(BeNil())
 	}()
 
+	// Switch to system:admin context in order to create a kubeconfig allowing KCP API configuration.
 	By("switch context system:admin", func() {
 		Eventually(func() error {
 			logf.Log.Info("switch context")
@@ -335,6 +273,24 @@ var _ = BeforeSuite(func() {
 	computeAdminRestConfig, err := clientcmd.RESTConfigFromKubeConfig(computeAdminKubconfigData)
 	Expect(err).ToNot(HaveOccurred())
 
+	// Create the kcp clients for the builder
+	computeAdminKubernetesClient := kubernetes.NewForConfigOrDie(computeAdminRestConfig)
+	computeAdminAPIExtensionClient := apiextensionsclient.NewForConfigOrDie(computeAdminRestConfig)
+	computeAdminDynamicClient, err := dynamicapimachinery.NewClusterDynamicClientForConfig(computeAdminRestConfig)
+	Expect(err).ToNot(HaveOccurred())
+
+	// Create a builder for the workspace
+	computeAdminApplierBuilder = clusteradmapply.NewApplierBuilder().
+		WithClient(computeAdminKubernetesClient,
+			computeAdminAPIExtensionClient,
+			computeAdminDynamicClient.Cluster(logicalcluster.New(clusterWorkspace)))
+	// Create a builder for the organization
+	organizationAdminApplierBuilder = clusteradmapply.NewApplierBuilder().
+		WithClient(computeAdminKubernetesClient,
+			computeAdminAPIExtensionClient,
+			computeAdminDynamicClient.Cluster(logicalcluster.New(organizationWorkspace)))
+
+	// Switch to root in order to create the organization workspace
 	By("switch context root", func() {
 		Eventually(func() error {
 			logf.Log.Info("switch context")
@@ -371,26 +327,13 @@ var _ = BeforeSuite(func() {
 		}, 60, 3).Should(BeNil())
 	})
 
+	// Save the kubeconfig for the organization
 	computeOrganizationKubconfigData, err = ioutil.ReadFile(adminComputeKubeconfigFile)
 	Expect(err).ToNot(HaveOccurred())
 
-	computeContext = kcpclient.WithCluster(context.Background(), logicalcluster.New(clusterWorkspace))
 	organizationContext = kcpclient.WithCluster(context.Background(), logicalcluster.New(organizationWorkspace))
-	//Build compute admin applier
-	computeAdminKubernetesClient := kubernetes.NewForConfigOrDie(computeAdminRestConfig)
-	computeAdminAPIExtensionClient := apiextensionsclient.NewForConfigOrDie(computeAdminRestConfig)
-	computeAdminDynamicClient, err := dynamicapimachinery.NewClusterDynamicClientForConfig(computeAdminRestConfig)
-	Expect(err).ToNot(HaveOccurred())
-	// computeAdminDynamicClientDyn := dynamic.NewForConfigOrDie(computeAdminRestConfig)
-	computeAdminApplierBuilder = clusteradmapply.NewApplierBuilder().
-		WithClient(computeAdminKubernetesClient,
-			computeAdminAPIExtensionClient,
-			computeAdminDynamicClient.Cluster(logicalcluster.New(clusterWorkspace)))
-	organizationAdminApplierBuilder = clusteradmapply.NewApplierBuilder().
-		WithClient(computeAdminKubernetesClient,
-			computeAdminAPIExtensionClient,
-			computeAdminDynamicClient.Cluster(logicalcluster.New(organizationWorkspace)))
 
+	//Build compute admin applier
 	By(fmt.Sprintf("apply resourceschema on workspace %s", workspace), func() {
 		Eventually(func() error {
 			logf.Log.Info("create resourceschema")
@@ -444,6 +387,7 @@ var _ = BeforeSuite(func() {
 		}, 60, 3).Should(BeNil())
 	})
 
+	// Generate the kubeconfig for the SA
 	saComputeKubeconfigFileAbs, err = filepath.Abs(saComputeKubeconfigFile)
 	Expect(err).To(BeNil())
 
@@ -467,12 +411,7 @@ var _ = BeforeSuite(func() {
 		}, 60, 3).Should(BeNil())
 	})
 
-	computeSAKubconfigData, err := ioutil.ReadFile(saComputeKubeconfigFile)
-	Expect(err).ToNot(HaveOccurred())
-	computeRestSAConfig, err := clientcmd.RESTConfigFromKubeConfig(computeSAKubconfigData)
-	Expect(err).ToNot(HaveOccurred())
-	computeRuntimeOrganizationClient, err = client.New(computeRestSAConfig, client.Options{Scheme: scheme})
-	Expect(err).ToNot(HaveOccurred())
+	computeContext = kcpclient.WithCluster(context.Background(), logicalcluster.New(clusterWorkspace))
 
 	// Create role for on compute server in workspace
 	By(fmt.Sprintf("creation of role in workspace %s", workspace), func() {
@@ -511,21 +450,18 @@ var _ = BeforeSuite(func() {
 		}, 60, 3).Should(BeNil())
 	})
 
-	var computeVWeRestConfig *rest.Config
+	// Create kcp runtime client for the controller
+	computeSAKubconfigData, err := ioutil.ReadFile(saComputeKubeconfigFile)
+	Expect(err).ToNot(HaveOccurred())
+	computeRestSAConfig, err := clientcmd.RESTConfigFromKubeConfig(computeSAKubconfigData)
+	Expect(err).ToNot(HaveOccurred())
 	By("waiting virtualworkspace", func() {
 		Eventually(func() error {
 			logf.Log.Info("waiting virtual workspace")
-			computeVWeRestConfig, err = helpers.RestConfigForAPIExport(context.TODO(), computeRestSAConfig, "compute-apis", scheme)
+			_, err = helpers.RestConfigForAPIExport(context.TODO(), computeRestSAConfig, "compute-apis", scheme)
 			return err
 		}, 60, 3).Should(BeNil())
 	})
-
-	computeVWKubernetesClient := kubernetes.NewForConfigOrDie(computeVWeRestConfig)
-	computeVWAPIExtensionClient := apiextensionsclient.NewForConfigOrDie(computeVWeRestConfig)
-	computeVWDynamicClient := dynamic.NewForConfigOrDie(computeVWeRestConfig)
-	computeVWApplierBuilder = clusteradmapply.NewApplierBuilder().
-		WithClient(computeVWKubernetesClient, computeVWAPIExtensionClient, computeVWDynamicClient).
-		WithContext(computeContext)
 
 	// Create workspace on compute server and enter in the ws
 	By(fmt.Sprintf("creation of cluster workspace %s", workspace), func() {
@@ -546,13 +482,7 @@ var _ = BeforeSuite(func() {
 		}, 60, 3).Should(BeNil())
 	})
 
-	computeWorkspaceKubconfigData, err = ioutil.ReadFile(adminComputeKubeconfigFile)
-	Expect(err).ToNot(HaveOccurred())
-	computeRestWorkspaceConfig, err := clientcmd.RESTConfigFromKubeConfig(computeWorkspaceKubconfigData)
-	Expect(err).ToNot(HaveOccurred())
-	computeRuntimeWorkspaceClient, err = client.New(computeRestWorkspaceConfig, client.Options{Scheme: scheme})
-	Expect(err).ToNot(HaveOccurred())
-
+	// Create the APIBinding in the cluster workspace
 	By(fmt.Sprintf("apply APIBinding on workspace %s", workspace), func() {
 		Eventually(func() error {
 			logf.Log.Info("create APIBinding")
@@ -561,12 +491,67 @@ var _ = BeforeSuite(func() {
 			files := []string{
 				"compute/apibinding.yaml",
 			}
+			// Values for the appliers
+			values := struct {
+				Organization string
+			}{
+				Organization: computeOrganization,
+			}
 			_, err := computeApplier.ApplyCustomResources(readerHack, values, false, "", files...)
 			if err != nil {
 				logf.Log.Error(err, "while applying APIBinding")
 			}
 			return err
 		}, 60, 3).Should(BeNil())
+	})
+
+	// Create a runtime client to retrieve information from the hub cluster
+	controllerRuntimeClient, err = client.New(controllerRestConfig, client.Options{Scheme: scheme})
+	Expect(err).ToNot(HaveOccurred())
+	Expect(controllerRuntimeClient).ToNot(BeNil())
+
+	// Create the controller namespace, that ns will hold the controller configuration.
+	By(fmt.Sprintf("creation of namespace %s", controllerNamespace), func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: controllerNamespace,
+			},
+		}
+		err := controllerRuntimeClient.Create(context.TODO(), ns)
+		Expect(err).To(BeNil())
+	})
+
+	// Create the hub config secret for the controller
+	By("Create a hubconfig secret", func() {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-hub-kube-config",
+				Namespace: controllerNamespace,
+			},
+			Data: map[string][]byte{
+				"kubeconfig": []byte(hubKubeconfigString),
+			},
+		}
+		err = controllerRuntimeClient.Create(context.TODO(), secret)
+		Expect(err).To(BeNil())
+	})
+
+	// Create a hubConfig CR with that secret
+	var hubConfig *singaporev1alpha1.HubConfig
+	By("Create a HubConfig", func() {
+		hubConfig = &singaporev1alpha1.HubConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-hubconfig",
+				Namespace: controllerNamespace,
+			},
+			Spec: singaporev1alpha1.HubConfigSpec{
+				KubeConfigSecretRef: corev1.LocalObjectReference{
+					Name: "my-hub-kube-config",
+				},
+			},
+		}
+		err := controllerRuntimeClient.Create(context.TODO(), hubConfig)
+		Expect(err).To(BeNil())
 	})
 
 	//Build compute admin applier
@@ -586,8 +571,23 @@ var _ = BeforeSuite(func() {
 		Expect(err).To(BeNil())
 	})
 
+	// Create clients for the hub
+	controllerKubernetesClient := kubernetes.NewForConfigOrDie(controllerRestConfig)
+	controllerAPIExtensionClient := apiextensionsclient.NewForConfigOrDie(controllerRestConfig)
+	controllerDynamicClient := dynamic.NewForConfigOrDie(controllerRestConfig)
+	// Create the hub applier
+	controllerApplierBuilder := clusteradmapply.NewApplierBuilder().
+		WithClient(controllerKubernetesClient, controllerAPIExtensionClient, controllerDynamicClient)
+
+	// Create the clusterRegistrar with the reference of the kcpConfig Secret
 	By("Create the clusterRegistrar", func() {
 		logf.Log.Info("apply clusterRegistrar")
+		// Values for the appliers
+		values := struct {
+			KcpKubeconfigSecret string
+		}{
+			KcpKubeconfigSecret: computeKubeconfigSecret,
+		}
 		applier := controllerApplierBuilder.
 			Build()
 		files := []string{
@@ -598,6 +598,7 @@ var _ = BeforeSuite(func() {
 		Expect(err).To(BeNil())
 	})
 
+	// Launch the compute-operator manager
 	go func() {
 		defer GinkgoRecover()
 		logf.Log.Info("build controller")
@@ -626,6 +627,7 @@ var _ = BeforeSuite(func() {
 			controllerManager.Stdout = os.Stdout
 			controllerManager.Stderr = os.Stderr
 		} else {
+			os.MkdirAll(filepath.Dir(filepath.Clean(managerLogFile)), 0700)
 			f, err := os.OpenFile(filepath.Clean(managerLogFile), os.O_WRONLY|os.O_CREATE, 0600)
 			Expect(err).To(BeNil())
 			defer f.Close()
@@ -638,7 +640,12 @@ var _ = BeforeSuite(func() {
 
 })
 
+var _ = AfterSuite(func() {
+	cleanup()
+})
+
 func cleanup() {
+	// Kill the compute-operator managaer
 	if controllerManager != nil {
 		By("tearing down the manager")
 		logf.Log.Info("Process", "Args", controllerManager.Args)
@@ -653,6 +660,7 @@ func cleanup() {
 		controllerManager.Process.Signal(os.Interrupt)
 		// controllerManager.Wait()
 	}
+	// Kill KCP
 	if computeServer != nil {
 		By("tearing down the kcp")
 		computeServer.Process.Signal(os.Interrupt)
@@ -672,12 +680,9 @@ func cleanup() {
 	}
 }
 
-var _ = AfterSuite(func() {
-	cleanup()
-})
-
 var _ = Describe("Process registeredCluster: ", func() {
 	It("Process registeredCluster", func() {
+		// create the registeredcluster on kcp workspace
 		var registeredCluster *singaporev1alpha1.RegisteredCluster
 		By("Create the RegisteredCluster", func() {
 			Eventually(func() error {
@@ -703,9 +708,9 @@ var _ = Describe("Process registeredCluster: ", func() {
 					Location: "FakeKcpLocation",
 				},
 			}
-			// err := hubRuntimeClient.Create(context.TODO(), registeredCluster)
-			// Expect(err).To(BeNil())
 		})
+		// Get the managedcluster for the registiredcluster
+		// Searching by labels
 		var managedCluster *clusterapiv1.ManagedCluster
 		By("Checking managedCluster", func() {
 			Eventually(func() error {
@@ -727,6 +732,8 @@ var _ = Describe("Process registeredCluster: ", func() {
 				return nil
 			}, 60, 3).Should(BeNil())
 		})
+		// As managedcluster controller is not running
+		// patching the managedcluster with several information and status
 		By("Patching managecluster spec", func() {
 			managedCluster.Spec.ManagedClusterClientConfigs = []clusterapiv1.ClientConfig{
 				{
@@ -779,6 +786,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 			err := controllerRuntimeClient.Status().Update(context.TODO(), managedCluster)
 			Expect(err).Should(BeNil())
 		})
+		// As the managedcluster controller is not running, creating the managed cluster ns on the hub
 		By("Create managedcluster namespace", func() {
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -788,6 +796,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 			err := controllerRuntimeClient.Create(context.TODO(), ns)
 			Expect(err).To(BeNil())
 		})
+		// Define an fake import secret
 		importSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      managedCluster.Name + "-import",
@@ -800,10 +809,27 @@ var _ = Describe("Process registeredCluster: ", func() {
 				"import.yaml":      []byte("my-import.yaml"),
 			},
 		}
+		// Define the expected import command
+		expectedImportCommand :=
+			`echo "bXktY3Jkc3YxLnlhbWw=" | base64 --decode | kubectl apply -f - && ` +
+				`sleep 2 && ` +
+				`echo "bXktaW1wb3J0LnlhbWw=" | base64 --decode | kubectl apply -f -
+`
+		// Create the fake import secret on the hub
 		By("Create import secret", func() {
 			err := controllerRuntimeClient.Create(context.TODO(), importSecret)
 			Expect(err).To(BeNil())
 		})
+
+		// Create the runtime client for the cluster workspace in order to check the registedcluster on kcp
+		computeWorkspaceKubconfigData, err := ioutil.ReadFile(adminComputeKubeconfigFile)
+		Expect(err).ToNot(HaveOccurred())
+		computeRestWorkspaceConfig, err := clientcmd.RESTConfigFromKubeConfig(computeWorkspaceKubconfigData)
+		Expect(err).ToNot(HaveOccurred())
+		computeRuntimeWorkspaceClient, err := client.New(computeRestWorkspaceConfig, client.Options{Scheme: scheme})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Check if the registeredcluster has the importCommandRef set
 		By("Checking registeredCluster ImportCommandRef", func() {
 			Eventually(func() error {
 				err := computeRuntimeWorkspaceClient.Get(computeContext,
@@ -823,13 +849,10 @@ var _ = Describe("Process registeredCluster: ", func() {
 				return nil
 			}, 30, 1).Should(BeNil())
 		})
-		cm := &corev1.ConfigMap{}
-		importCommand :=
-			`echo "bXktY3Jkc3YxLnlhbWw=" | base64 --decode | kubectl apply -f - && ` +
-				`sleep 2 && ` +
-				`echo "bXktaW1wb3J0LnlhbWw=" | base64 --decode | kubectl apply -f -
-`
 
+		// Retrieve the configmap in the cluster workspace holding the import command
+		// and check if the import command is as expected.
+		cm := &corev1.ConfigMap{}
 		By("Checking import configMap", func() {
 			Eventually(func() error {
 				err := computeRuntimeWorkspaceClient.Get(context.TODO(),
@@ -841,12 +864,13 @@ var _ = Describe("Process registeredCluster: ", func() {
 				if err != nil {
 					return err
 				}
-				if cm.Data["importCommand"] != importCommand {
-					return fmt.Errorf("invalid import expect %s, got %s", importCommand, cm.Data["importCommand"])
+				if cm.Data["importCommand"] != expectedImportCommand {
+					return fmt.Errorf("invalid import expect %s, got %s", expectedImportCommand, cm.Data["importCommand"])
 				}
 				return nil
 			}, 30, 1).Should(BeNil())
 		})
+		// Check the registeredclsuter status
 		By("Checking registeredCluster status", func() {
 			Eventually(func() error {
 				err := computeRuntimeWorkspaceClient.Get(context.TODO(),
@@ -888,6 +912,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 				return nil
 			}, 60, 1).Should(BeNil())
 		})
+		// Check if the managedclusteraddon was created on the hub
 		By("Checking managedclusteraddon", func() {
 			Eventually(func() error {
 				managedClusterAddon := &addonv1alpha1.ManagedClusterAddOn{}
@@ -905,6 +930,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 			}, 30, 1).Should(BeNil())
 		})
 
+		// Check if the managedserviceaccount was created on the hub
 		By("Checking managedserviceaccount", func() {
 			Eventually(func() error {
 				managed := &authv1alpha1.ManagedServiceAccount{}
@@ -922,6 +948,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 			}, 30, 1).Should(BeNil())
 		})
 
+		// Check if the manifestwork was created on the hub
 		By("Checking manifestwork", func() {
 			Eventually(func() error {
 				manifestwork := &manifestworkv1.ManifestWork{}
@@ -940,6 +967,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 			}, 60, 5).Should(BeNil())
 		})
 
+		// As the manifestwork controller is not installed, patch the manifestwork
 		By("Patching manifestwork status", func() {
 
 			manifestwork := &manifestworkv1.ManifestWork{}
@@ -965,6 +993,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 			Expect(err).Should(BeNil())
 		})
 
+		// Create a managedserviceaccoutn secret
 		By("Create managedserviceaccount secret", func() {
 			secret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -980,6 +1009,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 			Expect(err).To(BeNil())
 		})
 
+		// Delete the registeredcluster
 		By("Deleting registeredcluster", func() {
 			Eventually(func() error {
 				err := computeRuntimeWorkspaceClient.Get(context.TODO(),
@@ -1001,6 +1031,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 			}, 60, 1).Should(BeNil())
 		})
 
+		// Check if the registeredcluster is well deleted
 		By("Check registeredcluster deletion", func() {
 			Eventually(func() error {
 				err := computeRuntimeWorkspaceClient.Get(context.TODO(),
@@ -1045,10 +1076,16 @@ func persistAndGetRestConfig(useExistingCluster bool) (string, *rest.Config, err
 		cmd.Stderr = buf
 		err = cmd.Run()
 	} else {
+		adminInfo := envtest.User{Name: "admin", Groups: []string{"system:masters"}}
+		authenticatedUser, err := testEnv.AddUser(adminInfo, testEnv.Config)
+		Expect(err).To(BeNil())
+		kubectl, err := authenticatedUser.Kubectl()
+		Expect(err).To(BeNil())
 		var out io.Reader
-		out, _, err = testEnv.ControlPlane.KubeCtl().Run("config", "view", "--raw")
+		out, _, err = kubectl.Run("config", "view", "--raw")
 		Expect(err).To(BeNil())
 		_, err = io.Copy(buf, out)
+		Expect(err).To(BeNil())
 	}
 	if err != nil {
 		return "", nil, err
