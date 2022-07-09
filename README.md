@@ -223,13 +223,13 @@ registeredclusters                             singapore.open-cluster-management
 4. Create a registeredcluster CR in the kcp workspace
 
 ```bash
-kubectl create ns itdove-ns
+kubectl create ns <a_namespace>
 echo '
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: RegisteredCluster
 metadata:
-  name: itdove-spoke
-  namespace: itdove-ns
+  name: <your_cluster_name>
+  namespace: <a_namespace>
 spec: {}
 ' | oc create -f -
 ```

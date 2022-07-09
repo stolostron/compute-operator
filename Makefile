@@ -5,8 +5,6 @@ SHELL := /bin/bash
 export PROJECT_DIR            = $(shell 'pwd')
 export PROJECT_NAME			  = $(shell basename ${PROJECT_DIR})
 
-# Directory containing kcp project
-export KCP_TEST_SERVER_DIR=$(shell mktemp -d)
 POD_NAMESPACE ?= compute-config
 
 # Version to apply to generated artifacts (for bundling/publishing). # This value is set by

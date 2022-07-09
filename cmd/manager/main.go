@@ -137,7 +137,7 @@ func (o *managerOptions) run() {
 	setupLog.Info("generate kubeConfigSecretData")
 	computeKubeconfig, err := clientcmd.RESTConfigFromKubeConfig(computeKubeConfigSecretData)
 	if err != nil {
-		setupLog.Error(giterrors.WithStack(err), "unable to create REST config for MCE cluster")
+		setupLog.Error(giterrors.WithStack(err), "unable to create REST config for compute cluster")
 		os.Exit(1)
 	}
 
@@ -162,12 +162,12 @@ func (o *managerOptions) run() {
 
 	computeKubeClient, err := kubernetes.NewClusterForConfig(cfg)
 	if err != nil {
-		setupLog.Error(giterrors.WithStack(err), "error creating kubernetes.ClusterClient up virtual workspace URL")
+		setupLog.Error(giterrors.WithStack(err), "error creating kubernetes.ClusterClient for virtual workspace URL")
 		os.Exit(1)
 	}
 	computeDynamicClient, err := dynamic.NewClusterForConfig(cfg)
 	if err != nil {
-		setupLog.Error(giterrors.WithStack(err), "error creating dynamic.ClusterClient up virtual workspace URL")
+		setupLog.Error(giterrors.WithStack(err), "error creating dynamic.ClusterClient for virtual workspace URL")
 		os.Exit(1)
 	}
 	computeApiExtensionClient, err := apiextensionsclient.NewClusterForConfig(cfg)
