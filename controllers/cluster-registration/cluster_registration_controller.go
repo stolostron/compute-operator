@@ -250,7 +250,7 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 	readerDeploy := resources.GetScenarioResourcesReader()
 
 	files := []string{
-		"cluster-registration/import_configmap.yaml",
+		"cluster-registration/import_secret.yaml",
 	}
 
 	// Get yaml representation of import command
@@ -279,7 +279,7 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 		ClusterName:   regCluster.ClusterName,
 	}
 
-	r.Log.V(4).Info("create config map on compute",
+	r.Log.V(4).Info("create secret on compute",
 		"cluster", regCluster.ClusterName,
 		"namespace", regCluster.Namespace,
 		"name", regCluster.Name)

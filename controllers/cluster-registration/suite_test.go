@@ -813,8 +813,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 		expectedImportCommand :=
 			`echo "bXktY3Jkc3YxLnlhbWw=" | base64 --decode | kubectl apply -f - && ` +
 				`sleep 2 && ` +
-				`echo "bXktaW1wb3J0LnlhbWw=" | base64 --decode | kubectl apply -f -
-`
+				`echo "bXktaW1wb3J0LnlhbWw=" | base64 --decode | kubectl apply -f -`
 		// Create the fake import secret on the hub
 		By("Create import secret", func() {
 			err := controllerRuntimeClient.Create(context.TODO(), importSecret)
@@ -852,20 +851,21 @@ var _ = Describe("Process registeredCluster: ", func() {
 
 		// Retrieve the configmap in the cluster workspace holding the import command
 		// and check if the import command is as expected.
-		cm := &corev1.ConfigMap{}
-		By("Checking import configMap", func() {
+		secret := &corev1.Secret{}
+		By("Checking import secret", func() {
 			Eventually(func() error {
 				err := computeRuntimeWorkspaceClient.Get(context.TODO(),
 					types.NamespacedName{
 						Name:      registeredCluster.Status.ImportCommandRef.Name,
 						Namespace: registeredCluster.Namespace,
 					},
-					cm)
+					secret)
 				if err != nil {
 					return err
 				}
-				if cm.Data["importCommand"] != expectedImportCommand {
-					return fmt.Errorf("invalid import expect %s, got %s", expectedImportCommand, cm.Data["importCommand"])
+				gotImportCommand := string(secret.Data["importCommand"])
+				if gotImportCommand != expectedImportCommand {
+					return fmt.Errorf("invalid import expect %s, got %s", expectedImportCommand, secret.Data["importCommand"])
 				}
 				return nil
 			}, 30, 1).Should(BeNil())
