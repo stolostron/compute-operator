@@ -8,16 +8,26 @@ rules:
 # using service account kubeconfig file on hand via Makefile
 - apiGroups: ["apis.kcp.dev"]
   resources: ["apiresourceschemas", "apiexports"]
-  verbs: ["create", "update", "patch", "get"]
-- apiGroups: ["apis.kcp.dev"]
-  resources: ["apiexports"]
-  verbs: ["get", "list"]
+  verbs: ["create", "update", "patch", "get", "list"]
 - apiGroups:
   - apis.kcp.dev
   resources:
   - apiexports/content
   resourceNames:
   - compute-apis
+  - compute-apis/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
   verbs:
   - create
   - delete

@@ -156,6 +156,7 @@ endif
 
 .PHONY: kcp-plugin
 ## Find or download kcp-plugin
+## 		git checkout v0.5.0-alpha.1
 kcp-plugin:
 ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 	@( \
@@ -164,10 +165,13 @@ ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 		cd $$KCP_TMP_DIR ;\
 		git clone https://github.com/kcp-dev/kcp.git ;\
 		cd kcp ;\
-		git checkout v0.5.0-alpha.1 ;\
+		git checkout a0a34bfb5bfcaf7b3581a03fbb6c7695e5e0943d; \
 		make install WHAT="./cmd/kubectl-kcp"; \
+		make install WHAT="./cmd/kcp"; \
 	)
 endif
+
+# Maybe not needed
 
 OPM = ./bin/opm
 .PHONY: opm
@@ -268,7 +272,8 @@ fmt:
 
 # Run go vet against code
 vet:
-	go vet ./...
+	go vet $(go list ./... | grep -v /webhook/)
+# go vet ./...
 
 # Build the docker image
 docker-build: manifests #test
@@ -291,6 +296,7 @@ undeploy:
 	kubectl delete --wait=true -k config/default
 
 # Generate manifests e.g. CRD, RBAC etc.
+
 manifests: controller-gen yq/install kcp-plugin generate
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..."
 	${YQ} e '.metadata.name = "compute-operator-manager-role"' config/rbac/role.yaml > deploy/compute-operator/clusterrole.yaml && \

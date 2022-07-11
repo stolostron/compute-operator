@@ -42,7 +42,7 @@ export KUBECONFIG=/tmp/managed-hub-cluster.kubeconfig
 
 B. Copy an existing context into a temp file
 ```bash
-kubectl config view --context=ms/your-hub-cluster-claim-name --minify --flatten > /tmp/managed-hub-cluster.kubeconfig
+kubectl config view --context=<context_of_the_managed_hub_cluster> --minify --flatten > /tmp/managed-hub-cluster.kubeconfig
 ```
 
 ### Generating a kubeconfig for your kcp cluster
@@ -56,8 +56,8 @@ kubectl create serviceaccount compute-operator -n default
 ```
 4. Generate the kubeconfig from this SA
 ```bash
-# build/generate_kubeconfig_from_sa.sh sa_name sa_namespace
-build/generate_kubeconfig_from_sa.sh compute-operator default
+# build/generate_kubeconfig_from_sa.sh sa_name sa_namespace kubeconfig_filename
+build/generate_kubeconfig_from_sa.sh compute-operator default /tmp/kubeconfig-compute-operator.yaml
 ```
 The location of the new kubeconfig will be displayed
 ```
@@ -136,7 +136,7 @@ oc cluster-info
 ```
 - Create the secret using the managed hub cluster kubeconfig
 ```bash
-oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/hubkubeconfig.yaml -n <controller_namespace>
+oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/managed-hub-cluster.kubeconfig -n <controller_namespace>
 ```
 
 3. Create the hub config on the controller cluster:
@@ -223,12 +223,13 @@ registeredclusters                             singapore.open-cluster-management
 4. Create a registeredcluster CR in the kcp workspace
 
 ```bash
+kubectl create ns <a_namespace>
 echo '
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: RegisteredCluster
 metadata:
-  name: <name_of_cluster_to_import>
-  namespace: <your_namespace>
+  name: <your_cluster_name>
+  namespace: <a_namespace>
 spec: {}
 ' | oc create -f -
 ```

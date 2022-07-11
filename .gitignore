@@ -42,3 +42,7 @@
 mce-kubeconfig
 kubeConfig
 kubeconfig
+
+#temp directories
+.kcp
+.testenv

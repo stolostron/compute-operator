@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	// "k8s.io/client-go/rest"
@@ -26,7 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
 	// "sigs.k8s.io/controller-runtime/pkg/kcp"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/spf13/cobra"
 	// +kubebuilder:scaffold:imports
@@ -70,7 +70,8 @@ func NewInstaller() *cobra.Command {
 
 func (o *installerOptions) run() {
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	// ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	ctrl.SetLogger(klog.NewKlogr())
 
 	setupLog.Info("Setup Installer")
 
