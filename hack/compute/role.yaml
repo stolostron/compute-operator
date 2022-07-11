@@ -27,7 +27,7 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - configmaps
+  - secrets
   verbs:
   - create
   - delete
