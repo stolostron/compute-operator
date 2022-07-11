@@ -51,8 +51,8 @@ import (
 	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
 
 	croconfig "github.com/stolostron/compute-operator/config"
-	"github.com/stolostron/compute-operator/hack"
 	"github.com/stolostron/compute-operator/pkg/helpers"
+	"github.com/stolostron/compute-operator/resources"
 	"github.com/stolostron/compute-operator/test"
 
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
@@ -105,7 +105,7 @@ var (
 	computeAdminApplierBuilder       *clusteradmapply.ApplierBuilder
 	organizationAdminApplierBuilder  *clusteradmapply.ApplierBuilder
 	readerTest                       *clusteradmasset.ScenarioResourcesReader
-	readerHack                       *clusteradmasset.ScenarioResourcesReader
+	readerResources                  *clusteradmasset.ScenarioResourcesReader
 	readerConfig                     *clusteradmasset.ScenarioResourcesReader
 	saComputeKubeconfigFileAbs       string
 	computeAdminKubconfigData        []byte
@@ -130,7 +130,7 @@ var _ = BeforeSuite(func() {
 
 	// Generate readers for appliers
 	readerTest = test.GetScenarioResourcesReader()
-	readerHack = hack.GetScenarioResourcesReader()
+	readerResources = resources.GetScenarioResourcesReader()
 	readerConfig = croconfig.GetScenarioResourcesReader()
 
 	By("bootstrapping test environment")
@@ -357,9 +357,9 @@ var _ = BeforeSuite(func() {
 			logf.Log.Info("create APIExport")
 			computeApplier := organizationAdminApplierBuilder.Build()
 			files := []string{
-				"compute/apiexport.yaml",
+				"compute-templates/exporter/apiexport.yaml",
 			}
-			_, err := computeApplier.ApplyCustomResources(readerHack, nil, false, "", files...)
+			_, err := computeApplier.ApplyCustomResources(readerResources, nil, false, "", files...)
 			if err != nil {
 				logf.Log.Error(err, "while applying apiexport")
 			}
@@ -420,9 +420,9 @@ var _ = BeforeSuite(func() {
 			computeApplier := computeAdminApplierBuilder.
 				WithContext(computeContext).Build()
 			files := []string{
-				"compute/role.yaml",
+				"compute-templates/exporter/role.yaml",
 			}
-			_, err := computeApplier.ApplyDirectly(readerHack, nil, false, "", files...)
+			_, err := computeApplier.ApplyDirectly(readerResources, nil, false, "", files...)
 			if err != nil {
 				logf.Log.Error(err, "while create role")
 			}
@@ -437,9 +437,9 @@ var _ = BeforeSuite(func() {
 			computeApplier := computeAdminApplierBuilder.
 				WithContext(computeContext).Build()
 			files := []string{
-				"compute/role_binding.yaml",
+				"compute-templates/exporter/role_binding.yaml",
 			}
-			_, err := computeApplier.ApplyDirectly(readerHack, nil, false, "", files...)
+			_, err := computeApplier.ApplyDirectly(readerResources, nil, false, "", files...)
 			if err != nil {
 				logf.Log.Error(err, "while create role binding")
 			}
@@ -489,7 +489,7 @@ var _ = BeforeSuite(func() {
 			computeApplier := computeAdminApplierBuilder.
 				WithContext(computeContext).Build()
 			files := []string{
-				"compute/apibinding.yaml",
+				"compute-templates/apibinding/apibinding.yaml",
 			}
 			// Values for the appliers
 			values := struct {
@@ -497,7 +497,7 @@ var _ = BeforeSuite(func() {
 			}{
 				Organization: computeOrganization,
 			}
-			_, err := computeApplier.ApplyCustomResources(readerHack, values, false, "", files...)
+			_, err := computeApplier.ApplyCustomResources(readerResources, values, false, "", files...)
 			if err != nil {
 				logf.Log.Error(err, "while applying APIBinding")
 			}
