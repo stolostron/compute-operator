@@ -14,7 +14,6 @@ import (
 	// "k8s.io/client-go/rest"
 
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
-	"github.com/stolostron/compute-operator/pkg/helpers"
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
@@ -81,7 +80,6 @@ func (o *installerOptions) run() {
 		HealthProbeBindAddress: o.probeAddr,
 		LeaderElection:         o.enableLeaderElection,
 		LeaderElectionID:       "installer.open-cluster-management.io",
-		NewCache:               helpers.NewCacheFunc,
 	}
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), opts)
 	if err != nil {
