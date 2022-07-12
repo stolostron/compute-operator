@@ -20,7 +20,9 @@ chmod +x /usr/local/bin/jq
 
 echo "Installing vcluster cli..."
 # Install vcluster to deploy virtual clusters
-curl -kL "https://github.com/loft-sh/vcluster/releases/latest" | sed -nE 's!.*"([^"]*vcluster-linux-amd64)".*!https://github.com\1!p' | xargs -n 1 curl -L -o /usr/local/bin/vcluster && chmod +x /usr/local/bin/vcluster;
+curl -kLo /usr/local/bin/vcluster https://github.com/loft-sh/vcluster/releases/download/v0.10.2/vcluster-linux-amd64
+chmod +x /usr/local/bin/vcluster
+
 # Check vcluster installed properly and can be called
 echo "Check install with vcluster --version"
 vcluster --version
