@@ -304,6 +304,11 @@ manifests: controller-gen yq/install kcp-plugin generate
 	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix latest \
 	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml
 
+samples:
+# Later we can use `cm apply custom-resources --paths .. --values ... --dry-run --outpute-file ...` to generate the files
+	cp resources/compute-templates/workspace/* hack/compute
+	cp resources/compute-templates/virtual-workspace/* hack/compute
+
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
