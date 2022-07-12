@@ -1,6 +1,6 @@
 // Copyright Red Hat
 
-package manager
+package registeredcluster
 
 import (
 	"context"
@@ -22,8 +22,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
-
-	clusterreg "github.com/stolostron/compute-operator/controllers/cluster-registration"
 
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -83,6 +81,10 @@ func (o *managerOptions) run() {
 
 	// ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 	ctrl.SetLogger(klog.NewKlogr())
+	// zapopts := zap.Options{}
+	// zapopts.BindFlags(goflag.CommandLine)
+
+	// ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapopts)))
 
 	setupLog.Info("Setup Manager")
 
@@ -205,7 +207,7 @@ func (o *managerOptions) run() {
 		setupLog.Error(giterrors.WithStack(err), "unable to retreive the hubCluster", "controller", "Cluster Registration")
 		os.Exit(1)
 	}
-	if err = (&clusterreg.RegisteredClusterReconciler{
+	if err = (&RegisteredClusterReconciler{
 		Client:                    mgr.GetClient(),
 		Log:                       ctrl.Log.WithName("controllers").WithName("RegistredCluster"),
 		Scheme:                    scheme,

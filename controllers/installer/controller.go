@@ -14,7 +14,6 @@ import (
 	// "k8s.io/client-go/rest"
 
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
-	"github.com/stolostron/compute-operator/controllers/installer"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -92,7 +91,7 @@ func (o *installerOptions) run() {
 
 	setupLog.Info("Add Installer reconciler")
 
-	if err = (&installer.ClusterRegistrarReconciler{
+	if err = (&ClusterRegistrarReconciler{
 		Client:             mgr.GetClient(),
 		KubeClient:         kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie()),
 		DynamicClient:      dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie()),

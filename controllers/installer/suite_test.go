@@ -21,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -71,7 +71,7 @@ var _ = BeforeSuite(func() {
 	// ctx, cancel = context.WithCancel(context.TODO())
 
 	By("bootstrapping test environment")
-	err := appsv1.AddToScheme(scheme.Scheme)
+	err := appsv1.AddToScheme(kscheme.Scheme)
 	Expect(err).Should(BeNil())
 	// err = openshiftconfigv1.AddToScheme(scheme.Scheme)
 	// Expect(err).NotTo(HaveOccurred())
@@ -87,7 +87,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	testEnv = &envtest.Environment{
-		Scheme: scheme.Scheme,
+		Scheme: kscheme.Scheme,
 		CRDs: []*apiextensionsv1.CustomResourceDefinition{
 			clusterRegistrarsCRD,
 			hubConfigsCRD,
@@ -106,7 +106,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sClient, err = client.New(cfg, client.Options{Scheme: kscheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
@@ -114,7 +114,7 @@ var _ = BeforeSuite(func() {
 	os.Setenv("POD_NAMESPACE", installationNamespace)
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme: scheme.Scheme,
+		Scheme: kscheme.Scheme,
 	})
 
 	By("Init the controller", func() {
@@ -124,7 +124,7 @@ var _ = BeforeSuite(func() {
 			DynamicClient:      dynamic.NewForConfigOrDie(cfg),
 			APIExtensionClient: apiextensionsclient.NewForConfigOrDie(cfg),
 			Log:                logf.Log,
-			Scheme:             scheme.Scheme,
+			Scheme:             kscheme.Scheme,
 		}
 		err := r.SetupWithManager(mgr)
 		Expect(err).To(BeNil())
