@@ -13,16 +13,22 @@ mv ./oc-unpacked/oc /usr/local/bin/oc
 mv ./oc-unpacked/kubectl /usr/local/bin/kubectl
 rm -rf ./oc-unpacked ./oc.tar.gz
 
+echo "Installing jq..."
 # Install jq to parse json within bash scripts
 curl -o /usr/local/bin/jq http://stedolan.github.io/jq/download/linux64/jq
 chmod +x /usr/local/bin/jq
 
+echo "Installing vcluster cli..."
 # Install vcluster to deploy virtual clusters
 curl -kL "https://github.com/loft-sh/vcluster/releases/latest" | sed -nE 's!.*"([^"]*vcluster-linux-amd64)".*!https://github.com\1!p' | xargs -n 1 curl -L -o /usr/local/bin/vcluster && chmod +x /usr/local/bin/vcluster;
 # Check vcluster installed properly and can be called
+echo "Check install with vcluster --version"
 vcluster --version
+echo "Check install with /usr/local/bin/vcluster --version"
+/usr/local/bin/vcluster --version
 
 # Install vcluster - TODO will move somewhere better 
-vcluster create my-vcluster --expose
+echo "Try vcluster create with /usr/local/bin/vcluster create my-vcluster --expose"
+/usr/local/bin/vcluster create my-vcluster --expose
 
 echo 'set up complete'
