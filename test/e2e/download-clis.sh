@@ -21,4 +21,8 @@ chmod +x /usr/local/bin/jq
 curl -kL "https://github.com/loft-sh/vcluster/releases/latest" | sed -nE 's!.*"([^"]*vcluster-linux-amd64)".*!https://github.com\1!p' | xargs -n 1 curl -L -o /usr/local/bin/vcluster && chmod +x /usr/local/bin/vcluster;
 # Check vcluster installed properly and can be called
 vcluster --version
+
+# Install vcluster - TODO will move somewhere better 
+vcluster create my-vcluster --expose
+
 echo 'set up complete'
