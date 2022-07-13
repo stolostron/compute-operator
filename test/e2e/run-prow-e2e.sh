@@ -106,6 +106,10 @@ export QUAY_TOKEN=$(cat "/etc/acm-cicd-quay-pull")
 echo "--- Check current hub cluster info"
 oc cluster-info
 
+# Install vcluster
+echo "vcluster create with /usr/local/bin/vcluster create my-vcluster --expose"
+vcluster create my-vcluster-test --expose
+
 echo "--- Show managed cluster"
 oc get managedclusters
 

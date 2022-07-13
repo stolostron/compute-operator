@@ -34,8 +34,4 @@ chmod +x /usr/local/bin/vcluster
 echo "Check install with vcluster --version"
 vcluster --version
 
-# Install vcluster - TODO will move somewhere better 
-echo "Try vcluster create with /usr/local/bin/vcluster create my-vcluster --expose"
-vcluster create my-vcluster-test --expose
-
 echo 'set up complete'
