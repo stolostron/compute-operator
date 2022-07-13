@@ -3,9 +3,11 @@ package registeredcluster
 
 import (
 	"context"
+	goflag "flag"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,7 +16,10 @@ import (
 	"testing"
 	"time"
 
+	utilflag "k8s.io/component-base/cli/flag"
+
 	"github.com/ghodss/yaml"
+	"github.com/spf13/pflag"
 
 	dynamicapimachinery "github.com/kcp-dev/apimachinery/pkg/dynamic"
 	. "github.com/onsi/ginkgo/v2"
@@ -31,6 +36,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/component-base/logs"
 	"k8s.io/klog/v2"
 
 	apisv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/apis/v1alpha1"
@@ -46,7 +52,6 @@ import (
 
 	kcpclient "github.com/kcp-dev/apimachinery/pkg/client"
 	"github.com/kcp-dev/logicalcluster"
-	"k8s.io/apimachinery/pkg/runtime"
 	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
 
@@ -98,7 +103,6 @@ var (
 	computeContext                   context.Context
 	organizationContext              context.Context
 	testEnv                          *envtest.Environment
-	scheme                           = runtime.NewScheme()
 	controllerManager                *exec.Cmd
 	controllerRuntimeClient          client.Client
 	computeServer                    *exec.Cmd
@@ -601,40 +605,25 @@ var _ = BeforeSuite(func() {
 	// Launch the compute-operator manager
 	go func() {
 		defer GinkgoRecover()
-		logf.Log.Info("build controller")
-		build := exec.Command("go",
-			"build",
-			"-o",
-			controllerExecutable,
-			"../../main.go")
-		err := build.Run()
-		Expect(err).To(BeNil())
-
 		logf.Log.Info("run controller")
 
 		os.Setenv("POD_NAME", "installer-pod")
 		os.Setenv("POD_NAMESPACE", controllerNamespace)
-		controllerManager = exec.Command(controllerExecutable,
-			"manager",
-			"--kubeconfig",
-			testEnvKubeconfigFile,
-			// "--v=6",
-		)
 
-		// Create io.writer for manager log
-		managerLogFile := os.Getenv("MANAGER_LOG")
-		if len(managerLogFile) == 0 {
-			controllerManager.Stdout = os.Stdout
-			controllerManager.Stderr = os.Stderr
-		} else {
-			os.MkdirAll(filepath.Dir(filepath.Clean(managerLogFile)), 0700)
-			f, err := os.OpenFile(filepath.Clean(managerLogFile), os.O_WRONLY|os.O_CREATE, 0600)
-			Expect(err).To(BeNil())
-			defer f.Close()
-			controllerManager.Stdout = f
-			controllerManager.Stderr = f
-		}
-		err = controllerManager.Start()
+		rand.Seed(time.Now().UTC().UnixNano())
+		pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
+		klog.InitFlags(goflag.CommandLine)
+		pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
+		//TODO Verbosity Level
+		defer klog.Flush()
+		logs.InitLogs()
+		defer logs.FlushLogs()
+
+		// setup kubeconfig
+		pflag.CommandLine.Set("kubeconfig", testEnvKubeconfigFile)
+
+		cmd := NewManager()
+		err = cmd.Execute()
 		Expect(err).To(BeNil())
 	}()
 
@@ -645,21 +634,6 @@ var _ = AfterSuite(func() {
 })
 
 func cleanup() {
-	// Kill the compute-operator managaer
-	if controllerManager != nil {
-		By("tearing down the manager")
-		logf.Log.Info("Process", "Args", controllerManager.Args)
-		controllerManager.Process.Signal(os.Interrupt)
-		Eventually(func() error {
-			if err := controllerManager.Process.Signal(os.Interrupt); err != nil {
-				logf.Log.Error(err, "while tear down the manager")
-				return err
-			}
-			return nil
-		}, 60, 3).Should(BeNil())
-		controllerManager.Process.Signal(os.Interrupt)
-		// controllerManager.Wait()
-	}
 	// Kill KCP
 	if computeServer != nil {
 		By("tearing down the kcp")

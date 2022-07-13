@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/stolostron/compute-operator/cmd/installer"
-	"github.com/stolostron/compute-operator/cmd/manager"
+	registeredcluster "github.com/stolostron/compute-operator/controllers/cluster-registration"
+	"github.com/stolostron/compute-operator/controllers/installer"
 
 	// "github.com/stolostron/compute-operator/cmd/webhook"
 
@@ -48,7 +48,7 @@ func newWorkCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(installer.NewInstaller())
-	cmd.AddCommand(manager.NewManager())
+	cmd.AddCommand(registeredcluster.NewManager())
 	// cmd.AddCommand(webhook.NewAdmissionHook())
 
 	return cmd

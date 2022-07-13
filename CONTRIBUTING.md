@@ -44,7 +44,7 @@ make functional-test-full
 ```
 
 if test fails [suite_test.go](controllers/cluster-registration/suite_test.go) you launch a `kcp start` from the same directory and check resources there. You can set the environement variable `USE_EXISTING_CLUSTER` to true, set your KUBCONFIG env var to a file and create a kind cluster and then after the test ran, check on the kind cluster the generated resources.
-The manager log can be send to a file specified in the `MANAGER_LOG` environment variable, otherwize the log is sent to stdout.
+
 The kcp log can be send to a file specified in the `KCP_LOG` environment variable, otherwize the log is sent to stdout.
 If the functional test fails, you can connect to the kind cluster by exporting the kubeconfig:
 
