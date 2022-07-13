@@ -50,7 +50,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	kcpclient "github.com/kcp-dev/apimachinery/pkg/client"
 	"github.com/kcp-dev/logicalcluster"
 	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
@@ -335,7 +334,7 @@ var _ = BeforeSuite(func() {
 	computeOrganizationKubconfigData, err = ioutil.ReadFile(adminComputeKubeconfigFile)
 	Expect(err).ToNot(HaveOccurred())
 
-	organizationContext = kcpclient.WithCluster(context.Background(), logicalcluster.New(organizationWorkspace))
+	organizationContext = logicalcluster.WithCluster(context.Background(), logicalcluster.New(organizationWorkspace))
 
 	//Build compute admin applier
 	By(fmt.Sprintf("apply resourceschema on workspace %s", workspace), func() {
@@ -415,7 +414,7 @@ var _ = BeforeSuite(func() {
 		}, 60, 3).Should(BeNil())
 	})
 
-	computeContext = kcpclient.WithCluster(context.Background(), logicalcluster.New(clusterWorkspace))
+	computeContext = logicalcluster.WithCluster(context.Background(), logicalcluster.New(clusterWorkspace))
 
 	// Create role for on compute server in workspace
 	By(fmt.Sprintf("creation of role in workspace %s", workspace), func() {
