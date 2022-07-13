@@ -21,6 +21,7 @@ COPY deploy/ deploy/
 COPY resources/ resources/
 COPY pkg/ pkg/
 
+COPY config/apiresourceschema config/apiresourceschema
 COPY config/rbac config/rbac
 COPY config/crd config/crd
 COPY config/resources.go config/resources.go

@@ -76,14 +76,14 @@ var _ = BeforeSuite(func() {
 	// err = openshiftconfigv1.AddToScheme(scheme.Scheme)
 	// Expect(err).NotTo(HaveOccurred())
 
-	readerIDP := croconfig.GetScenarioResourcesReader()
-	clusterRegistrarsCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_clusterregistrars.yaml")
+	readerCROConfig := croconfig.GetScenarioResourcesReader()
+	clusterRegistrarsCRD, err := getCRD(readerCROConfig, "crd/singapore.open-cluster-management.io_clusterregistrars.yaml")
 	Expect(err).Should(BeNil())
 
-	hubConfigsCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_hubconfigs.yaml")
+	hubConfigsCRD, err := getCRD(readerCROConfig, "crd/singapore.open-cluster-management.io_hubconfigs.yaml")
 	Expect(err).Should(BeNil())
 
-	registeredClustersCRD, err := getCRD(readerIDP, "crd/singapore.open-cluster-management.io_registeredclusters.yaml")
+	registeredClustersCRD, err := getCRD(readerCROConfig, "crd/singapore.open-cluster-management.io_registeredclusters.yaml")
 	Expect(err).Should(BeNil())
 
 	testEnv = &envtest.Environment{
@@ -97,7 +97,7 @@ var _ = BeforeSuite(func() {
 		// 	filepath.Join("..", "..", "test", "config", "crd", "external"),
 		// },
 		ErrorIfCRDPathMissing:    true,
-		AttachControlPlaneOutput: true,
+		AttachControlPlaneOutput: false,
 		ControlPlaneStartTimeout: 1 * time.Minute,
 		ControlPlaneStopTimeout:  1 * time.Minute,
 	}
@@ -190,11 +190,9 @@ var _ = Describe("Process installation: ", func() {
 			Eventually(func() error {
 				deployment := &appsv1.Deployment{}
 				if err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      "compute-operator-manager",
-							Namespace: installationNamespace,
-						},
+					types.NamespacedName{
+						Name:      "compute-operator-manager",
+						Namespace: installationNamespace,
 					},
 					deployment); err != nil {
 					logf.Log.Info("Waiting deployment", "Error", err)
@@ -221,11 +219,9 @@ var _ = Describe("Process installation: ", func() {
 			Eventually(func() error {
 				deployment := &appsv1.Deployment{}
 				if err := k8sClient.Get(context.TODO(),
-					client.ObjectKey{
-						NamespacedName: types.NamespacedName{
-							Name:      "compute-operator-manager",
-							Namespace: installationNamespace,
-						},
+					types.NamespacedName{
+						Name:      "compute-operator-manager",
+						Namespace: installationNamespace,
 					},
 					deployment); err != nil {
 					if errors.IsNotFound(err) {
