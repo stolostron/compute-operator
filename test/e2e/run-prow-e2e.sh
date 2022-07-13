@@ -110,6 +110,9 @@ oc cluster-info
 echo "vcluster create with /usr/local/bin/vcluster create my-vcluster --expose"
 vcluster create my-vcluster-test --expose
 
+echo "Change context from vcluster back to hub"
+vcluster disconnect
+
 echo "--- Show managed cluster"
 oc get managedclusters
 
