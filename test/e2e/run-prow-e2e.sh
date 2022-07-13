@@ -102,16 +102,21 @@ git config --global credential.helper 'store --file=ghcreds'
 echo "--- Setting up Quay credentials."
 export QUAY_TOKEN=$(cat "/etc/acm-cicd-quay-pull")
 
-
 echo "--- Check current hub cluster info"
 oc cluster-info
 
 # Install vcluster
 echo "vcluster create with /usr/local/bin/vcluster create my-vcluster --expose"
-vcluster create my-vcluster-test --expose
+vcluster create vcluster-managed --expose
 
 echo "Change context from vcluster back to hub"
 vcluster disconnect
+
+echo "Export vcluster kubeconfig"
+oc get secret vc-vcluster-managed -n vcluster-vcluster-managed --template={{.data.config}} | base64 -D >> vcluster-managed.kubeconfig
+
+echo "Import vcluster into hub as managed"
+cm attach cluster --cluster vcluster-managed --cluster-kubeconfig vcluster-managed.kubeconfig
 
 echo "--- Show managed cluster"
 oc get managedclusters

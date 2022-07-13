@@ -39,3 +39,11 @@ cp ./kustomize "/usr/local/bin/kustomize"
 ls -alh /usr/local/bin/kustomize
 which kustomize
 kustomize
+
+echo "Installing cm-cli..."
+curl -kLo cm.tar.gz https://github.com/stolostron/cm-cli/releases/download/v1.0.14/cm_linux_amd64.tar.gz
+mkdir cm-unpacked
+tar -xzf cm.tar.gz -C cm-unpacked
+chmod 755 ./cm-unpacked/cm_linux_amd64/cm
+mv ./cm-unpacked/cm_linux_amd64/cm /usr/local/bin/cm
+cm version
