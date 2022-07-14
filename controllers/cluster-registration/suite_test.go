@@ -21,7 +21,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/spf13/pflag"
 
-	dynamicapimachinery "github.com/kcp-dev/apimachinery/pkg/dynamic"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -43,6 +42,8 @@ import (
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
+
+	apimachineryclient "github.com/kcp-dev/apimachinery/pkg/client"
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
@@ -71,7 +72,9 @@ const (
 	// The controller service account on the compute
 	controllerComputeServiceAccount string = "compute-operator"
 	// the namespace on the compute
-	workingComputeNamespace string = "default"
+	workingOrganizationComputeNamespace string = "sa-ws"
+	// the namespace on the compute
+	workingClusterComputeNamespace string = "rc-ws"
 	// The controller namespace
 	controllerNamespace string = "controller-ns"
 	// The compute organization
@@ -88,8 +91,6 @@ const (
 	testEnvDir string = ".testenv"
 	// the test environment kubeconfig file
 	testEnvKubeconfigFile string = testEnvDir + "/testenv.kubeconfig"
-	// the main executable
-	controllerExecutable string = testEnvDir + "/manager"
 	// The service account compute kubeconfig file
 	saComputeKubeconfigFile string = testEnvDir + "/kubeconfig-" + controllerComputeServiceAccount + ".yaml"
 
@@ -102,7 +103,6 @@ var (
 	computeContext                   context.Context
 	organizationContext              context.Context
 	testEnv                          *envtest.Environment
-	controllerManager                *exec.Cmd
 	controllerRuntimeClient          client.Client
 	computeServer                    *exec.Cmd
 	computeAdminApplierBuilder       *clusteradmapply.ApplierBuilder
@@ -276,22 +276,23 @@ var _ = BeforeSuite(func() {
 	computeAdminRestConfig, err := clientcmd.RESTConfigFromKubeConfig(computeAdminKubconfigData)
 	Expect(err).ToNot(HaveOccurred())
 
+	computeAdminRestConfig = apimachineryclient.NewClusterConfig(computeAdminRestConfig)
+
 	// Create the kcp clients for the builder
 	computeAdminKubernetesClient := kubernetes.NewForConfigOrDie(computeAdminRestConfig)
 	computeAdminAPIExtensionClient := apiextensionsclient.NewForConfigOrDie(computeAdminRestConfig)
-	computeAdminDynamicClient, err := dynamicapimachinery.NewClusterDynamicClientForConfig(computeAdminRestConfig)
-	Expect(err).ToNot(HaveOccurred())
+	computeAdminDynamicClient := dynamic.NewForConfigOrDie(computeAdminRestConfig)
 
 	// Create a builder for the workspace
 	computeAdminApplierBuilder = clusteradmapply.NewApplierBuilder().
 		WithClient(computeAdminKubernetesClient,
 			computeAdminAPIExtensionClient,
-			computeAdminDynamicClient.Cluster(logicalcluster.New(clusterWorkspace)))
+			computeAdminDynamicClient)
 	// Create a builder for the organization
 	organizationAdminApplierBuilder = clusteradmapply.NewApplierBuilder().
 		WithClient(computeAdminKubernetesClient,
 			computeAdminAPIExtensionClient,
-			computeAdminDynamicClient.Cluster(logicalcluster.New(organizationWorkspace)))
+			computeAdminDynamicClient)
 
 	// Switch to root in order to create the organization workspace
 	By("switch context root", func() {
@@ -340,14 +341,11 @@ var _ = BeforeSuite(func() {
 	By(fmt.Sprintf("apply resourceschema on workspace %s", workspace), func() {
 		Eventually(func() error {
 			logf.Log.Info("create resourceschema")
-			computeApplier := organizationAdminApplierBuilder.Build()
+			computeApplier := organizationAdminApplierBuilder.WithContext(organizationContext).Build()
 			files := []string{
 				"apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml",
 			}
 			_, err := computeApplier.ApplyCustomResources(readerConfig, nil, false, "", files...)
-			if err != nil {
-				logf.Log.Error(err, "while create role binding")
-			}
 			if err != nil {
 				logf.Log.Error(err, "while applying resourceschema")
 			}
@@ -358,7 +356,7 @@ var _ = BeforeSuite(func() {
 	By(fmt.Sprintf("apply APIExport on workspace %s", workspace), func() {
 		Eventually(func() error {
 			logf.Log.Info("create APIExport")
-			computeApplier := organizationAdminApplierBuilder.Build()
+			computeApplier := organizationAdminApplierBuilder.WithContext(organizationContext).Build()
 			files := []string{
 				"compute-templates/virtual-workspace/apiexport.yaml",
 			}
@@ -373,13 +371,27 @@ var _ = BeforeSuite(func() {
 	// Create SA on compute server in workspace
 	By(fmt.Sprintf("creation of SA %s in workspace %s", controllerComputeServiceAccount, workspace), func() {
 		Eventually(func() error {
+			logf.Log.Info("create namespace")
+			cmd := exec.Command("kubectl",
+				"create",
+				"ns",
+				workingOrganizationComputeNamespace)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				logf.Log.Error(err, "while create ns")
+			}
+			return err
+		}, 60, 3).Should(BeNil())
+		Eventually(func() error {
 			logf.Log.Info("create service account")
 			cmd := exec.Command("kubectl",
 				"create",
 				"serviceaccount",
 				controllerComputeServiceAccount,
 				"-n",
-				workingComputeNamespace)
+				workingOrganizationComputeNamespace)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			err = cmd.Run()
@@ -402,7 +414,7 @@ var _ = BeforeSuite(func() {
 			os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)
 			cmd := exec.Command("../../build/generate_kubeconfig_from_sa.sh",
 				controllerComputeServiceAccount,
-				workingComputeNamespace,
+				workingOrganizationComputeNamespace,
 				saComputeKubeconfigFileAbs)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -421,7 +433,7 @@ var _ = BeforeSuite(func() {
 		Eventually(func() error {
 			logf.Log.Info("create role")
 			computeApplier := computeAdminApplierBuilder.
-				WithContext(computeContext).Build()
+				WithContext(organizationContext).Build()
 			files := []string{
 				"compute-templates/virtual-workspace/role.yaml",
 			}
@@ -438,7 +450,7 @@ var _ = BeforeSuite(func() {
 		Eventually(func() error {
 			logf.Log.Info("create role binding")
 			computeApplier := computeAdminApplierBuilder.
-				WithContext(computeContext).Build()
+				WithContext(organizationContext).Build()
 			files := []string{
 				"compute-templates/virtual-workspace/role_binding.yaml",
 			}
@@ -454,14 +466,16 @@ var _ = BeforeSuite(func() {
 	})
 
 	// Create kcp runtime client for the controller
-	computeSAKubconfigData, err := ioutil.ReadFile(saComputeKubeconfigFile)
-	Expect(err).ToNot(HaveOccurred())
-	computeRestSAConfig, err := clientcmd.RESTConfigFromKubeConfig(computeSAKubconfigData)
-	Expect(err).ToNot(HaveOccurred())
+	// computeSAKubconfigData, err := ioutil.ReadFile(saComputeKubeconfigFile)
+	// Expect(err).ToNot(HaveOccurred())
+	// computeRestSAConfig, err := clientcmd.RESTConfigFromKubeConfig(computeSAKubconfigData)
+	// Expect(err).ToNot(HaveOccurred())
+	// computeRestSAConfig = apimachineryclient.NewClusterConfig(computeRestSAConfig)
+
 	By("waiting virtualworkspace", func() {
 		Eventually(func() error {
 			logf.Log.Info("waiting virtual workspace")
-			_, err = helpers.RestConfigForAPIExport(context.TODO(), computeRestSAConfig, "compute-apis", scheme)
+			_, err = helpers.RestConfigForAPIExport(organizationContext, computeAdminRestConfig, "compute-apis", scheme)
 			return err
 		}, 60, 3).Should(BeNil())
 	})
@@ -622,6 +636,10 @@ var _ = BeforeSuite(func() {
 		pflag.CommandLine.Set("kubeconfig", testEnvKubeconfigFile)
 
 		cmd := NewManager()
+		cmd.SetArgs([]string{
+			"--logtostderr=false",
+			"--log-file=.testenv/manager.log",
+		})
 		err = cmd.Execute()
 		Expect(err).To(BeNil())
 	}()
@@ -655,6 +673,22 @@ func cleanup() {
 
 var _ = Describe("Process registeredCluster: ", func() {
 	It("Process registeredCluster", func() {
+		By("Create the compute namespace", func() {
+			Eventually(func() error {
+				logf.Log.Info("create namespace")
+				cmd := exec.Command("kubectl",
+					"create",
+					"ns",
+					workingClusterComputeNamespace)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				err := cmd.Run()
+				if err != nil {
+					logf.Log.Error(err, "while create ns")
+				}
+				return err
+			}, 60, 3).Should(BeNil())
+		})
 		// create the registeredcluster on kcp workspace
 		var registeredCluster *singaporev1alpha1.RegisteredCluster
 		By("Create the RegisteredCluster", func() {
@@ -675,7 +709,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 			registeredCluster = &singaporev1alpha1.RegisteredCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      registeredClusterName,
-					Namespace: workingComputeNamespace,
+					Namespace: workingClusterComputeNamespace,
 				},
 				Spec: singaporev1alpha1.RegisteredClusterSpec{
 					Location: "FakeKcpLocation",

@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -27,12 +28,23 @@ func RestConfigForAPIExport(ctx context.Context, cfg *rest.Config, apiExportName
 
 	var apiExport apisv1alpha1.APIExport
 
-	if err := apiExportClient.Get(ctx,
-		types.NamespacedName{
-			Name: apiExportName,
-		},
-		&apiExport); err != nil {
-		return nil, fmt.Errorf("error getting APIExport %q: %w", apiExportName, err)
+	if apiExportName != "" {
+		if err := apiExportClient.Get(ctx, types.NamespacedName{Name: apiExportName}, &apiExport); err != nil {
+			return nil, fmt.Errorf("error getting APIExport %q: %w", apiExportName, err)
+		}
+	} else {
+		klog.Info("api-export-name is empty - listing")
+		exports := &apisv1alpha1.APIExportList{}
+		if err := apiExportClient.List(ctx, exports); err != nil {
+			return nil, fmt.Errorf("error listing APIExports: %w", err)
+		}
+		if len(exports.Items) == 0 {
+			return nil, fmt.Errorf("no APIExport found")
+		}
+		if len(exports.Items) > 1 {
+			return nil, fmt.Errorf("more than one APIExport found")
+		}
+		apiExport = exports.Items[0]
 	}
 
 	if len(apiExport.Status.VirtualWorkspaces) < 1 {

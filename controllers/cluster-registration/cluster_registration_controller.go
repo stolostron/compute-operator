@@ -494,6 +494,7 @@ func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(computeContex
 		WithClient(r.ComputeKubeClient,
 			r.ComputeAPIExtensionClient,
 			r.ComputeDynamicClient).
+		WithContext(computeContext).
 		WithOwner(regCluster, false, true, r.Scheme).
 		Build()
 

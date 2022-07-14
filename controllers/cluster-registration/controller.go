@@ -9,7 +9,6 @@ import (
 
 	giterrors "github.com/pkg/errors"
 
-	apimachineryclient "github.com/kcp-dev/apimachinery/pkg/client"
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	apimachineryclient "github.com/kcp-dev/apimachinery/pkg/client"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
@@ -144,8 +144,6 @@ func (o *managerOptions) run() {
 		os.Exit(1)
 	}
 
-	computeKubeconfig = apimachineryclient.NewClusterConfig(computeKubeconfig)
-
 	opts := ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     o.metricsAddr,
@@ -158,12 +156,16 @@ func (o *managerOptions) run() {
 		// NewCache:             helpers.NewClusterAwareCacheFunc,
 	}
 
+	computeKubeconfig = apimachineryclient.NewClusterConfig(computeKubeconfig)
+
 	setupLog.Info("server url:", "computeKubeconfig.Host", computeKubeconfig.Host)
 	cfg, err := helpers.RestConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-apis", scheme)
 	if err != nil {
 		setupLog.Error(giterrors.WithStack(err), "error looking up virtual workspace URL")
 		os.Exit(1)
 	}
+
+	// cfg = apimachineryclient.NewClusterConfig(cfg)
 
 	computeKubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
