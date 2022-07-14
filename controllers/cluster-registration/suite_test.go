@@ -72,7 +72,7 @@ const (
 	// The controller service account on the compute
 	controllerComputeServiceAccount string = "compute-operator"
 	// the namespace on the compute
-	workingOrganizationComputeNamespace string = "sa-ws"
+	controllerComputeServiceAccountNamespace string = "sa-ws"
 	// the namespace on the compute
 	workingClusterComputeNamespace string = "rc-ws"
 	// The controller namespace
@@ -228,6 +228,7 @@ var _ = BeforeSuite(func() {
 		os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)
 		computeServer = exec.Command("kcp",
 			"start",
+			"-v=6",
 		)
 
 		// Create io.writer for kcp log
@@ -372,31 +373,37 @@ var _ = BeforeSuite(func() {
 	By(fmt.Sprintf("creation of SA %s in workspace %s", controllerComputeServiceAccount, workspace), func() {
 		Eventually(func() error {
 			logf.Log.Info("create namespace")
-			cmd := exec.Command("kubectl",
-				"create",
-				"ns",
-				workingOrganizationComputeNamespace)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			err = cmd.Run()
+			computeApplier := computeAdminApplierBuilder.
+				WithContext(organizationContext).Build()
+			files := []string{
+				"compute-templates/virtual-workspace/namespace.yaml",
+			}
+			values := struct {
+				ControllerComputeServiceAccountNamespace string
+			}{
+				ControllerComputeServiceAccountNamespace: controllerComputeServiceAccountNamespace,
+			}
+			_, err := computeApplier.ApplyDirectly(readerResources, values, false, "", files...)
 			if err != nil {
-				logf.Log.Error(err, "while create ns")
+				logf.Log.Error(err, "while create namespace")
 			}
 			return err
 		}, 60, 3).Should(BeNil())
 		Eventually(func() error {
 			logf.Log.Info("create service account")
-			cmd := exec.Command("kubectl",
-				"create",
-				"serviceaccount",
-				controllerComputeServiceAccount,
-				"-n",
-				workingOrganizationComputeNamespace)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			err = cmd.Run()
+			computeApplier := computeAdminApplierBuilder.
+				WithContext(organizationContext).Build()
+			files := []string{
+				"compute-templates/virtual-workspace/service_account.yaml",
+			}
+			values := struct {
+				ControllerComputeServiceAccountNamespace string
+			}{
+				ControllerComputeServiceAccountNamespace: controllerComputeServiceAccountNamespace,
+			}
+			_, err := computeApplier.ApplyDirectly(readerResources, values, false, "", files...)
 			if err != nil {
-				logf.Log.Error(err, "while create managerServiceAccount")
+				logf.Log.Error(err, "while create namespace")
 			}
 			return err
 		}, 60, 3).Should(BeNil())
@@ -414,7 +421,7 @@ var _ = BeforeSuite(func() {
 			os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)
 			cmd := exec.Command("../../build/generate_kubeconfig_from_sa.sh",
 				controllerComputeServiceAccount,
-				workingOrganizationComputeNamespace,
+				controllerComputeServiceAccountNamespace,
 				saComputeKubeconfigFileAbs)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -454,7 +461,12 @@ var _ = BeforeSuite(func() {
 			files := []string{
 				"compute-templates/virtual-workspace/role_binding.yaml",
 			}
-			_, err := computeApplier.ApplyDirectly(readerResources, nil, false, "", files...)
+			values := struct {
+				ControllerComputeServiceAccountNamespace string
+			}{
+				ControllerComputeServiceAccountNamespace: controllerComputeServiceAccountNamespace,
+			}
+			_, err := computeApplier.ApplyDirectly(readerResources, values, false, "", files...)
 			if err != nil {
 				logf.Log.Error(err, "while create role binding")
 			}
