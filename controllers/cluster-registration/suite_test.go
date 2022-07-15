@@ -264,7 +264,7 @@ var _ = BeforeSuite(func() {
 				logf.Log.Error(err, "while switching context")
 			}
 			return err
-		}, 30, 3).Should(BeNil())
+		}, 60, 3).Should(BeNil())
 	})
 
 	By("reading the kcpkubeconfig", func() {

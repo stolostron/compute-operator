@@ -23,10 +23,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 
+	apimachineryclient "github.com/kcp-dev/apimachinery/pkg/client"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	apimachineryclient "github.com/kcp-dev/apimachinery/pkg/client"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
@@ -156,7 +156,9 @@ func (o *managerOptions) run() {
 		// NewCache:             helpers.NewClusterAwareCacheFunc,
 	}
 
-	computeKubeconfig = apimachineryclient.NewClusterConfig(computeKubeconfig)
+	// cfg = apimachineryclient.NewClusterConfig(cfg)
+
+	// Save the compute
 
 	setupLog.Info("server url:", "computeKubeconfig.Host", computeKubeconfig.Host)
 	cfg, err := helpers.RestConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-apis", scheme)
@@ -165,19 +167,19 @@ func (o *managerOptions) run() {
 		os.Exit(1)
 	}
 
-	// cfg = apimachineryclient.NewClusterConfig(cfg)
+	computeKubeconfig = apimachineryclient.NewClusterConfig(cfg)
 
-	computeKubeClient, err := kubernetes.NewForConfig(cfg)
+	computeKubeClient, err := kubernetes.NewForConfig(computeKubeconfig)
 	if err != nil {
 		setupLog.Error(giterrors.WithStack(err), "error creating kubernetes.ClusterClient for virtual workspace URL")
 		os.Exit(1)
 	}
-	computeDynamicClient, err := dynamic.NewForConfig(cfg)
+	computeDynamicClient, err := dynamic.NewForConfig(computeKubeconfig)
 	if err != nil {
 		setupLog.Error(giterrors.WithStack(err), "error creating dynamic.ClusterClient for virtual workspace URL")
 		os.Exit(1)
 	}
-	computeApiExtensionClient, err := apiextensionsclient.NewForConfig(cfg)
+	computeApiExtensionClient, err := apiextensionsclient.NewForConfig(computeKubeconfig)
 	if err != nil {
 		setupLog.Error(giterrors.WithStack(err), "error creating apiextensionsclient.ClusterClient up virtual workspace URL")
 		os.Exit(1)

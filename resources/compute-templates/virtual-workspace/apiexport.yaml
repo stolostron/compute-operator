@@ -5,5 +5,8 @@ kind: APIExport
 metadata:
   name: compute-apis
 spec:
+  permissionClaims:
+  - group: ""
+    resource: secrets    
   latestResourceSchemas:
   - latest.registeredclusters.singapore.open-cluster-management.io
