@@ -82,11 +82,11 @@ export CYPRESS_OC_CLUSTER_INGRESS_CA=/certificates/ingress-ca.crt
 oc rsh -n openshift-authentication $OAUTH_POD cat /run/secrets/kubernetes.io/serviceaccount/ca.crt > ${HOME}${CYPRESS_OC_CLUSTER_INGRESS_CA}
 
 # managed cluster
-MANAGED_CREDS=$(cat "${SHARED_DIR}/managed-1.json")
-export CYPRESS_MANAGED_OCP_URL=$(echo $MANAGED_CREDS | jq -r '.api_url')
-export CYPRESS_MANAGED_OCP_USER=$(echo $MANAGED_CREDS | jq -r '.username')
-export CYPRESS_MANAGED_OCP_PASS=$(echo $MANAGED_CREDS | jq -r '.password')
-export CYPRESS_PROW="true"
+#MANAGED_CREDS=$(cat "${SHARED_DIR}/managed-1.json")
+#export CYPRESS_MANAGED_OCP_URL=$(echo $MANAGED_CREDS | jq -r '.api_url')
+#export CYPRESS_MANAGED_OCP_USER=$(echo $MANAGED_CREDS | jq -r '.username')
+#export CYPRESS_MANAGED_OCP_PASS=$(echo $MANAGED_CREDS | jq -r '.password')
+#export CYPRESS_PROW="true"
 
 # Set up git credentials.
 echo "--- Setting up git credentials."
@@ -109,35 +109,35 @@ oc cluster-info
 echo "--- Show managed cluster"
 oc get managedclusters
 
-# Make sure the managed cluster is ready to be used
-echo "Waiting up to 15 minutes for managed cluster to be ready"
-_timeout=900 _elapsed='' _step=30
-while true; do
-    # Wait for _step seconds, except for first iteration.
-    if [[ -z "$_elapsed" ]]; then
-        _elapsed=0
-    else
-        sleep $_step
-        _elapsed=$(( _elapsed + _step ))
-    fi
-
-    mc_url=`oc get managedclusters --selector name!=local-cluster --no-headers -o jsonpath='{.items[0].spec.managedClusterClientConfigs[0].url}'`
-    if [[ ! -z "$mc_url" ]]; then
-        echo "Managed cluster is ready after ${_elapsed}s"
-        break
-    fi
-
-    # Check timeout
-    if (( _elapsed > _timeout )); then
-            echo "Timeout (${_timeout}s) managed cluster is not ready"
-            return 1
-    fi
-
-    echo "Managed cluster is not ready. Will retry (${_elapsed}/${_timeout}s)"
-done
-
-echo "--- Show managed cluster"
-oc get managedclusters
+# # Make sure the managed cluster is ready to be used
+# echo "Waiting up to 15 minutes for managed cluster to be ready"
+# _timeout=900 _elapsed='' _step=30
+# while true; do
+#     # Wait for _step seconds, except for first iteration.
+#     if [[ -z "$_elapsed" ]]; then
+#         _elapsed=0
+#     else
+#         sleep $_step
+#         _elapsed=$(( _elapsed + _step ))
+#     fi
+#
+#     mc_url=`oc get managedclusters --selector name!=local-cluster --no-headers -o jsonpath='{.items[0].spec.managedClusterClientConfigs[0].url}'`
+#     if [[ ! -z "$mc_url" ]]; then
+#         echo "Managed cluster is ready after ${_elapsed}s"
+#         break
+#     fi
+#
+#     # Check timeout
+#     if (( _elapsed > _timeout )); then
+#             echo "Timeout (${_timeout}s) managed cluster is not ready"
+#             return 1
+#     fi
+#
+#     echo "Managed cluster is not ready. Will retry (${_elapsed}/${_timeout}s)"
+# done
+#
+# echo "--- Show managed cluster"
+# oc get managedclusters
 
 # echo "--- Configure OpenShift to use a signed certificate..."
 # ./install-signed-cert.sh
