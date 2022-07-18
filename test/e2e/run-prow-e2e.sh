@@ -98,20 +98,28 @@ oc config current-context view | vcluster create ${VC_MANAGED} --connect=false -
 echo
 echo "--- Export vcluster kubeconfig for managed cluster"
 vcluster connect ${VC_MANAGED} -n ${VC_MANAGED} --update-current=false --kube-config=./${VC_MANAGED}.kubeconfig
-echo "--- kubectl --kubeconfig ./vc-managed.kubeconfig get namespaces"
-kubectl --kubeconfig ./vc-managed.kubeconfig get namespaces
-echo "--- Connect to vcluster directly"
-vcluster connect ${VC_MANAGED} -n ${VC_MANAGED} --update-current=true
-echo "--- oc get ns"
-oc get ns
-vcluster disconnect
+
+echo "--- vcluster kubeconfig data: "
+cat ./${VC_MANAGED}.kubeconfig
+
+echo "--- Import vcluster into hub as managed"
+cm get clusters
+cm attach cluster --cluster ${VC_MANAGED} --cluster-kubeconfig ./${VC_MANAGED}.kubeconfig
+oc label managedcluster -n ${VC_MANAGED} ${VC_MANAGED} vcluster=true
+oc label ns ${VC_MANAGED} vcluster=true
+
+echo "--- Show managed cluster"
+sleep 5m
+oc get managedclusters
 
 echo "\n-- Creating vcluster to host compute service"
 oc create ns ${VC_COMPUTE}
 oc config current-context view | vcluster create ${VC_COMPUTE} --expose --connect=false --namespace=${VC_COMPUTE} --context=
-
+sleep 5m
+echo "--- kubectl --kubeconfig ./${VC_COMPUTE}.kubeconfig get namespaces"
+kubectl --kubeconfig ./${VC_COMPUTE}.kubeconfig get namespaces
 echo "-- Export vcluster kubeconfig for compute cluster"
-vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --insecure --kube-config=./${VC_COMPUTE}.kubeconfig
+vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config=./${VC_COMPUTE}.kubeconfig
 oc get ns
 vcluster disconnect
 
@@ -126,16 +134,6 @@ vcluster disconnect
 
 echo "-- Export vcluster kubeconfig for kcp cluster"
 vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config=./${VC_KCP}.kubeconfig
-
-echo "--- vcluster kubeconfig data via vclusterconnect: "
-cat ./${VC_MANAGED}.kubeconfig
-
-echo "--- Import vcluster into hub as managed"
-cm get clusters
-cm attach cluster --cluster ${VC_MANAGED} --cluster-kubeconfig ./${VC_MANAGED}.kubeconfig
-
-echo "--- Show managed cluster"
-oc get managedclusters
 
 # # Make sure the managed cluster is ready to be used
 # echo "Waiting up to 15 minutes for managed cluster to be ready"
