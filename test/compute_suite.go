@@ -1,5 +1,5 @@
 // Copyright Red Hat
-package helpers
+package test
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 
 	"github.com/ghodss/yaml"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	ginkgo "github.com/onsi/ginkgo/v2"
+	gomega "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -47,8 +47,10 @@ import (
 	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
 
 	croconfig "github.com/stolostron/compute-operator/config"
+	"github.com/stolostron/compute-operator/pkg/helpers"
 	"github.com/stolostron/compute-operator/resources"
-	"github.com/stolostron/compute-operator/test"
+
+	// testresources "github.com/stolostron/compute-operator/test"
 
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 )
@@ -104,37 +106,37 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 
 	testEnvKubeconfigFilePath = testEnvKubeconfigFile
 	// Generate readers for appliers
-	readerTest = test.GetScenarioResourcesReader()
+	readerTest = GetScenarioResourcesReader()
 	readerResources = resources.GetScenarioResourcesReader()
 	readerConfig = croconfig.GetScenarioResourcesReader()
 
-	By("bootstrapping test environment")
+	ginkgo.By("bootstrapping test environment")
 	err := clientgoscheme.AddToScheme(scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = appsv1.AddToScheme(scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = clusterapiv1.AddToScheme(scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = singaporev1alpha1.AddToScheme(scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = addonv1alpha1.AddToScheme(scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = authv1alpha1.AddToScheme(scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = manifestworkv1.AddToScheme(scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = apisv1alpha1.AddToScheme(scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 
 	// Get the CRDs
 	clusterRegistrarsCRD, err := GetCRD(readerConfig, "crd/singapore.open-cluster-management.io_clusterregistrars.yaml")
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 
 	hubConfigsCRD, err := GetCRD(readerConfig, "crd/singapore.open-cluster-management.io_hubconfigs.yaml")
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 
 	registeredClustersCRD, err := GetCRD(readerConfig, "crd/singapore.open-cluster-management.io_registeredclusters.yaml")
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 
 	// set useExistingCluster, if set to true then the cluster with
 	// the $KUBECONFIG will be used as target instead of the in memory envtest
@@ -142,7 +144,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 	var existingCluster bool
 	if len(useExistingClusterEnvVar) != 0 {
 		existingCluster, err = strconv.ParseBool(useExistingClusterEnvVar)
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 	}
 
 	testEnv = &envtest.Environment{
@@ -165,14 +167,14 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 	// Clean testEnv Directory
 	os.RemoveAll(testEnvDir)
 	err = os.MkdirAll(testEnvDir, 0700)
-	Expect(err).To(BeNil())
+	gomega.Expect(err).To(gomega.BeNil())
 
 	// Set and save the testEnv.Config if using an existing cluster
 	var hubKubeconfigString string
 	var hubKubeconfig *rest.Config
 	if *testEnv.UseExistingCluster {
 		hubKubeconfigString, hubKubeconfig, err = PersistAndGetRestConfig(*testEnv.UseExistingCluster)
-		Expect(err).ToNot(HaveOccurred())
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		testEnv.Config = hubKubeconfig
 	} else {
 		os.Setenv("KUBECONFIG", "")
@@ -180,13 +182,13 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 
 	// Start the testEnv.
 	controllerRestConfig, err = testEnv.Start()
-	Expect(err).ToNot(HaveOccurred())
-	Expect(controllerRestConfig).ToNot(BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	gomega.Expect(controllerRestConfig).ToNot(gomega.BeNil())
 
 	// Save the testenv kubeconfig
 	if !*testEnv.UseExistingCluster {
 		hubKubeconfigString, _, err = PersistAndGetRestConfig(*testEnv.UseExistingCluster)
-		Expect(err).ToNot(HaveOccurred())
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
 
 	// Clean kcp
@@ -194,9 +196,9 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 
 	// Launch KCP
 	go func() {
-		defer GinkgoRecover()
+		defer ginkgo.GinkgoRecover()
 		adminComputeKubeconfigFile, err := filepath.Abs(adminComputeKubeconfigFile)
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 		os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)
 		computeServer = exec.Command("kcp",
 			"start",
@@ -211,19 +213,19 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 		} else {
 			os.MkdirAll(filepath.Dir(filepath.Clean(kcpLogFile)), 0700)
 			f, err := os.OpenFile(filepath.Clean(kcpLogFile), os.O_WRONLY|os.O_CREATE, 0600)
-			Expect(err).To(BeNil())
+			gomega.Expect(err).To(gomega.BeNil())
 			defer f.Close()
 			computeServer.Stdout = f
 			computeServer.Stderr = f
 		}
 
 		err = computeServer.Start()
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 	}()
 
 	// Switch to system:admin context in order to create a kubeconfig allowing KCP API configuration.
-	By("switch context system:admin", func() {
-		Eventually(func() error {
+	ginkgo.By("switch context system:admin", func() {
+		gomega.Eventually(func() error {
 			klog.Info("switch context")
 			cmd := exec.Command("kubectl",
 				"config",
@@ -236,18 +238,18 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while switching context")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
-	By("reading the kcpkubeconfig", func() {
-		Eventually(func() error {
+	ginkgo.By("reading the kcpkubeconfig", func() {
+		gomega.Eventually(func() error {
 			computeAdminKubconfigData, err = ioutil.ReadFile(adminComputeKubeconfigFile)
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	computeAdminRestConfig, err := clientcmd.RESTConfigFromKubeConfig(computeAdminKubconfigData)
-	Expect(err).ToNot(HaveOccurred())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	computeAdminRestConfig = apimachineryclient.NewClusterConfig(computeAdminRestConfig)
 
@@ -268,8 +270,8 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 			computeAdminDynamicClient)
 
 	// Switch to root in order to create the organization workspace
-	By("switch context root", func() {
-		Eventually(func() error {
+	ginkgo.By("switch context root", func() {
+		gomega.Eventually(func() error {
 			klog.Info("switch context")
 			cmd := exec.Command("kubectl",
 				"config",
@@ -282,12 +284,12 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while switching context")
 			}
 			return err
-		}, 30, 3).Should(BeNil())
+		}, 30, 3).Should(gomega.BeNil())
 	})
 
 	// Create workspace on compute server and enter in the ws
-	By(fmt.Sprintf("creation of organization %s", computeOrganization), func() {
-		Eventually(func() error {
+	ginkgo.By(fmt.Sprintf("creation of organization %s", computeOrganization), func() {
+		gomega.Eventually(func() error {
 			klog.Info("create workspace")
 			cmd := exec.Command("kubectl-kcp",
 				"ws",
@@ -301,14 +303,14 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while create organization")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	organizationContext = logicalcluster.WithCluster(context.Background(), logicalcluster.New(organizationWorkspace))
 
 	//Build compute admin applier
-	By(fmt.Sprintf("apply resourceschema on workspace %s", workspace), func() {
-		Eventually(func() error {
+	ginkgo.By(fmt.Sprintf("apply resourceschema on workspace %s", workspace), func() {
+		gomega.Eventually(func() error {
 			klog.Info("create resourceschema")
 			computeApplier := organizationAdminApplierBuilder.WithContext(organizationContext).Build()
 			files := []string{
@@ -319,11 +321,11 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while applying resourceschema")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
-	By(fmt.Sprintf("apply APIExport on workspace %s", workspace), func() {
-		Eventually(func() error {
+	ginkgo.By(fmt.Sprintf("apply APIExport on workspace %s", workspace), func() {
+		gomega.Eventually(func() error {
 			klog.Info("create APIExport")
 			computeApplier := organizationAdminApplierBuilder.WithContext(organizationContext).Build()
 			files := []string{
@@ -334,12 +336,12 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while applying apiexport")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	// Create SA on compute server in workspace
-	By(fmt.Sprintf("creation of SA %s in workspace %s", controllerComputeServiceAccount, workspace), func() {
-		Eventually(func() error {
+	ginkgo.By(fmt.Sprintf("creation of SA %s in workspace %s", controllerComputeServiceAccount, workspace), func() {
+		gomega.Eventually(func() error {
 			klog.Info("create namespace")
 			computeApplier := computeAdminApplierBuilder.
 				WithContext(organizationContext).Build()
@@ -356,8 +358,8 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while create namespace")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
-		Eventually(func() error {
+		}, 60, 3).Should(gomega.BeNil())
+		gomega.Eventually(func() error {
 			klog.Info("create service account")
 			computeApplier := computeAdminApplierBuilder.
 				WithContext(organizationContext).Build()
@@ -374,18 +376,18 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while create namespace")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	// Generate the kubeconfig for the SA
 	saComputeKubeconfigFileAbs, err = filepath.Abs(saComputeKubeconfigFile)
-	Expect(err).To(BeNil())
+	gomega.Expect(err).To(gomega.BeNil())
 
-	By(fmt.Sprintf("generate kubeconfig for sa %s in workspace %s", controllerComputeServiceAccount, workspace), func() {
-		Eventually(func() error {
+	ginkgo.By(fmt.Sprintf("generate kubeconfig for sa %s in workspace %s", controllerComputeServiceAccount, workspace), func() {
+		gomega.Eventually(func() error {
 			klog.Info(saComputeKubeconfigFile)
 			adminComputeKubeconfigFile, err := filepath.Abs(adminComputeKubeconfigFile)
-			Expect(err).To(BeNil())
+			gomega.Expect(err).To(gomega.BeNil())
 			os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)
 			cmd := exec.Command("../../build/generate_kubeconfig_from_sa.sh",
 				controllerComputeServiceAccount,
@@ -398,14 +400,14 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while generating sa kubeconfig")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	computeContext = logicalcluster.WithCluster(context.Background(), logicalcluster.New(clusterWorkspace))
 
 	// Create role for on compute server in workspace
-	By(fmt.Sprintf("creation of role in workspace %s", workspace), func() {
-		Eventually(func() error {
+	ginkgo.By(fmt.Sprintf("creation of role in workspace %s", workspace), func() {
+		gomega.Eventually(func() error {
 			klog.Info("create role")
 			computeApplier := computeAdminApplierBuilder.
 				WithContext(organizationContext).Build()
@@ -417,12 +419,12 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while create role")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	// Create rolebinding for on compute server in workspace
-	By(fmt.Sprintf("creation of rolebinding in workspace %s", workspace), func() {
-		Eventually(func() error {
+	ginkgo.By(fmt.Sprintf("creation of rolebinding in workspace %s", workspace), func() {
+		gomega.Eventually(func() error {
 			klog.Info("create role binding")
 			computeApplier := computeAdminApplierBuilder.
 				WithContext(organizationContext).Build()
@@ -442,27 +444,27 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while create role binding")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	// Create kcp runtime client for the controller
 	// computeSAKubconfigData, err := ioutil.ReadFile(saComputeKubeconfigFile)
-	// Expect(err).ToNot(HaveOccurred())
+	// gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	// computeRestSAConfig, err := clientcmd.RESTConfigFromKubeConfig(computeSAKubconfigData)
-	// Expect(err).ToNot(HaveOccurred())
+	// gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	// computeRestSAConfig = apimachineryclient.NewClusterConfig(computeRestSAConfig)
 
-	By("waiting virtualworkspace", func() {
-		Eventually(func() error {
+	ginkgo.By("waiting virtualworkspace", func() {
+		gomega.Eventually(func() error {
 			klog.Info("waiting virtual workspace")
-			_, err = RestConfigForAPIExport(organizationContext, computeAdminRestConfig, "compute-apis", scheme)
+			_, err = helpers.RestConfigForAPIExport(organizationContext, computeAdminRestConfig, "compute-apis", scheme)
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	// Create workspace on compute server and enter in the ws
-	By(fmt.Sprintf("creation of cluster workspace %s", workspace), func() {
-		Eventually(func() error {
+	ginkgo.By(fmt.Sprintf("creation of cluster workspace %s", workspace), func() {
+		gomega.Eventually(func() error {
 			klog.Info("create workspace")
 			cmd := exec.Command("kubectl-kcp",
 				"ws",
@@ -476,12 +478,12 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while create cluster workspace")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	// Create the APIBinding in the cluster workspace
-	By(fmt.Sprintf("apply APIBinding on workspace %s", workspace), func() {
-		Eventually(func() error {
+	ginkgo.By(fmt.Sprintf("apply APIBinding on workspace %s", workspace), func() {
+		gomega.Eventually(func() error {
 			klog.Info("create APIBinding")
 			computeApplier := computeAdminApplierBuilder.
 				WithContext(computeContext).Build()
@@ -499,27 +501,27 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 				klog.Error(err, "while applying APIBinding")
 			}
 			return err
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	// Create a runtime client to retrieve information from the hub cluster
 	controllerRuntimeClient, err = client.New(controllerRestConfig, client.Options{Scheme: scheme})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(controllerRuntimeClient).ToNot(BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	gomega.Expect(controllerRuntimeClient).ToNot(gomega.BeNil())
 
 	// Create the controller namespace, that ns will hold the controller configuration.
-	By(fmt.Sprintf("creation of namespace %s", controllerNamespace), func() {
+	ginkgo.By(fmt.Sprintf("creation of namespace %s", controllerNamespace), func() {
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: controllerNamespace,
 			},
 		}
 		err := controllerRuntimeClient.Create(context.TODO(), ns)
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 	})
 
 	// Create the hub config secret for the controller
-	By("Create a hubconfig secret", func() {
+	ginkgo.By("Create a hubconfig secret", func() {
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-hub-kube-config",
@@ -530,12 +532,12 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 			},
 		}
 		err = controllerRuntimeClient.Create(context.TODO(), secret)
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 	})
 
 	// Create a hubConfig CR with that secret
 	var hubConfig *singaporev1alpha1.HubConfig
-	By("Create a HubConfig", func() {
+	ginkgo.By("Create a HubConfig", func() {
 		hubConfig = &singaporev1alpha1.HubConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-hubconfig",
@@ -548,13 +550,13 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 			},
 		}
 		err := controllerRuntimeClient.Create(context.TODO(), hubConfig)
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 	})
 
 	//Build compute admin applier
-	By("Create a kcpconfig secret", func() {
+	ginkgo.By("Create a kcpconfig secret", func() {
 		b, err := ioutil.ReadFile(saComputeKubeconfigFileAbs)
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      computeKubeconfigSecret,
@@ -565,7 +567,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 			},
 		}
 		err = controllerRuntimeClient.Create(context.TODO(), secret)
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 	})
 
 	// Create clients for the hub
@@ -577,7 +579,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 		WithClient(controllerKubernetesClient, controllerAPIExtensionClient, controllerDynamicClient)
 
 	// Create the clusterRegistrar with the reference of the kcpConfig Secret
-	By("Create the clusterRegistrar", func() {
+	ginkgo.By("Create the clusterRegistrar", func() {
 		klog.Info("apply clusterRegistrar")
 		// Values for the appliers
 		values := struct {
@@ -592,16 +594,16 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace string) (computeCo
 		}
 
 		_, err := applier.ApplyCustomResources(readerTest, values, false, "", files...)
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 	})
 
 	// Create the runtime client for the cluster workspace in order to check the registedcluster on kcp
 	computeWorkspaceKubconfigData, err := ioutil.ReadFile(adminComputeKubeconfigFile)
-	Expect(err).ToNot(HaveOccurred())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	computeRestWorkspaceConfig, err := clientcmd.RESTConfigFromKubeConfig(computeWorkspaceKubconfigData)
-	Expect(err).ToNot(HaveOccurred())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	computeRuntimeWorkspaceClient, err = client.New(computeRestWorkspaceConfig, client.Options{Scheme: scheme})
-	Expect(err).ToNot(HaveOccurred())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	return
 }
@@ -613,21 +615,21 @@ func TearDownCompute() {
 func cleanup() {
 	// Kill KCP
 	if computeServer != nil {
-		By("tearing down the kcp")
+		ginkgo.By("tearing down the kcp")
 		computeServer.Process.Signal(os.Interrupt)
-		Eventually(func() error {
+		gomega.Eventually(func() error {
 			if err := computeServer.Process.Signal(os.Interrupt); err != nil {
 				klog.Error(err, "while tear down the kcp")
 				return err
 			}
 			return nil
-		}, 60, 3).Should(BeNil())
+		}, 60, 3).Should(gomega.BeNil())
 		// computeServer.Wait()
 	}
 	if testEnv != nil {
-		By("tearing down the test environment")
+		ginkgo.By("tearing down the test environment")
 		err := testEnv.Stop()
-		Expect(err).NotTo(HaveOccurred())
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	}
 }
 
@@ -654,14 +656,14 @@ func PersistAndGetRestConfig(useExistingCluster bool) (string, *rest.Config, err
 	} else {
 		adminInfo := envtest.User{Name: "admin", Groups: []string{"system:masters"}}
 		authenticatedUser, err := testEnv.AddUser(adminInfo, testEnv.Config)
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 		kubectl, err := authenticatedUser.Kubectl()
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 		var out io.Reader
 		out, _, err = kubectl.Run("config", "view", "--raw")
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 		_, err = io.Copy(buf, out)
-		Expect(err).To(BeNil())
+		gomega.Expect(err).To(gomega.BeNil())
 	}
 	if err != nil {
 		return "", nil, err

@@ -31,7 +31,7 @@ import (
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/stolostron/compute-operator/pkg/helpers"
+	"github.com/stolostron/compute-operator/test"
 
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 )
@@ -69,7 +69,7 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	computeContext, testEnvKubeconfigFile, controllerRuntimeClient, computeRuntimeWorkspaceClient = helpers.SetupCompute(scheme, controllerNamespace)
+	computeContext, testEnvKubeconfigFile, controllerRuntimeClient, computeRuntimeWorkspaceClient = test.SetupCompute(scheme, controllerNamespace)
 
 	// Launch the compute-operator manager
 	go func() {
@@ -106,7 +106,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	helpers.TearDownCompute()
+	test.TearDownCompute()
 })
 
 var _ = Describe("Process registeredCluster: ", func() {
