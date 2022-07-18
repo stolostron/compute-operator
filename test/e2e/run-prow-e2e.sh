@@ -94,10 +94,10 @@ EOF
 echo "-- Creating a vcluster to import as a managed cluster"
 oc create ns ${VC_MANAGED}
 vcluster create ${VC_MANAGED} --connect=false --namespace=${VC_MANAGED}
-oc config current-context view | vcluster create ${VC_MANAGED} --connect=false -f vcluster-values.yml --namespace=${VC_MANAGED} --context=
+oc config current-context view | vcluster create ${VC_MANAGED} --connect=false --expose -f vcluster-values.yml --namespace=${VC_MANAGED} --context=
 echo
 echo "--- Export vcluster kubeconfig for managed cluster"
-vcluster connect ${VC_MANAGED} -n ${VC_MANAGED} --update-current=false --insecure --kube-config=./${VC_MANAGED}.kubeconfig
+vcluster connect ${VC_MANAGED} -n ${VC_MANAGED} --update-current=false --kube-config=./${VC_MANAGED}.kubeconfig
 echo "--- kubectl --kubeconfig ./vc-managed.kubeconfig get namespaces"
 kubectl --kubeconfig ./vc-managed.kubeconfig get namespaces
 echo "--- Connect to vcluster directly"
