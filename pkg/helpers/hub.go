@@ -55,7 +55,7 @@ func GetHubCluster(workspace string, hubInstances []HubInstance) (HubInstance, e
 	return hubInstances[0], nil
 }
 
-func GetHubClusters(ctx context.Context, mgr ctrl.Manager, kubeClient kubernetes.Interface, dynamicClient *dynamic.DynamicClient) ([]HubInstance, error) {
+func GetHubClusters(ctx context.Context, mgr ctrl.Manager, kubeClient kubernetes.Interface, dynamicClient dynamic.Interface) ([]HubInstance, error) {
 	setupLog := ctrl.Log.WithName("setup")
 	hubInstances := make([]HubInstance, 0)
 	setupLog.Info("retrieve POD namespace")

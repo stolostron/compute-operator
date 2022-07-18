@@ -17,6 +17,7 @@ rules:
   resourceNames:
   - compute-apis
   - compute-apis/status
+  - compute-apis/finalizers
   verbs:
   - create
   - delete
@@ -26,9 +27,16 @@ rules:
   - watch
   - patch
 - apiGroups:
+  - apis.kcp.dev
+  resources:
+  - apiexports/status
+  verbs:
+  - get
+- apiGroups:
   - ""
   resources:
   - secrets
+  - namespaces
   verbs:
   - create
   - delete
@@ -36,3 +44,17 @@ rules:
   - list
   - update
   - watch
+- apiGroups:
+  - singapore.open-cluster-management.io
+  resources:
+  - registeredclusters
+  - registeredclusters/status
+  - registeredclusters/finalizers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+  - patch

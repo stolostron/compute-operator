@@ -44,7 +44,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	kcpclient "github.com/kcp-dev/apimachinery/pkg/client"
 	"github.com/kcp-dev/logicalcluster"
 
 	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
@@ -73,9 +72,9 @@ type RegisteredClusterReconciler struct {
 	// KubeClient         kubernetes.Interface
 	// DynamicClient      dynamic.Interface
 	// APIExtensionClient apiextensionsclient.Interface
-	ComputeKubeClient         kubernetes.ClusterInterface
-	ComputeDynamicClient      dynamic.ClusterInterface
-	ComputeAPIExtensionClient apiextensionsclient.ClusterInterface
+	ComputeKubeClient         kubernetes.Interface
+	ComputeDynamicClient      dynamic.Interface
+	ComputeAPIExtensionClient apiextensionsclient.Interface
 	Log                       logr.Logger
 	Scheme                    *runtime.Scheme
 	HubClusters               []helpers.HubInstance
@@ -85,7 +84,7 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 	_ = context.Background()
 	ctx := context.TODO()
 	// Return a copy of the conext and injects the cluster name in the copied context
-	computeContext := kcpclient.WithCluster(computeContextOri, logicalcluster.New(req.ClusterName))
+	computeContext := logicalcluster.WithCluster(computeContextOri, logicalcluster.New(req.ClusterName))
 	logger := r.Log.WithValues("clusterName", req.ClusterName, "namespace", req.Namespace, "name", req.Name)
 	logger.Info("Reconciling....")
 
@@ -237,12 +236,10 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 		return giterrors.WithStack(err)
 	}
 
-	logicalClusterName, _ := kcpclient.ClusterFromContext(computeContext)
-
 	applier := clusteradmapply.NewApplierBuilder().
-		WithClient(r.ComputeKubeClient.Cluster(logicalClusterName),
-			r.ComputeAPIExtensionClient.Cluster(logicalClusterName),
-			r.ComputeDynamicClient.Cluster(logicalClusterName)).
+		WithClient(r.ComputeKubeClient,
+			r.ComputeAPIExtensionClient,
+			r.ComputeDynamicClient).
 		WithOwner(regCluster, false, true, r.Scheme).
 		WithContext(computeContext).
 		Build()
@@ -492,12 +489,12 @@ func (r *RegisteredClusterReconciler) syncManagedClusterKubeconfig(computeContex
 		return giterrors.WithStack(err)
 	}
 
-	logicalClusterName, _ := kcpclient.ClusterFromContext(computeContext)
 	readerDeploy := resources.GetScenarioResourcesReader()
 	applier := clusteradmapply.NewApplierBuilder().
-		WithClient(r.ComputeKubeClient.Cluster(logicalClusterName),
-			r.ComputeAPIExtensionClient.Cluster(logicalClusterName),
-			r.ComputeDynamicClient.Cluster(logicalClusterName)).
+		WithClient(r.ComputeKubeClient,
+			r.ComputeAPIExtensionClient,
+			r.ComputeDynamicClient).
+		WithContext(computeContext).
 		WithOwner(regCluster, false, true, r.Scheme).
 		Build()
 

@@ -5,9 +5,9 @@ go 1.18
 require (
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/go-logr/logr v1.2.0
-	github.com/kcp-dev/apimachinery v0.0.0-20220706131942-1a33fa63a5a7
+	github.com/kcp-dev/apimachinery v0.0.0-20220708220956-c302aeddfde7
 	github.com/kcp-dev/kcp/pkg/apis v0.5.0-alpha.1
-	github.com/kcp-dev/logicalcluster v1.0.0
+	github.com/kcp-dev/logicalcluster v1.1.1-0.20220705215104-8e46328c24a5
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.18.0
 	github.com/openshift/generic-admission-server v1.14.1-0.20220220163846-6395b86cc87e
@@ -148,14 +148,4 @@ require (
 
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // Lock gnostic path to googleapis/gnostic instead of google/gnostic
 
-replace (
-	k8s.io/api => github.com/kcp-dev/kubernetes/staging/src/k8s.io/api v0.0.0-20220705085034-005ea1354ed5
-	k8s.io/apiextensions-apiserver => github.com/kcp-dev/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-20220705085034-005ea1354ed5
-	k8s.io/apimachinery => github.com/kcp-dev/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20220705085034-005ea1354ed5
-	k8s.io/apiserver => github.com/kcp-dev/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20220705085034-005ea1354ed5
-	k8s.io/client-go => github.com/kcp-dev/kubernetes/staging/src/k8s.io/client-go v0.0.0-20220705085034-005ea1354ed5
-	k8s.io/code-generator => github.com/kcp-dev/kubernetes/staging/src/k8s.io/code-generator v0.0.0-20220705085034-005ea1354ed5
-	k8s.io/component-base => github.com/kcp-dev/kubernetes/staging/src/k8s.io/component-base v0.0.0-20220705085034-005ea1354ed5
-	k8s.io/kube-aggregator => github.com/kcp-dev/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-20220705085034-005ea1354ed5
-	sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.11.3-0.20220624161137-f6e5a2f56683
-)
+replace sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.11.3-0.20220713175340-cbf0522c1b34
