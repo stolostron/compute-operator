@@ -6,7 +6,7 @@ require (
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/go-logr/logr v1.2.0
 	github.com/kcp-dev/apimachinery v0.0.0-20220708220956-c302aeddfde7
-	github.com/kcp-dev/kcp/pkg/apis v0.5.0-alpha.1
+	github.com/kcp-dev/kcp/pkg/apis v0.6.0-alpha.0
 	github.com/kcp-dev/logicalcluster v1.1.1-0.20220705215104-8e46328c24a5
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.18.0

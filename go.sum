@@ -479,8 +479,8 @@ github.com/kcp-dev/apimachinery v0.0.0-20220708220956-c302aeddfde7 h1:ManYmc0CcV
 github.com/kcp-dev/apimachinery v0.0.0-20220708220956-c302aeddfde7/go.mod h1:+HKR4Ohhcq0TzLFnbH/iZkClN2HA6YZT5i1J7waX0OQ=
 github.com/kcp-dev/controller-runtime v0.11.3-0.20220713175340-cbf0522c1b34 h1:xN/uAh6iTCjmH+gGzcBZU4J9nKFQSNUia5UeV8dyOI4=
 github.com/kcp-dev/controller-runtime v0.11.3-0.20220713175340-cbf0522c1b34/go.mod h1:IcnrX4wIwKZh/v4I8O3FnG1V+qo7ITqsfOZ/uuk5/S0=
-github.com/kcp-dev/kcp/pkg/apis v0.5.0-alpha.1 h1:Z8L4TOam02khARPvS0d3kdyFB1yfwYTCx9x+i09KRzY=
-github.com/kcp-dev/kcp/pkg/apis v0.5.0-alpha.1/go.mod h1:7MSnXcgGi9YpzeA0/ebqTkQka3KyfgYKfxD+e9z9GP4=
+github.com/kcp-dev/kcp/pkg/apis v0.6.0-alpha.0 h1:YmJ0CbLix8rzBQJvERrHvQAYLRrmc+J8CDhDrYPi+uw=
+github.com/kcp-dev/kcp/pkg/apis v0.6.0-alpha.0/go.mod h1:1oh4lHCWNKSPYEAv4bqW05kI85pkMbmgMyQx/2tCE+M=
 github.com/kcp-dev/logicalcluster v1.1.1-0.20220705215104-8e46328c24a5 h1:ygcM+nvb7QBB/o3HZVw5sYu6KH9aXcrZ+A+IjEDAabA=
 github.com/kcp-dev/logicalcluster v1.1.1-0.20220705215104-8e46328c24a5/go.mod h1:M0CBFkJTW29XtIP5XIkDfhYQ8LU6HrnseRb4zmgBltE=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=

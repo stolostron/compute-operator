@@ -165,7 +165,7 @@ ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 		cd $$KCP_TMP_DIR ;\
 		git clone https://github.com/kcp-dev/kcp.git ;\
 		cd kcp ;\
-		git checkout d2998d7ac922ae87d2723ffad24d53c333d33914; \
+		git checkout v0.6.0-alpha.0; \
 		make install WHAT="./cmd/kubectl-kcp"; \
 		make install WHAT="./cmd/kcp"; \
 	)
