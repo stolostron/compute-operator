@@ -6,7 +6,14 @@ metadata:
   name: compute-apis
 spec:
   permissionClaims:
+  permissionClaims:
   - group: ""
-    resource: secrets    
+    resource: secrets
+  - group: ""
+    resource: serviceaccounts
+  # - group: "rbac.authorization.k8s.io"
+  #   resource: clusterroles
+  # - group: "rbac.authorization.k8s.io"
+  #   resource: clusterrolebindings
   latestResourceSchemas:
   - latest.registeredclusters.singapore.open-cluster-management.io

@@ -1,0 +1,19 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .KcpSyncerName }}
+rules:
+- apiGroups: ["workload.kcp.dev"]
+  resources: ["synctargets"]
+  resourceNames: [{{ .SyncTargetName }}]
+  verbs: ["sync"]
+- apiGroups: ["workload.kcp.dev"]
+  resources: ["synctargets/status"]
+  resourceNames: [{{ .SyncTargetName }}]
+  verbs: ["update", "patch"]
+- apiGroups: ["workload.kcp.dev"]
+  resources: ["synctargets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apiresource.kcp.dev"]
+  resources: ["apiresourceimports"]
+  verbs: ["get", "create", "update", "delete", "list", "watch"]

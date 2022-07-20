@@ -1,0 +1,145 @@
+# Copyright Red Hat
+
+apiVersion: work.open-cluster-management.io/v1
+kind: ManifestWork
+metadata:
+  name: "{{ .KcpSyncerName }}"
+  namespace: "{{ .ManagedClusterName }}"
+  labels:
+   {{ .RegisteredClusterNameLabel }}: {{ .RegisteredClusterName }}
+   {{ .RegisteredClusterNamespaceLabel }}: {{ .RegisteredClusterNamespace }} 
+spec:
+  workload:
+    manifests:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: {{ .KcpSyncerName }}
+        labels:
+          workload.kcp.io/logical-cluster: {{ .LogicalClusterLabel }}
+          workload.kcp.io/sync-target: {{ .SyncTargetName }}
+    - apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: kcp-syncer
+        namespace: {{ .KcpSyncerName }}
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: {{ .KcpSyncerName }}
+      rules:
+      - apiGroups:
+        - ""
+        resources:
+        - namespaces
+        verbs:
+        - "create"
+        - "list"
+        - "watch"
+      - apiGroups:
+        - "apiextensions.k8s.io"
+        resources:
+        - customresourcedefinitions
+        verbs:
+        - "get"
+        - "watch"
+        - "list"
+      - apiGroups:
+        - ""
+        resources:
+        - configmaps
+        - secrets
+        - serviceaccounts
+        verbs:
+        - "*"
+      - apiGroups:
+        - "apps"
+        resources:
+        - deployments
+        verbs:
+        - "*"
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: {{ .KcpSyncerName }}
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: {{ .KcpSyncerName }}
+      subjects:
+      - kind: ServiceAccount
+        name: kcp-syncer
+        namespace:  {{ .KcpSyncerName }} 
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: kcp-syncer-config
+        namespace:  {{ .KcpSyncerName }}
+      stringData:
+        kubeconfig: |
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: default-cluster
+            cluster:
+              server: {{ .KcpServer }}
+          contexts:
+          - name: default-context
+            context:
+              cluster: default-cluster
+              namespace: default
+              user: default-user
+          current-context: default-context
+          users:
+          - name: default-user
+            user:
+              token: {{ .KcpToken }}
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: kcp-syncer
+        namespace:  {{ .KcpSyncerName }}
+      spec:
+        replicas: 1
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app: {{ .KcpSyncerName }}
+        template:
+          metadata:
+            labels:
+              app: {{ .KcpSyncerName }}
+          spec:
+            containers:
+            - name: kcp-syncer
+              command:
+              - /ko-app/syncer
+              args:
+              - "--sync-target-name={{ .SyncTargetName }}"
+              - "--from_cluster={{ .LogicalCluster }}"
+              - --from-kubeconfig=/kcp/kubeconfig
+              - --resources=configmaps
+              - --resources=deployments.apps
+              - --resources=secrets
+              - --resources=serviceaccounts
+              image: {{ .Image }}
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                privileged: false
+                runAsNonRoot: true
+              terminationMessagePolicy: FallbackToLogsOnError
+              volumeMounts:
+              - name: kcp-config
+                mountPath: /kcp/
+                readOnly: true
+            serviceAccountName: kcp-syncer
+            volumes:
+              - name: kcp-config
+                secret:
+                  secretName: kcp-syncer-config
+                  optional: false
