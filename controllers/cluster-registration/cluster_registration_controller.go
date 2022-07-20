@@ -25,6 +25,8 @@ import (
 	// corev1 "k8s.io/api/core/v1"
 	"github.com/stolostron/applier/pkg/apply"
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
+
+	kcpclient "github.com/kcp-dev/kcp/pkg/client/clientset/versioned"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 	"github.com/stolostron/compute-operator/resources"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -74,6 +76,7 @@ type RegisteredClusterReconciler struct {
 	ComputeKubeClient         kubernetes.Interface
 	ComputeDynamicClient      dynamic.Interface
 	ComputeAPIExtensionClient apiextensionsclient.Interface
+	KCPClusterClient          *kcpclient.Cluster
 	Log                       logr.Logger
 	Scheme                    *runtime.Scheme
 	HubClusters               []helpers.HubInstance
@@ -178,7 +181,70 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 		return ctrl.Result{}, err
 	}
 
+	if err := r.createSyncTarget(computeContext, regCluster, &managedCluster); err != nil {
+		logger.Error(err, "failed to create synctarget in location workspace...")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
+}
+
+func (r *RegisteredClusterReconciler) createSyncTarget(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster) error {
+
+	fmt.Println("hello")
+	logger := r.Log.WithName("createSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
+
+	// If cluster has joined, sync the ManifestWork to create the roles and bindings for the service account
+	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
+		// syncTarget := &workloadv1alpha1.SyncTarget{
+		// 	TypeMeta: metav1.TypeMeta{
+		// 		APIVersion: workloadv1alpha1.SchemeGroupVersion.String(),
+		// 		Kind:       "SyncTarget",
+		// 	},
+		// 	ObjectMeta: metav1.ObjectMeta{
+		// 		GenerateName: "registered-cluster-",
+		// 		ClusterName:  regCluster.Spec.Location,
+		// 	},
+		// 	Spec: workloadv1alpha1.SyncTargetSpec{
+		// 		Unschedulable: false,
+		// 	},
+		// }
+		// computeContextNew := logicalcluster.WithCluster(computeContext, logicalcluster.New(regCluster.Spec.Location))
+		// fmt.Println("computeContextNew: ", computeContextNew)
+		// logicalClusterName, _ := logicalcluster.ClusterFromContext(computeContextNew)
+
+		// fmt.Println("logicalclustername: ", logicalClusterName)
+		// if _, err := r.KCPClusterClient.Cluster(logicalClusterName).WorkloadV1alpha1().SyncTargets().Create(computeContextNew, syncTarget, metav1.CreateOptions{}); err != nil {
+		// 	return nil
+		// }
+
+		applier := clusteradmapply.NewApplierBuilder().
+			WithClient(r.ComputeKubeClient,
+				r.ComputeAPIExtensionClient,
+				r.ComputeDynamicClient).
+			WithContext(computeContext).
+			Build()
+
+		readerDeploy := resources.GetScenarioResourcesReader()
+
+		files := []string{
+			"cluster-registration/synctarget.yaml",
+		}
+
+		values := struct {
+			Name string
+		}{
+			Name: regCluster.Name,
+		}
+
+		_, err := applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
+		if err != nil {
+			return giterrors.WithStack(err)
+		}
+
+		logger.V(1).Info("SyncTarget is created")
+	}
+	return nil
 }
 
 func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster) error {
