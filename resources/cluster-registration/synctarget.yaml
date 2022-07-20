@@ -1,0 +1,8 @@
+apiVersion: workload.kcp.dev/v1alpha1
+kind: SyncTarget
+metadata:
+  name: test
+spec: 
+  #unschedulable: false
+ # evictAfter:    nil
+  

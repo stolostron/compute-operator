@@ -5,5 +5,10 @@ kind: APIExport
 metadata:
   name: compute-apis
 spec:
+  permissionClaims:
+  - group: ""
+    resource: secrets
+  - group: workload.kcp.dev
+    resource: synctargets
   latestResourceSchemas:
   - latest.registeredclusters.singapore.open-cluster-management.io
