@@ -2,7 +2,7 @@
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: ClusterRegistrar
 metadata:
-  name: cluster-reg
+  name: {{ .Name }}
 spec:
   computeService:
     computeKubeconfigSecretRef:

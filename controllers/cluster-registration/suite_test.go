@@ -8,9 +8,11 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"k8s.io/client-go/rest"
 	utilflag "k8s.io/component-base/cli/flag"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -50,9 +52,8 @@ const (
 
 var (
 	computeContext                context.Context
-	testEnvKubeconfigFile         string
-	controllerRuntimeClient       client.Client
 	computeRuntimeWorkspaceClient client.Client
+	controllerRestConfig          *rest.Config
 )
 
 func TestAPIs(t *testing.T) {
@@ -64,13 +65,21 @@ func TestAPIs(t *testing.T) {
 	suiteConfig.SkipStrings = []string{"NEVER-RUN"}
 	reporterConfig.FullTrace = true
 	RunSpecs(t,
-		"Controller Suite",
+		"Cluster Registration Suite",
 		reporterConfig)
 }
 
 var _ = BeforeSuite(func() {
-	computeContext, testEnvKubeconfigFile, controllerRuntimeClient, computeRuntimeWorkspaceClient = test.SetupCompute(scheme, controllerNamespace)
-
+	var hubKubeconfigString string
+	computeContext,
+		computeRuntimeWorkspaceClient = test.SetupCompute(scheme,
+		controllerNamespace,
+		"../../build/")
+	controllerRestConfig, hubKubeconfigString = test.SetupControllerEnvironment(scheme, controllerNamespace,
+		[]string{
+			filepath.Join("..", "..", "test", "config", "crd", "external"),
+		})
+	test.InitControllerEnvironment(scheme, controllerNamespace, controllerRestConfig, hubKubeconfigString)
 	// Launch the compute-operator manager
 	go func() {
 		defer GinkgoRecover()
@@ -89,7 +98,7 @@ var _ = BeforeSuite(func() {
 		defer logs.FlushLogs()
 
 		// setup kubeconfig
-		pflag.CommandLine.Set("kubeconfig", testEnvKubeconfigFile)
+		pflag.CommandLine.Set("kubeconfig", test.TestEnvKubeconfigFile)
 
 		managerLog := os.Getenv("MANAGER_LOG")
 		cmd := NewManager()
@@ -110,14 +119,20 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Process registeredCluster: ", func() {
-	It("Process registeredCluster", func() {
+	It("Process cluster-registration registeredCluster", func() {
+		controllerRuntimeClient, err := client.New(controllerRestConfig, client.Options{Scheme: scheme})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(controllerRuntimeClient).ToNot(BeNil())
+
 		By("Create the compute namespace", func() {
 			Eventually(func() error {
 				klog.Info("create namespace")
 				cmd := exec.Command("kubectl",
 					"create",
 					"ns",
-					workingClusterComputeNamespace)
+					workingClusterComputeNamespace,
+					"--kubeconfig",
+					test.AdminComputeKubeconfigFile)
 				cmd.Stdout = os.Stdout
 				cmd.Stderr = os.Stderr
 				err := cmd.Run()
@@ -135,7 +150,10 @@ var _ = Describe("Process registeredCluster: ", func() {
 				cmd := exec.Command("kubectl",
 					"apply",
 					"-f",
-					"../../test/resources/compute/registeredCluster.yaml")
+					"../../test/resources/compute/registeredCluster.yaml",
+					"--kubeconfig",
+					test.AdminComputeKubeconfigFile,
+				)
 				cmd.Stdout = os.Stdout
 				cmd.Stderr = os.Stderr
 				err := cmd.Run()

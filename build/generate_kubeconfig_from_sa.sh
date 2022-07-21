@@ -4,12 +4,13 @@
 # Update these to match your environment
 # set -ex
 set -e
-SERVICE_ACCOUNT_NAME=$1
-CONTEXT=$(kubectl config current-context)
-NAMESPACE=$2
+CURRENT_KUBECONFIG=$1
+SERVICE_ACCOUNT_NAME=$2
+CONTEXT=$(kubectl config current-context --kubeconfig ${CURRENT_KUBECONFIG})
+NAMESPACE=$3
 
 NEW_CONTEXT=ws-kcp-context
-KUBECONFIG_FILE=$3
+KUBECONFIG_FILE=$4
 
 CURRENT_DIR=`pwd`
 echo $CURRENT_DIR
@@ -17,11 +18,11 @@ echo $CURRENT_DIR
 WORKING_DIR=`mktemp -d`
 
 cd $WORKING_DIR
-SECRET_NAME=$(kubectl get serviceaccount ${SERVICE_ACCOUNT_NAME} \
+SECRET_NAME=$(kubectl get serviceaccount ${SERVICE_ACCOUNT_NAME} --kubeconfig ${CURRENT_KUBECONFIG} \
   --context ${CONTEXT} \
   --namespace ${NAMESPACE} \
   -o jsonpath='{.secrets[0].name}')
-TOKEN_DATA=$(kubectl get secret ${SECRET_NAME} \
+TOKEN_DATA=$(kubectl get secret ${SECRET_NAME} --kubeconfig ${CURRENT_KUBECONFIG} \
   --context ${CONTEXT} \
   --namespace ${NAMESPACE} \
   -o jsonpath='{.data.token}')
@@ -30,7 +31,7 @@ TOKEN=$(echo ${TOKEN_DATA} | base64 -d)
 
 # Create dedicated kubeconfig
 # Create a full copy
-kubectl config view --raw > ${KUBECONFIG_FILE}.full.tmp
+kubectl config view --raw --kubeconfig ${CURRENT_KUBECONFIG} > ${KUBECONFIG_FILE}.full.tmp
 # Switch working context to correct context
 kubectl --kubeconfig ${KUBECONFIG_FILE}.full.tmp config use-context ${CONTEXT}
 # Minify

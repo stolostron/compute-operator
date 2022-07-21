@@ -9,6 +9,12 @@ import (
 	"strings"
 	"sync"
 
+	"os"
+
+	admissionserver "github.com/openshift/generic-admission-server/pkg/cmd/server"
+	"github.com/spf13/cobra"
+	genericapiserver "k8s.io/apiserver/pkg/server"
+
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
@@ -30,6 +36,33 @@ type RegisteredClusterAdmissionHook struct {
 	KubeClient             kubernetes.Interface
 	lock                   sync.RWMutex
 	initialized            bool
+}
+
+func NewAdmissionHook() *cobra.Command {
+	o := admissionserver.NewAdmissionServerOptions(os.Stdout, os.Stderr, &RegisteredClusterAdmissionHook{})
+
+	cmd := &cobra.Command{
+		Use:   "webhook",
+		Short: "Start Cluster Admission Server",
+		RunE: func(c *cobra.Command, args []string) error {
+			stopCh := genericapiserver.SetupSignalHandler()
+
+			if err := o.Complete(); err != nil {
+				return err
+			}
+			if err := o.Validate(args); err != nil {
+				return err
+			}
+			if err := o.RunAdmissionServer(stopCh); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+
+	o.RecommendedOptions.AddFlags(cmd.Flags())
+
+	return cmd
 }
 
 // ValidatingResource is called by generic-admission-server on startup to register the returned REST resource through which the

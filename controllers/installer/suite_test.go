@@ -61,7 +61,7 @@ func TestAPIs(t *testing.T) {
 	suiteConfig.SkipStrings = []string{"NEVER-RUN"}
 	reporterConfig.FullTrace = true
 	RunSpecs(t,
-		"Controller Suite",
+		"Installer Suite",
 		reporterConfig)
 }
 
