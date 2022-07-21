@@ -34,6 +34,14 @@ Anyone can comment on issues and submit reviews for pull requests. In order to b
 
 Before you commit, please run following commands to check your code and then if it passes commit and create a PR.
 
+Make sure you have the correct kcp version:
+
+```shell
+rm $GOPATH/bin/kubectl-kcp
+make kcp-plugin
+```
+
+Run the check/test
 ```shell
 make check
 make test

@@ -110,8 +110,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	os.Setenv("POD_NAME", "installer-pod")
-	os.Setenv("POD_NAMESPACE", installationNamespace)
+	Expect(os.Setenv("POD_NAME", "installer-pod")).To(BeNil())
+	Expect(os.Setenv("POD_NAMESPACE", installationNamespace)).To(BeNil())
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: kscheme.Scheme,
