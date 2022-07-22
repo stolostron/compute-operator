@@ -59,8 +59,12 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 const (
-	// The compute Workspace
-	Workspace string = "my-ws"
+	//TODO - Consider moving the controller to a different workspace, not a parent to the "compute" and "location" workspaces.
+
+	// The compute workspace (where RegisteredCluster is created)
+	ComputeWorkspace string = "my-compute-ws"
+	// The location workspace (where SyncTarget is generated)
+	LocationWorkspace string = "my-location-ws"
 	// The controller service account on the compute
 	ControllerComputeServiceAccount string = "compute-operator"
 	// the namespace on the compute
@@ -70,7 +74,8 @@ const (
 	// The compute organization workspace
 	OrganizationWorkspace string = "root:" + ComputeOrganization
 	// The compute cluster workspace
-	clusterWorkspace string = OrganizationWorkspace + ":" + Workspace
+	AbsoluteComputeWorkspace  string = OrganizationWorkspace + ":" + ComputeWorkspace
+	AbsoluteLocationWorkspace string = OrganizationWorkspace + ":" + LocationWorkspace
 	// The directory for test environment assets
 	TestEnvDir string = ".testenv"
 	// the test environment kubeconfig file
@@ -91,6 +96,50 @@ var (
 	// The compute kubeconfig file
 	AdminComputeKubeconfigFile string = ".kcp/admin.kubeconfig"
 )
+
+func UseWorkspace(workspace string, adminComputeKubeconfigFile string) error {
+	klog.Infof("use workspace %s", workspace)
+	kubeconfigPath := os.Getenv("KUBECONFIG")
+	gomega.Expect(os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)).To(gomega.BeNil())
+	cmd := exec.Command("kubectl", "kcp",
+		"ws",
+		"use",
+		workspace)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err != nil {
+		klog.Errorf("error while switching to workspace: %s", err)
+		return err
+	}
+	gomega.Expect(os.Setenv("KUBECONFIG", kubeconfigPath)).To(gomega.BeNil())
+	return nil
+}
+func CreateWorkspace(workspace string, absoluteParent string, adminComputeKubeconfigFile string, enter bool) error {
+	klog.Infof("create workspace %s under %s", workspace, absoluteParent)
+	err := UseWorkspace(absoluteParent, adminComputeKubeconfigFile)
+	if err != nil {
+		return err
+	}
+	kubeconfigPath := os.Getenv("KUBECONFIG")
+	gomega.Expect(os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)).To(gomega.BeNil())
+	cmd := exec.Command("kubectl", "kcp",
+		"ws",
+		"create",
+		workspace)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if err != nil {
+		klog.Errorf("error while creating workspace %s: %s", workspace, err)
+		return err
+	}
+	gomega.Expect(os.Setenv("KUBECONFIG", kubeconfigPath)).To(gomega.BeNil())
+	if enter {
+		return UseWorkspace(absoluteParent+":"+workspace, adminComputeKubeconfigFile)
+	}
+	return nil
+}
 
 func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath string) (computeContext context.Context,
 	computeRuntimeWorkspaceClient client.Client) {
@@ -210,29 +259,14 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	// Create workspace on compute server and enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of organization %s", ComputeOrganization), func() {
 		gomega.Eventually(func() error {
-			klog.Info("create workspace")
-			kubeconfigPath := os.Getenv("KUBECONFIG")
-			gomega.Expect(os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)).To(gomega.BeNil())
-			cmd := exec.Command("kubectl", "kcp",
-				"ws",
-				"create",
-				ComputeOrganization,
-				"--enter")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			err = cmd.Run()
-			if err != nil {
-				klog.Error(err, " while create organization")
-			}
-			gomega.Expect(os.Setenv("KUBECONFIG", kubeconfigPath)).To(gomega.BeNil())
-			return err
+			return CreateWorkspace(ComputeOrganization, "root", adminComputeKubeconfigFile, true)
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	organizationContext := logicalcluster.WithCluster(context.Background(), logicalcluster.New(OrganizationWorkspace))
 
 	//Build compute admin applier
-	ginkgo.By(fmt.Sprintf("apply resourceschema on workspace %s", Workspace), func() {
+	ginkgo.By(fmt.Sprintf("apply resourceschema on workspace %s", OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
 			klog.Info("create resourceschema")
 			computeApplier := organizationAdminApplierBuilder.WithContext(organizationContext).Build()
@@ -247,7 +281,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
-	ginkgo.By(fmt.Sprintf("apply APIExport on workspace %s", Workspace), func() {
+	ginkgo.By(fmt.Sprintf("apply APIExport on workspace %s", OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
 			klog.Info("create APIExport")
 			computeApplier := organizationAdminApplierBuilder.WithContext(organizationContext).Build()
@@ -263,7 +297,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	})
 
 	// Create SA on compute server in workspace
-	ginkgo.By(fmt.Sprintf("creation of SA %s in workspace %s", ControllerComputeServiceAccount, Workspace), func() {
+	ginkgo.By(fmt.Sprintf("creation of SA %s in workspace %s", ControllerComputeServiceAccount, OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
 			klog.Info("create namespace")
 			computeApplier := computeAdminApplierBuilder.
@@ -306,7 +340,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	saComputeKubeconfigFileAbs, err = filepath.Abs(SAComputeKubeconfigFile)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	ginkgo.By(fmt.Sprintf("generate kubeconfig for sa %s in workspace %s", ControllerComputeServiceAccount, Workspace), func() {
+	ginkgo.By(fmt.Sprintf("generate kubeconfig for sa %s in workspace %s", ControllerComputeServiceAccount, OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
 			klog.Info(SAComputeKubeconfigFile)
 			adminComputeKubeconfigFile, err := filepath.Abs(adminComputeKubeconfigFile)
@@ -327,10 +361,10 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
-	computeContext = logicalcluster.WithCluster(context.Background(), logicalcluster.New(clusterWorkspace))
+	computeContext = logicalcluster.WithCluster(context.Background(), logicalcluster.New(AbsoluteComputeWorkspace))
 
 	// Create role for on compute server in workspace
-	ginkgo.By(fmt.Sprintf("creation of role in workspace %s", Workspace), func() {
+	ginkgo.By(fmt.Sprintf("creation of role in workspace %s", OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
 			klog.Info("create role")
 			computeApplier := computeAdminApplierBuilder.
@@ -347,7 +381,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	})
 
 	// Create rolebinding for on compute server in workspace
-	ginkgo.By(fmt.Sprintf("creation of rolebinding in workspace %s", Workspace), func() {
+	ginkgo.By(fmt.Sprintf("creation of rolebinding in workspace %s", OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
 			klog.Info("create role binding")
 			computeApplier := computeAdminApplierBuilder.
@@ -379,30 +413,22 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
-	// Create workspace on compute server and enter in the ws
-	ginkgo.By(fmt.Sprintf("creation of cluster workspace %s", Workspace), func() {
+	// Create location workspace on compute server and do not enter in the ws
+	ginkgo.By(fmt.Sprintf("creation of location workspace %s", LocationWorkspace), func() {
 		gomega.Eventually(func() error {
-			klog.Info("create workspace")
-			kubeconfigPath := os.Getenv("KUBECONFIG")
-			gomega.Expect(os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)).To(gomega.BeNil())
-			cmd := exec.Command("kubectl", "kcp",
-				"ws",
-				"create",
-				Workspace,
-				"--enter")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			err = cmd.Run()
-			if err != nil {
-				klog.Error(err, " while create cluster workspace")
-			}
-			gomega.Expect(os.Setenv("KUBECONFIG", kubeconfigPath)).To(gomega.BeNil())
-			return err
+			return CreateWorkspace(LocationWorkspace, OrganizationWorkspace, adminComputeKubeconfigFile, false)
+		}, 60, 3).Should(gomega.BeNil())
+	})
+
+	// Create compute workspace on compute server and enter in the ws
+	ginkgo.By(fmt.Sprintf("creation of cluster workspace %s", ComputeWorkspace), func() {
+		gomega.Eventually(func() error {
+			return CreateWorkspace(ComputeWorkspace, OrganizationWorkspace, adminComputeKubeconfigFile, true)
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
 	// Create the APIBinding in the cluster workspace
-	ginkgo.By(fmt.Sprintf("apply APIBinding on workspace %s", Workspace), func() {
+	ginkgo.By(fmt.Sprintf("apply APIBinding on workspace %s", ComputeWorkspace), func() {
 		gomega.Eventually(func() error {
 			klog.Info("create APIBinding")
 			computeApplier := computeAdminApplierBuilder.

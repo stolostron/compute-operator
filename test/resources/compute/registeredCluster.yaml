@@ -5,4 +5,4 @@ metadata:
   name: registered-cluster
   namespace: rc-ws
 spec:
-  location: "FakeKcpLocation"
+  location: "root:my-org:my-location-ws"

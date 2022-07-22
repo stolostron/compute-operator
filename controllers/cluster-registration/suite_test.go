@@ -105,6 +105,7 @@ var _ = BeforeSuite(func() {
 			cmd.SetArgs([]string{
 				"--logtostderr=false",
 				"--log-file=" + managerLog,
+				"--v=2",
 			})
 		}
 		err := cmd.Execute()
@@ -167,7 +168,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					Namespace: workingClusterComputeNamespace,
 				},
 				Spec: singaporev1alpha1.RegisteredClusterSpec{
-					Location: "FakeKcpLocation",
+					Location: test.AbsoluteLocationWorkspace,
 				},
 			}
 		})
