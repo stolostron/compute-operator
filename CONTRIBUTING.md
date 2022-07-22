@@ -34,6 +34,14 @@ Anyone can comment on issues and submit reviews for pull requests. In order to b
 
 Before you commit, please run following commands to check your code and then if it passes commit and create a PR.
 
+Make sure you have the correct kcp version:
+
+```shell
+rm $GOPATH/bin/kubectl-kcp
+make kcp-plugin
+```
+
+Run the check/test
 ```shell
 make check
 make test
@@ -45,7 +53,9 @@ make functional-test-full
 
 if test fails [suite_test.go](controllers/cluster-registration/suite_test.go) you launch a `kcp start` from the same directory and check resources there. You can set the environement variable `USE_EXISTING_CLUSTER` to true, set your KUBCONFIG env var to a file and create a kind cluster and then after the test ran, check on the kind cluster the generated resources.
 
-The kcp log can be send to a file specified in the `KCP_LOG` environment variable, otherwize the log is sent to stdout.
+Similarly, `KCP_HOME` can be set to the directory where the local kcp is already running, if this environment variable is not set then the test will launch its own kcp instance using a directory `.kcp` located in the same directory as the test.
+
+The kcp log and manager log can be send to a file specified respectively the `KCP_LOG` and `MANAGER_LOG` environment variables, otherwize the log is sent to stdout.
 If the functional test fails, you can connect to the kind cluster by exporting the kubeconfig:
 
 ```shell

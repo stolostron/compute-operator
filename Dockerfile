@@ -16,7 +16,7 @@ RUN go mod download
 
 COPY main.go main.go
 COPY api/ api/
-COPY cmd/ cmd/
+# COPY cmd/ cmd/
 COPY deploy/ deploy/
 COPY resources/ resources/
 COPY pkg/ pkg/

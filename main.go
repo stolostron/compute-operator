@@ -14,7 +14,7 @@ import (
 	registeredcluster "github.com/stolostron/compute-operator/controllers/cluster-registration"
 	"github.com/stolostron/compute-operator/controllers/installer"
 
-	// "github.com/stolostron/compute-operator/cmd/webhook"
+	"github.com/stolostron/compute-operator/webhook"
 
 	utilflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
@@ -49,7 +49,7 @@ func newWorkCommand() *cobra.Command {
 
 	cmd.AddCommand(installer.NewInstaller())
 	cmd.AddCommand(registeredcluster.NewManager())
-	// cmd.AddCommand(webhook.NewAdmissionHook())
+	cmd.AddCommand(webhook.NewAdmissionHook())
 
 	return cmd
 }

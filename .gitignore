@@ -46,3 +46,4 @@ kubeconfig
 #temp directories
 .kcp
 .testenv
+.sakcp
