@@ -59,6 +59,7 @@ const (
 	RegisteredClusterNamelabel      string = "registeredcluster.singapore.open-cluster-management.io/name"
 	RegisteredClusterNamespacelabel string = "registeredcluster.singapore.open-cluster-management.io/namespace"
 	RegisteredClusterUidLabel       string = "registeredcluster.singapore.open-cluster-management.io/uid"
+	ClusterNameAnnotation           string = "registeredcluster.singapore.open-cluster-management.io/clustername"
 	ManagedClusterSetlabel          string = "cluster.open-cluster-management.io/clusterset"
 )
 
@@ -165,6 +166,7 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 		logger.Error(err, "failed to sync ServiceAccount")
 		return ctrl.Result{}, err
 	}
+	logger.Info("GOT THE TOKEN!! ", "token", token) // TODO - delete this line!
 
 	// sync kcp-syncer deployment and supporting resources
 	if err := r.syncKcpSyncer(computeContext, ctx, regCluster, &managedCluster, &hubCluster, token); err != nil {
@@ -245,6 +247,8 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 	regCluster *singaporev1alpha1.RegisteredCluster,
 	managedCluster *clusterapiv1.ManagedCluster,
 	hubCluster *helpers.HubInstance) error {
+	r.Log.V(2).Info("updateImportCommand",
+		"registered cluster", regCluster.Name)
 	// get import secret from mce managecluster namespace
 	importSecret := &corev1.Secret{}
 	if err := hubCluster.Cluster.GetAPIReader().Get(ctx,
@@ -307,7 +311,6 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 	}
 
 	r.Log.V(2).Info("patch registeredCluster on compute with import secret",
-		"cluster", regCluster.ClusterName,
 		"namespace", regCluster.Namespace,
 		"name", regCluster.Name)
 	patch := client.MergeFrom(regCluster.DeepCopy())
@@ -335,7 +338,8 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 	hubCluster *helpers.HubInstance) (string, error) {
 
 	r.Log.V(2).Info("syncServiceAccount",
-		"registered cluster", regCluster.Name)
+		"registered cluster", regCluster.Name,
+		"location", regCluster.Spec.Location)
 
 	// Create the ServiceAccount if it doesn't yet exist
 	saName := helpers.GetSyncerServiceAccountName()
@@ -502,6 +506,8 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 			RegisteredClusterNamespaceLabel string
 			RegisteredClusterName           string
 			RegisteredClusterNamespace      string
+			ClusterNameAnnotation           string
+			RegisteredClusterClusterName    string
 			LogicalClusterLabel             string
 			LogicalCluster                  string
 			Image                           string
@@ -515,6 +521,8 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 			RegisteredClusterNamespaceLabel: RegisteredClusterNamespacelabel,
 			RegisteredClusterName:           regCluster.Name,
 			RegisteredClusterNamespace:      regCluster.Namespace,
+			ClusterNameAnnotation:           ClusterNameAnnotation,
+			RegisteredClusterClusterName:    managedCluster.Annotations[ClusterNameAnnotation],
 			LogicalCluster:                  regCluster.Spec.Location,
 			LogicalClusterLabel:             strings.ReplaceAll(regCluster.Spec.Location, ":", "_"),
 			Image:                           getSyncerImage(),
@@ -630,6 +638,7 @@ func (r *RegisteredClusterReconciler) createManagedCluster(ctx context.Context, 
 				Labels:       labels,
 				Annotations: map[string]string{
 					"open-cluster-management/service-name": "compute",
+					ClusterNameAnnotation:                  clusterName,
 				},
 			},
 			Spec: clusterapiv1.ManagedClusterSpec{
@@ -758,12 +767,13 @@ func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme 
 			managedCluster := o.(*clusterapiv1.ManagedCluster)
 			r.Log.Info("Processing ManagedCluster event", "name", managedCluster.Name)
 
-			req := make([]reconcile.Request, 0)
-			req = append(req, reconcile.Request{
+			req := make([]ctrl.Request, 0)
+			req = append(req, ctrl.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      managedCluster.GetLabels()[RegisteredClusterNamelabel],
 					Namespace: managedCluster.GetLabels()[RegisteredClusterNamespacelabel],
 				},
+				ClusterName: managedCluster.GetAnnotations()[ClusterNameAnnotation],
 			})
 			return req
 		}), builder.WithPredicates(managedClusterPredicate())).
@@ -777,6 +787,7 @@ func (r *RegisteredClusterReconciler) SetupWithManager(mgr ctrl.Manager, scheme 
 						Name:      manifestWork.GetLabels()[RegisteredClusterNamelabel],
 						Namespace: manifestWork.GetLabels()[RegisteredClusterNamespacelabel],
 					},
+					ClusterName: manifestWork.GetAnnotations()[ClusterNameAnnotation],
 				})
 				return req
 			}), builder.WithPredicates(manifestWorkPredicate()))

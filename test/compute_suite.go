@@ -141,8 +141,28 @@ func CreateWorkspace(workspace string, absoluteParent string, adminComputeKubeco
 	return nil
 }
 
+func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder *clusteradmapply.ApplierBuilder, readerResources *clusteradmasset.ScenarioResourcesReader) error {
+	klog.Info("create APIBinding")
+	computeApplier := computeAdminApplierBuilder.
+		WithContext(computeContext).Build()
+	files := []string{
+		"compute-templates/workspace/apibinding.yaml",
+	}
+	// Values for the appliers
+	values := struct {
+		Organization string
+	}{
+		Organization: ComputeOrganization,
+	}
+	_, err := computeApplier.ApplyCustomResources(readerResources, values, false, "", files...)
+	if err != nil {
+		klog.Error(err, " while applying APIBinding")
+	}
+	return err
+}
+
 func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath string) (computeContext context.Context,
-	computeRuntimeWorkspaceClient client.Client) {
+	computeRuntimeWorkspaceClient client.Client, apiExportVirtualWorkspaceKubeClient kubernetes.Interface) {
 	logf.SetLogger(klog.NewKlogr())
 
 	// Generate readers for appliers
@@ -420,6 +440,14 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
+	// Create the APIBinding in the cluster workspace
+	ginkgo.By(fmt.Sprintf("apply APIBinding on workspace %s", LocationWorkspace), func() {
+		gomega.Eventually(func() error {
+			locationContext := logicalcluster.WithCluster(context.Background(), logicalcluster.New(AbsoluteLocationWorkspace))
+			return CreateAPIBinding(locationContext, computeAdminApplierBuilder, readerResources)
+		}, 60, 3).Should(gomega.BeNil())
+	})
+
 	// Create compute workspace on compute server and enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of cluster workspace %s", ComputeWorkspace), func() {
 		gomega.Eventually(func() error {
@@ -430,23 +458,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	// Create the APIBinding in the cluster workspace
 	ginkgo.By(fmt.Sprintf("apply APIBinding on workspace %s", ComputeWorkspace), func() {
 		gomega.Eventually(func() error {
-			klog.Info("create APIBinding")
-			computeApplier := computeAdminApplierBuilder.
-				WithContext(computeContext).Build()
-			files := []string{
-				"compute-templates/workspace/apibinding.yaml",
-			}
-			// Values for the appliers
-			values := struct {
-				Organization string
-			}{
-				Organization: ComputeOrganization,
-			}
-			_, err := computeApplier.ApplyCustomResources(readerResources, values, false, "", files...)
-			if err != nil {
-				klog.Error(err, " while applying APIBinding")
-			}
-			return err
+			return CreateAPIBinding(computeContext, computeAdminApplierBuilder, readerResources)
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
@@ -456,6 +468,16 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	computeRestWorkspaceConfig, err := clientcmd.RESTConfigFromKubeConfig(computeWorkspaceKubconfigData)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	computeRuntimeWorkspaceClient, err = client.New(computeRestWorkspaceConfig, client.Options{Scheme: scheme})
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	kubeconfig, err := ioutil.ReadFile(filepath.Clean(saComputeKubeconfigFileAbs))
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	controllerSAKubeConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	cfg, err := helpers.RestConfigForAPIExport(organizationContext, controllerSAKubeConfig, "compute-apis", scheme)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	computeKubeconfig := apimachineryclient.NewClusterConfig(cfg)
+	apiExportVirtualWorkspaceKubeClient, err = kubernetes.NewForConfig(computeKubeconfig)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	return

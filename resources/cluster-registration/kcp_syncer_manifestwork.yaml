@@ -8,6 +8,8 @@ metadata:
   labels:
    {{ .RegisteredClusterNameLabel }}: {{ .RegisteredClusterName }}
    {{ .RegisteredClusterNamespaceLabel }}: {{ .RegisteredClusterNamespace }} 
+  annotations: 
+   {{ .ClusterNameAnnotation }}: {{ .RegisteredClusterClusterName }}  
 spec:
   workload:
     manifests:

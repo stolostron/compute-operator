@@ -12,9 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	utilflag "k8s.io/component-base/cli/flag"
 
+	"github.com/kcp-dev/logicalcluster"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spf13/pflag"
@@ -50,9 +52,10 @@ const (
 )
 
 var (
-	computeContext                context.Context
-	computeRuntimeWorkspaceClient client.Client
-	controllerRestConfig          *rest.Config
+	computeContext                      context.Context
+	computeRuntimeWorkspaceClient       client.Client
+	controllerRestConfig                *rest.Config
+	apiExportVirtualWorkspaceKubeClient kubernetes.Interface
 )
 
 func TestAPIs(t *testing.T) {
@@ -71,7 +74,8 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	var hubKubeconfigString string
 	computeContext,
-		computeRuntimeWorkspaceClient = test.SetupCompute(scheme,
+		computeRuntimeWorkspaceClient,
+		apiExportVirtualWorkspaceKubeClient = test.SetupCompute(scheme,
 		controllerNamespace,
 		"../../build/")
 	controllerRestConfig, hubKubeconfigString = test.SetupControllerEnvironment(scheme, controllerNamespace,
@@ -91,7 +95,9 @@ var _ = BeforeSuite(func() {
 		pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
 		klog.InitFlags(goflag.CommandLine)
 		pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
-		//TODO Verbosity Level
+		goflag.Set("v", "2")
+		goflag.Parse()
+		//TODO Customize Verbosity Level
 		defer klog.Flush()
 		logs.InitLogs()
 		defer logs.FlushLogs()
@@ -105,7 +111,6 @@ var _ = BeforeSuite(func() {
 			cmd.SetArgs([]string{
 				"--logtostderr=false",
 				"--log-file=" + managerLog,
-				"--v=2",
 			})
 		}
 		err := cmd.Execute()
@@ -366,6 +371,19 @@ var _ = Describe("Process registeredCluster: ", func() {
 				}
 				return nil
 			}, 60, 1).Should(BeNil())
+		})
+
+		// Check if the service account was created in the location workspace
+		By("Checking syncer service account in location workspace", func() {
+			Eventually(func() error {
+				locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(test.AbsoluteLocationWorkspace))
+				klog.Infof("getting service account %s in workspace %s", helpers.GetSyncerServiceAccountName(), test.AbsoluteLocationWorkspace)
+				_, err := apiExportVirtualWorkspaceKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, helpers.GetSyncerServiceAccountName(), metav1.GetOptions{})
+				if err != nil {
+					klog.Errorf("failed getting service account %s", err)
+				}
+				return err
+			}, 30, 10).Should(BeNil())
 		})
 
 		// Check if the manifestwork was created on the hub
