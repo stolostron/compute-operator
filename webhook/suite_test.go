@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -34,10 +35,11 @@ const (
 )
 
 var (
-	computeContext                context.Context
-	controllerRestConfig          *rest.Config
-	computeRuntimeWorkspaceClient client.Client
-	scheme                        = runtime.NewScheme()
+	computeContext                      context.Context
+	controllerRestConfig                *rest.Config
+	computeRuntimeWorkspaceClient       client.Client
+	apiExportVirtualWorkspaceKubeClient kubernetes.Interface
+	scheme                              = runtime.NewScheme()
 )
 
 func TestAPIs(t *testing.T) {
@@ -57,7 +59,8 @@ var _ = BeforeSuite(func() {
 	var hubKubeconfigString string
 
 	computeContext,
-		computeRuntimeWorkspaceClient = test.SetupCompute(scheme,
+		computeRuntimeWorkspaceClient,
+		apiExportVirtualWorkspaceKubeClient = test.SetupCompute(scheme,
 		controllerNamespace,
 		"../build/")
 

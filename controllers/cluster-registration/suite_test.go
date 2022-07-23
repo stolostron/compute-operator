@@ -12,9 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	utilflag "k8s.io/component-base/cli/flag"
 
+	"github.com/kcp-dev/logicalcluster"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spf13/pflag"
@@ -26,13 +28,12 @@ import (
 	"k8s.io/component-base/logs"
 	"k8s.io/klog/v2"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
 
-	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/stolostron/compute-operator/pkg/helpers"
 	"github.com/stolostron/compute-operator/test"
 
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
@@ -51,9 +52,10 @@ const (
 )
 
 var (
-	computeContext                context.Context
-	computeRuntimeWorkspaceClient client.Client
-	controllerRestConfig          *rest.Config
+	computeContext                      context.Context
+	computeRuntimeWorkspaceClient       client.Client
+	controllerRestConfig                *rest.Config
+	apiExportVirtualWorkspaceKubeClient kubernetes.Interface
 )
 
 func TestAPIs(t *testing.T) {
@@ -72,7 +74,8 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	var hubKubeconfigString string
 	computeContext,
-		computeRuntimeWorkspaceClient = test.SetupCompute(scheme,
+		computeRuntimeWorkspaceClient,
+		apiExportVirtualWorkspaceKubeClient = test.SetupCompute(scheme,
 		controllerNamespace,
 		"../../build/")
 	controllerRestConfig, hubKubeconfigString = test.SetupControllerEnvironment(scheme, controllerNamespace,
@@ -92,7 +95,9 @@ var _ = BeforeSuite(func() {
 		pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
 		klog.InitFlags(goflag.CommandLine)
 		pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
-		//TODO Verbosity Level
+		goflag.Set("v", "2")
+		goflag.Parse()
+		//TODO Customize Verbosity Level
 		defer klog.Flush()
 		logs.InitLogs()
 		defer logs.FlushLogs()
@@ -168,7 +173,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					Namespace: workingClusterComputeNamespace,
 				},
 				Spec: singaporev1alpha1.RegisteredClusterSpec{
-					Location: "FakeKcpLocation",
+					Location: test.AbsoluteLocationWorkspace,
 				},
 			}
 		})
@@ -367,40 +372,18 @@ var _ = Describe("Process registeredCluster: ", func() {
 				return nil
 			}, 60, 1).Should(BeNil())
 		})
-		// Check if the managedclusteraddon was created on the hub
-		By("Checking managedclusteraddon", func() {
+
+		// Check if the service account was created in the location workspace
+		By("Checking syncer service account in location workspace", func() {
 			Eventually(func() error {
-				managedClusterAddon := &addonv1alpha1.ManagedClusterAddOn{}
-
-				if err := controllerRuntimeClient.Get(context.TODO(),
-					types.NamespacedName{
-						Name:      ManagedClusterAddOnName,
-						Namespace: managedCluster.Name,
-					},
-					managedClusterAddon); err != nil {
-					klog.Info("Waiting managedClusteraddon", "Error", err)
-					return err
+				locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(test.AbsoluteLocationWorkspace))
+				klog.Infof("getting service account %s in workspace %s", helpers.GetSyncerServiceAccountName(), test.AbsoluteLocationWorkspace)
+				_, err := apiExportVirtualWorkspaceKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, helpers.GetSyncerServiceAccountName(), metav1.GetOptions{})
+				if err != nil {
+					klog.Errorf("failed getting service account %s", err)
 				}
-				return nil
-			}, 30, 1).Should(BeNil())
-		})
-
-		// Check if the managedserviceaccount was created on the hub
-		By("Checking managedserviceaccount", func() {
-			Eventually(func() error {
-				managed := &authv1alpha1.ManagedServiceAccount{}
-
-				if err := controllerRuntimeClient.Get(context.TODO(),
-					types.NamespacedName{
-						Name:      ManagedServiceAccountName,
-						Namespace: managedCluster.Name,
-					},
-					managed); err != nil {
-					klog.Info("Waiting managedserviceaccount", "Error", err)
-					return err
-				}
-				return nil
-			}, 30, 1).Should(BeNil())
+				return err
+			}, 30, 10).Should(BeNil())
 		})
 
 		// Check if the manifestwork was created on the hub
@@ -410,7 +393,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 
 				err := controllerRuntimeClient.Get(context.TODO(),
 					types.NamespacedName{
-						Name:      ManagedServiceAccountName,
+						Name:      helpers.GetSyncerName(registeredCluster.Name),
 						Namespace: managedCluster.Name,
 					},
 					manifestwork)
@@ -429,7 +412,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 
 			err := controllerRuntimeClient.Get(context.TODO(),
 				types.NamespacedName{
-					Name:      ManagedServiceAccountName,
+					Name:      helpers.GetSyncerName(registeredCluster.Name),
 					Namespace: managedCluster.Name,
 				},
 				manifestwork)
@@ -446,22 +429,6 @@ var _ = Describe("Process registeredCluster: ", func() {
 			}
 			err = controllerRuntimeClient.Update(context.TODO(), manifestwork)
 			Expect(err).Should(BeNil())
-		})
-
-		// Create a managedserviceaccoutn secret
-		By("Create managedserviceaccount secret", func() {
-			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      ManagedServiceAccountName,
-					Namespace: managedCluster.Name,
-				},
-				Data: map[string][]byte{
-					"token":  []byte("token"),
-					"ca.crt": []byte("ca-cert"),
-				},
-			}
-			err := controllerRuntimeClient.Create(context.TODO(), secret)
-			Expect(err).To(BeNil())
 		})
 
 		// Delete the registeredcluster

@@ -29,14 +29,6 @@ rules:
 - apiGroups:
   - apis.kcp.dev
   resources:
-  - apiexports
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apis.kcp.dev
-  resources:
   - apiexports/status
   verbs:
   - get
@@ -55,9 +47,9 @@ rules:
 - apiGroups:
   - singapore.open-cluster-management.io
   resources:
-  - "registeredclusters"
-  - "registeredclusters/status"
-  - "registeredclusters/finalizers"
+  - registeredclusters
+  - registeredclusters/status
+  - registeredclusters/finalizers
   verbs:
   - create
   - delete
