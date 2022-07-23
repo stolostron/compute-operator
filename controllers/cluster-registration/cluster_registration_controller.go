@@ -166,7 +166,6 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 		logger.Error(err, "failed to sync ServiceAccount")
 		return ctrl.Result{}, err
 	}
-	logger.Info("GOT THE TOKEN!! ", "token", token) // TODO - delete this line!
 
 	// sync kcp-syncer deployment and supporting resources
 	if err := r.syncKcpSyncer(computeContext, ctx, regCluster, &managedCluster, &hubCluster, token); err != nil {

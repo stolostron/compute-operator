@@ -7,7 +7,7 @@ metadata:
 spec:
   reference:
     workspace:
-      path: root:ryb-compute
+      path: root:{{ .Organization }}
       exportName: compute-apis
   acceptedPermissionClaims:
   - group: ""
