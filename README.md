@@ -263,7 +263,28 @@ kubectl apply -f hack/compute/apibinding.yaml
 registeredclusters                             singapore.open-cluster-management.io/v1alpha1   true         RegisteredCluster
 ```
 
-4. Create a registeredcluster CR in the kcp workspace
+4. Get the identityhash for synctarget resource in kcp
+```bash
+kubectl get apibindings workload.kcp.dev -o jsonpath='{.status.boundResources[?(@.resource=="synctargets")].schema.identityHash}'
+```
+And add the permissionClaim for synctarget and enter the identityhash which you got by executing above command in the apiexport `compute-apis` as follows
+```bash
+ - group: workload.kcp.dev
+   resource: synctargets
+   identityHash: <identityhash>
+```
+
+5. Create APIBinding to the compute-apis APIExport in the location workspace 
+
+Edit the file hack/compute/apibinding_location_vw.yaml spec.reference.workspace.path to point at the workspace you created above in [Generating a kubeconfig for your kcp cluster](#generating-a-kubeconfig-for-your-kcp-cluster)
+
+Edit the spec.acceptedPermissionClaims.identityHash with the value you got in the step 4
+
+```bash
+kubectl apply -f hack/compute/apibinding_location_vw.yaml
+```
+
+6. Create a registeredcluster CR in the kcp workspace
 
 ```bash
 kubectl create ns <a_namespace>

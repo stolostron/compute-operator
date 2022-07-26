@@ -186,7 +186,7 @@ func (o *managerOptions) run() {
 		os.Exit(1)
 	}
 
-	kcpClusterClient, err := kcpclient.NewClusterForConfig(computeKubeconfig)
+	kcpClusterClient, err := kcpclient.NewClusterForConfig(cfg)
 	if err != nil {
 		setupLog.Error(giterrors.WithStack(err), "error creating clientset for kcp")
 		os.Exit(1)

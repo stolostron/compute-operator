@@ -59,6 +59,7 @@ import (
 const (
 	RegisteredClusterNamelabel      string = "registeredcluster.singapore.open-cluster-management.io/name"
 	RegisteredClusterNamespacelabel string = "registeredcluster.singapore.open-cluster-management.io/namespace"
+	RegisteredClusterWorkspace      string = "registeredcluster.singapore.open-cluster-management.io/clustername"
 	RegisteredClusterUidLabel       string = "registeredcluster.singapore.open-cluster-management.io/uid"
 	ClusterNameAnnotation           string = "registeredcluster.singapore.open-cluster-management.io/clustername"
 	ManagedClusterSetlabel          string = "cluster.open-cluster-management.io/clusterset"
@@ -183,66 +184,182 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 
 	if err := r.createSyncTarget(computeContext, regCluster, &managedCluster); err != nil {
 		logger.Error(err, "failed to create synctarget in location workspace...")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, giterrors.WithStack(err)
 	}
 
 	return ctrl.Result{}, nil
 }
 
+/*func (r *RegisteredClusterReconciler) getIdentityHashSyncTarget(computeContext context.Context) (string, error) {
+	logicalClusterName, _ := logicalcluster.ClusterFromContext(computeContext)
+	workloadApiBinding, err := r.KCPClusterClient.Cluster(logicalClusterName).ApisV1alpha1().APIBindings().Get(computeContext, "workload.kcp.dev", metav1.GetOptions{})
+	if err != nil {
+		return "", giterrors.WithStack(err)
+	}
+	var identityHash string
+	for _, resource := range workloadApiBinding.Status.BoundResources {
+		if resource.Resource == "synctargets" {
+			identityHash = resource.Schema.IdentityHash
+		}
+	}
+
+	return identityHash, nil
+}
+
+func (r *RegisteredClusterReconciler) updateAPIExport(computeContext context.Context, identityHash string) error {
+	logicalClusterName, _ := logicalcluster.ClusterFromContext(computeContext)
+	aPIExport, err := r.KCPClusterClient.Cluster(logicalClusterName).ApisV1alpha1().APIExports().Get(computeContext, "compute-apis", metav1.GetOptions{})
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
+
+	synctargetPermissionclaim := apisv1alpha1.PermissionClaim{
+		GroupResource: apisv1alpha1.GroupResource{
+			Group:    "workload.kcp.dev",
+			Resource: "synctargets",
+		},
+		IdentityHash: identityHash,
+	}
+
+	// add permissionclaim for synctarget in existing compute-apis APIExport
+	aPIExport.Spec.PermissionClaims = append(aPIExport.Spec.PermissionClaims, synctargetPermissionclaim)
+	_, err = r.KCPClusterClient.Cluster(logicalClusterName).ApisV1alpha1().APIExports().Update(computeContext, aPIExport, metav1.UpdateOptions{})
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
+	return nil
+}
+
+func (r *RegisteredClusterReconciler) checkAPIBindingStatus(locationContext context.Context) (bool, error) {
+
+	locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
+	apiBinding, err := r.KCPClusterClient.Cluster(locationClusterName).ApisV1alpha1().APIBindings().Get(locationContext, "compute-operator", metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	for _, condition := range apiBinding.Status.Conditions {
+		if condition.Type == apisv1alpha1.PermissionClaimsAccepted && condition.Status == corev1.ConditionTrue {
+			return true, nil
+		}
+	}
+	return false, nil
+} */
+
+func (r *RegisteredClusterReconciler) checkSynctargetExists(locationContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster) (int, error) {
+	locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
+
+	// locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(regCluster.Spec.Location))
+	// locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
+
+	// matchlabels := map[string]string{
+	// 	RegisteredClusterNamelabel: regCluster.Name,
+	// 	//RegisteredClusterNamespacelabel: regCluster.Namespace,
+	// }
+
+	// labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{RegisteredClusterNamelabel: regCluster.Name}}
+
+	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(locationClusterName.String(), ":", "-")
+
+	syncTargetList, err := r.KCPClusterClient.Cluster(locationClusterName).WorkloadV1alpha1().SyncTargets().List(locationContext, metav1.ListOptions{
+		LabelSelector: labels,
+	})
+	if err != nil {
+		return 0, giterrors.WithStack(err)
+	}
+
+	r.Log.V(4).Info("Number of synctarget found with lables",
+		"number", len(syncTargetList.Items),
+		RegisteredClusterNamelabel, regCluster.Name,
+		RegisteredClusterNamespacelabel, regCluster.Namespace)
+
+	if len(syncTargetList.Items) == 1 {
+		return len(syncTargetList.Items), nil
+	}
+
+	return len(syncTargetList.Items), nil
+
+}
+
 func (r *RegisteredClusterReconciler) createSyncTarget(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster) error {
 
-	fmt.Println("hello")
 	logger := r.Log.WithName("createSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
 
-	// If cluster has joined, sync the ManifestWork to create the roles and bindings for the service account
 	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
-		// syncTarget := &workloadv1alpha1.SyncTarget{
-		// 	TypeMeta: metav1.TypeMeta{
-		// 		APIVersion: workloadv1alpha1.SchemeGroupVersion.String(),
-		// 		Kind:       "SyncTarget",
-		// 	},
-		// 	ObjectMeta: metav1.ObjectMeta{
-		// 		GenerateName: "registered-cluster-",
-		// 		ClusterName:  regCluster.Spec.Location,
-		// 	},
-		// 	Spec: workloadv1alpha1.SyncTargetSpec{
-		// 		Unschedulable: false,
-		// 	},
-		// }
-		// computeContextNew := logicalcluster.WithCluster(computeContext, logicalcluster.New(regCluster.Spec.Location))
-		// fmt.Println("computeContextNew: ", computeContextNew)
-		// logicalClusterName, _ := logicalcluster.ClusterFromContext(computeContextNew)
 
-		// fmt.Println("logicalclustername: ", logicalClusterName)
-		// if _, err := r.KCPClusterClient.Cluster(logicalClusterName).WorkloadV1alpha1().SyncTargets().Create(computeContextNew, syncTarget, metav1.CreateOptions{}); err != nil {
-		// 	return nil
-		// }
+		//logicalClusterName, _ := logicalcluster.ClusterFromContext(computeContext)
 
-		applier := clusteradmapply.NewApplierBuilder().
-			WithClient(r.ComputeKubeClient,
-				r.ComputeAPIExtensionClient,
-				r.ComputeDynamicClient).
-			WithContext(computeContext).
-			Build()
+		locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(regCluster.Spec.Location))
+		locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
 
-		readerDeploy := resources.GetScenarioResourcesReader()
-
-		files := []string{
-			"cluster-registration/synctarget.yaml",
-		}
-
-		values := struct {
-			Name string
-		}{
-			Name: regCluster.Name,
-		}
-
-		_, err := applier.ApplyCustomResources(readerDeploy, values, false, "", files...)
+		syncTargetLength, err := r.checkSynctargetExists(locationContext, regCluster)
 		if err != nil {
 			return giterrors.WithStack(err)
 		}
+		if syncTargetLength == 0 {
+			// identityHash, err := r.getIdentityHashSyncTarget(computeContext)
+			// if err != nil {
+			// 	return giterrors.WithStack(err)
+			// }
 
-		logger.V(1).Info("SyncTarget is created")
+			// if err := r.updateAPIExport(computeContext, identityHash); err != nil {
+			// 	return giterrors.WithStack(err)
+			// }
+
+			//create APIBinding in the location workspace
+			// aPIBinding := &v1alpha1.APIBinding{
+			// 	TypeMeta: metav1.TypeMeta{
+			// 		APIVersion: v1alpha1.SchemeGroupVersion.String(),
+			// 		Kind:       "APIBinding",
+			// 	},
+			// 	ObjectMeta: metav1.ObjectMeta{
+			// 		Name: "compute-operator",
+			// 	},
+			// 	Spec: v1alpha1.APIBindingSpec{
+			// 		Reference: v1alpha1.ExportReference{
+			// 			Workspace: &v1alpha1.WorkspaceExportReference{
+			// 				Path:       logicalClusterName.String(),
+			// 				ExportName: APIExportName,
+			// 			},
+			// 		},
+			// 	},
+			// }
+
+			// if _, err := r.KCPClusterClient.Cluster(locationClusterName).ApisV1alpha1().APIBindings().Create(locationContext, aPIBinding, metav1.CreateOptions{}); err != nil {
+			// 	return giterrors.WithStack(err)
+			// }
+
+			//check the status PermissionClaimAccepted
+			// ok, err := r.checkAPIBindingStatus(locationContext)
+			// if err != nil {
+			// 	return giterrors.WithStack(err)
+			// }
+
+			syncTarget := &workloadv1alpha1.SyncTarget{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: workloadv1alpha1.SchemeGroupVersion.String(),
+					Kind:       "SyncTarget",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "registered-cluster-",
+					ClusterName:  regCluster.Spec.Location,
+					Labels: map[string]string{
+						RegisteredClusterNamelabel:      regCluster.Name,
+						RegisteredClusterNamespacelabel: regCluster.Namespace,
+						RegisteredClusterWorkspace:      strings.ReplaceAll(locationClusterName.String(), ":", "-"),
+					},
+				},
+				Spec: workloadv1alpha1.SyncTargetSpec{
+					Unschedulable: false,
+				},
+			}
+
+			if _, err := r.KCPClusterClient.Cluster(locationClusterName).WorkloadV1alpha1().SyncTargets().Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
+				return giterrors.WithStack(err)
+			}
+
+			logger.V(1).Info("SyncTarget is created")
+		}
 	}
 	return nil
 }
