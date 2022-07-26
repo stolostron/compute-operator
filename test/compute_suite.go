@@ -85,6 +85,7 @@ const (
 	SAComputeKubeconfigFile string = SAComputeKubeconfigDir + "/kubeconfig-" + ControllerComputeServiceAccount + ".yaml"
 
 	// The compute kubeconfig secret name on the controller cluster
+	//#nosec G101 -- This is a false positive in test code
 	computeKubeconfigSecret string = "kcp-kubeconfig"
 )
 
@@ -199,10 +200,14 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 				computeServer.Stdout = os.Stdout
 				computeServer.Stderr = os.Stderr
 			} else {
-				os.MkdirAll(filepath.Dir(filepath.Clean(kcpLogFile)), 0700)
+				gomega.Expect(os.MkdirAll(filepath.Dir(filepath.Clean(kcpLogFile)), 0700)).To(gomega.BeNil())
 				f, err := os.OpenFile(filepath.Clean(kcpLogFile), os.O_WRONLY|os.O_CREATE, 0600)
 				gomega.Expect(err).To(gomega.BeNil())
-				defer f.Close()
+				defer func() {
+					if err := f.Close(); err != nil {
+						klog.Error(err, " Error closing file")
+					}
+				}()
 				computeServer.Stdout = f
 				computeServer.Stderr = f
 			}
@@ -216,6 +221,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	ginkgo.By("switch context system:admin", func() {
 		gomega.Eventually(func() error {
 			klog.Info("switch context")
+			//#nosec G204 -- This is a false positive in test code
 			cmd := exec.Command("kubectl", "--kubeconfig", adminComputeKubeconfigFile,
 				"config",
 				"use-context",
@@ -232,6 +238,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 
 	ginkgo.By("reading the kcpkubeconfig", func() {
 		gomega.Eventually(func() error {
+			//#nosec G304 -- This is a false positive in test code
 			computeAdminKubconfigData, err = ioutil.ReadFile(adminComputeKubeconfigFile)
 			return err
 		}, 60, 3).Should(gomega.BeNil())
@@ -262,6 +269,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	ginkgo.By("switch context root", func() {
 		gomega.Eventually(func() error {
 			klog.Info("switch context")
+			//#nosec G204 -- This is a false positive in test code
 			cmd := exec.Command("kubectl", "--kubeconfig", adminComputeKubeconfigFile,
 				"config",
 				"use-context",
@@ -366,6 +374,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 			adminComputeKubeconfigFile, err := filepath.Abs(adminComputeKubeconfigFile)
 			gomega.Expect(err).To(gomega.BeNil())
 			// // os.Setenv("KUBECONFIG", adminComputeKubeconfigFile)
+			//#nosec 2304 -- This is a false positive in test code
 			cmd := exec.Command(filepath.Join(filepath.Clean(scriptsPath), "generate_kubeconfig_from_sa.sh"),
 				adminComputeKubeconfigFile,
 				ControllerComputeServiceAccount,
@@ -463,6 +472,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	})
 
 	// Create the runtime client for the cluster workspace in order to check the registedcluster on kcp
+	//#nosec G304 -- This is a false positive in test code
 	computeWorkspaceKubconfigData, err := ioutil.ReadFile(adminComputeKubeconfigFile)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	computeRestWorkspaceConfig, err := clientcmd.RESTConfigFromKubeConfig(computeWorkspaceKubconfigData)
