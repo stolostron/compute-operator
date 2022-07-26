@@ -199,10 +199,14 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 				computeServer.Stdout = os.Stdout
 				computeServer.Stderr = os.Stderr
 			} else {
-				os.MkdirAll(filepath.Dir(filepath.Clean(kcpLogFile)), 0700)
+				gomega.Expect(os.MkdirAll(filepath.Dir(filepath.Clean(kcpLogFile)), 0700)).To(gomega.BeNil())
 				f, err := os.OpenFile(filepath.Clean(kcpLogFile), os.O_WRONLY|os.O_CREATE, 0600)
 				gomega.Expect(err).To(gomega.BeNil())
-				defer f.Close()
+				defer func() {
+					if err := f.Close(); err != nil {
+						klog.Error(err, " Error closing file")
+					}
+				}()
 				computeServer.Stdout = f
 				computeServer.Stderr = f
 			}
