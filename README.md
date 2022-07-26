@@ -22,19 +22,7 @@ You must meet the following requirements:
 - access to a kcp instance
 
 ## Unit Test
-To run a suite of unit tests using ginkgo:
-```make test```
-
-NOTE: The unit tests use a local kcp instance to test against.  To be sure you are using the
-proper kcp code that the compute operator is written for, do the following before running the tests:
-- remove the current kubectl kcp command line plugin
-```
-rm $GOPATH/bin/kubectl-kcp
-```
-- pull the correct kcp version and rebuild the kubectl kcp command line plugin
-```
-make kcp-plugin
-```   
+To run a suite of unit tests using ginkgo, please refer to the documentation in the [Contributing Guide](CONTRIBUTING.md#pre-check-before-submitting-a-pr)
 
 ## Prepare your kubeconfigs
 
