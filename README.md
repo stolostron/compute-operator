@@ -20,6 +20,10 @@ You must meet the following requirements:
 - `kustomize` (ver. 4.2.0+)
 - access to a current ACM/MCE/OCM hub (TODO: provide more specific requirements)
 - access to a kcp instance
+
+## Unit Test
+To run a suite of unit tests using ginkgo, please refer to the documentation in the [Contributing Guide](CONTRIBUTING.md#pre-check-before-submitting-a-pr)
+
 ## Prepare your kubeconfigs
 
 To use this operator, you will need kubeconfigs for a managed hub cluster and a KCP workspace.
@@ -51,7 +55,7 @@ kubectl config view --context=<context_of_the_managed_hub_cluster> --minify --fl
 2. Create a new workspace or enter an existing workspace where you will install the APIResourceSchema and create a ServiceAccount for this operator
 3. Create a service account in your workspace for example:
 ```bash
-# kubectl create serviceaccount sa_name -n sa_namespace 
+# kubectl create serviceaccount sa_name -n sa_namespace
 kubectl create serviceaccount compute-operator -n default
 ```
 4. Generate the kubeconfig from this SA
@@ -269,5 +273,3 @@ oc cluster-info
 ```bash
 oc get registeredcluster -A
 ```
-
-
