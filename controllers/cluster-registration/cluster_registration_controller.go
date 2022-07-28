@@ -201,8 +201,6 @@ func (r *RegisteredClusterReconciler) checkSynctargetExists(locationContext cont
 	syncTargetList, err := r.ComputeDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
 		LabelSelector: labels,
 	})
-	fmt.Println("list: ", syncTargetList)
-	fmt.Println("err: ", err)
 
 	if err != nil {
 		return 0, giterrors.WithStack(err)
