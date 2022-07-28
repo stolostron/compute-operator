@@ -125,7 +125,7 @@ echo "-- Creating vcluster to host KCP service"
 oc create ns ${VC_KCP}
 oc config current-context view | vcluster create ${VC_KCP} --expose --connect=true --namespace=${VC_KCP} -f vcluster-values.yml --context=
 echo "-- Excplitily state context"
-oc config current-context view | oc get ns --context=
+oc config current-context view
 echo "-- Run without setting context" 
 oc get ns
 vcluster disconnect
