@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 
 	apimachineryclient "github.com/kcp-dev/apimachinery/pkg/client"
-	kcpclient "github.com/kcp-dev/kcp/pkg/client/clientset/versioned"
+	//kcpclient "github.com/kcp-dev/kcp/pkg/client/clientset/versioned"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -186,11 +186,11 @@ func (o *managerOptions) run() {
 		os.Exit(1)
 	}
 
-	kcpClusterClient, err := kcpclient.NewClusterForConfig(cfg)
-	if err != nil {
-		setupLog.Error(giterrors.WithStack(err), "error creating clientset for kcp")
-		os.Exit(1)
-	}
+	// kcpClusterClient, err := kcpclient.NewClusterForConfig(cfg)
+	// if err != nil {
+	// 	setupLog.Error(giterrors.WithStack(err), "error creating clientset for kcp")
+	// 	os.Exit(1)
+	// }
 
 	setupLog.Info("server url:", "cfg.Host", cfg.Host)
 	mgr, err := kcp.NewClusterAwareManager(cfg, opts)
@@ -230,7 +230,7 @@ func (o *managerOptions) run() {
 		ComputeKubeClient:         computeKubeClient,
 		ComputeDynamicClient:      computeDynamicClient,
 		ComputeAPIExtensionClient: computeApiExtensionClient,
-		KCPClusterClient:          kcpClusterClient,
+		//KCPClusterClient:          kcpClusterClient,
 	}).SetupWithManager(mgr, scheme); err != nil {
 		setupLog.Error(giterrors.WithStack(err), "unable to create controller", "controller", "Cluster Registration")
 		os.Exit(1)

@@ -6,8 +6,8 @@ require (
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/go-logr/logr v1.2.3
 	github.com/kcp-dev/apimachinery v0.0.0-20220708220956-c302aeddfde7
+	//github.com/kcp-dev/kcp v0.6.1
 	github.com/kcp-dev/kcp/pkg/apis v0.6.1
-	github.com/kcp-dev/kcp v0.6.0
 	github.com/kcp-dev/logicalcluster v1.1.1-0.20220705215104-8e46328c24a5
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.19.0
@@ -28,6 +28,8 @@ require (
 	open-cluster-management.io/managed-serviceaccount v0.2.1-0.20220427065210-de6a7b7b5be8
 	sigs.k8s.io/controller-runtime v0.12.2
 )
+
+//require github.com/openshift/generic-admission-server v1.14.0
 
 require (
 	cloud.google.com/go v0.99.0 // indirect
