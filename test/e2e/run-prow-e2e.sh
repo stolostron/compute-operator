@@ -123,15 +123,22 @@ vcluster disconnect
 
 echo "-- Creating vcluster to host KCP service"
 oc create ns ${VC_KCP}
-oc config current-context view | vcluster create ${VC_KCP} --expose --connect=true --namespace=${VC_KCP} -f vcluster-values.yml --context=
-echo "-- Excplitily state context"
-oc config current-context view
-echo "-- Run without setting context" 
+## this fails on oc get ns due to dialup error
+# oc config current-context view | vcluster create ${VC_KCP} --expose --connect=true --namespace=${VC_KCP} -f vcluster-values.yml --context=
+# echo "-- Excplitily state context"
+# oc config current-context view
+# echo "-- Run without setting context" 
+# oc get ns
+# vcluster disconnect
+
+oc config current-context view | vcluster create ${VC_KCP} --expose --connect=false --namespace=${VC_KCP} -f vcluster-values.yml --context=
+echo "-- Connect to and then export vcluster kubeconfig for compute cluster, try oc get ns, and disconnect"
+vcluster connect ${VC_KCP} -n ${VC_KCP} --kube-config=./${VC_KCP}.kubeconfig
 oc get ns
 vcluster disconnect
 
-echo "-- Export vcluster kubeconfig for kcp cluster"
-vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config=./${VC_KCP}.kubeconfig
+# echo "-- Export vcluster kubeconfig for kcp cluster"
+# vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config=./${VC_KCP}.kubeconfig
 
 # # Make sure the managed cluster is ready to be used
 # echo "Waiting up to 15 minutes for managed cluster to be ready"
@@ -186,9 +193,9 @@ export COMPUTE_OPERATOR_DIR=${COMPUTE_OPERATOR_DIR:-"/compute-operator"}
 #}
 
 echo "-- Connect to compute vcluster"
-vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --insecure
+vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config=./${VC_COMPUTE}.kubeconfig
 
-oc get namespaces
+oc get ns
 
 echo "--- Install compute operator ..."
 ./install-compute-operator.sh
