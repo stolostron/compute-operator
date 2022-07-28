@@ -88,7 +88,6 @@ var _ = BeforeSuite(func() {
 		defer GinkgoRecover()
 		klog.Info("run controller")
 
-		Expect(os.Setenv("POD_NAME", "installer-pod")).To(BeNil())
 		Expect(os.Setenv("POD_NAMESPACE", controllerNamespace)).To(BeNil())
 
 		rand.Seed(time.Now().UTC().UnixNano())

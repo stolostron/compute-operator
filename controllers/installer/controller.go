@@ -3,6 +3,7 @@
 package installer
 
 import (
+	"errors"
 	"os"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -89,13 +90,27 @@ func (o *installerOptions) run() {
 
 	setupLog.Info("Add Installer reconciler")
 
+	controllerNamespace := os.Getenv("POD_NAMESPACE")
+	if len(controllerNamespace) == 0 {
+		setupLog.Error(errors.New("POD_NAMESPACE not set"), "missing required environment variable")
+		os.Exit(1)
+	}
+
+	controllerImage := os.Getenv("CONTROLLER_IMAGE")
+	if len(controllerImage) == 0 {
+		setupLog.Error(errors.New("CONTROLLER_IMAGE not set"), "missing required environment variable")
+		os.Exit(1)
+	}
+
 	if err = (&ClusterRegistrarReconciler{
-		Client:             mgr.GetClient(),
-		KubeClient:         kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie()),
-		DynamicClient:      dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie()),
-		APIExtensionClient: apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie()),
-		Log:                ctrl.Log.WithName("controllers").WithName("Installer"),
-		Scheme:             mgr.GetScheme(),
+		Client:              mgr.GetClient(),
+		KubeClient:          kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie()),
+		DynamicClient:       dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie()),
+		APIExtensionClient:  apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie()),
+		Log:                 ctrl.Log.WithName("controllers").WithName("Installer"),
+		Scheme:              mgr.GetScheme(),
+		ControllerNamespace: controllerNamespace,
+		ControllerImage:     controllerImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Installer")
 		os.Exit(1)

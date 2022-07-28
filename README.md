@@ -86,7 +86,7 @@ oc new-project $POD_NAMESPACE
 make run-local
 ```
 
-TODO: Debug directions
+Once you've run the steps above, you are also set up to use the included [launch.json](.vscode/launch.json) file to run in the debugger. Ensure your default kubeconfig's current context is set to the cluster you'd like to run the controller against, or add a KUBECONFIG env var to the launch.json.
 
 ### Deploy operator to a cluster
 
@@ -94,6 +94,17 @@ TODO: Debug directions
 
 ```bash
 oc cluster-info
+```
+
+You can also deploy the cluster to kcp. Verify you are logged in to the workspace you created for the controller [above](https://github.com/stolostron/compute-operator#generating-a-kubeconfig-for-your-managed-hub-cluster).
+
+```bash
+kubectl kcp ws .
+```
+
+Your kcp workspace will need the deployments API available. Bind to any available kubernetes API export or set up your own SyncTarget, then confirm.
+```bash
+kubectl api-resources | grep deployment
 ```
 
 2. From the cloned compute-operator directory:
@@ -104,6 +115,13 @@ export IMG_TAG=<tag_you_want_to_use>
 export IMG=quay.io/${QUAY_USER}/compute-operator:${IMG_TAG}
 make docker-build docker-push deploy
 ```
+
+If you are running on kcp, you will need to skip installing the webhook for now until Services are supported. Run the `make deploy` with SKIP_WEBHOOK=true.
+
+```bash
+SKIP_WEBHOOK=true make deploy
+```
+
 
 3. Verify the installer is running
 
@@ -140,6 +158,14 @@ oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/managed-hub-c
 ```
 
 3. Create the hub config on the controller cluster:
+
+If you are running on kcp, you will first need to install the APIResourceSchema for HubConfig.
+```bash
+kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_hubconfigs.yaml
+```
+
+Create the HubConfig:
+
 ```bash
 echo '
 apiVersion: singapore.open-cluster-management.io/v1alpha1
@@ -165,11 +191,22 @@ spec:
 oc cluster-info
 ```
 
+or if running on kcp:
+
+```bash
+kubectl kcp ws .
+```
+
 - Create the kubeconfig secret
 The secret must have the kcp kubeconfig in key `kubeconfig`.
 
 ```bash
 kubectl create secret generic kcp-kubeconfig -n compute-config --from-file=kubeconfig=/tmp/kubeconfig-compute-operator.yaml
+```
+
+If you are running on kcp, install the APIResourceSchema for ClusterRegistrar.
+```bash
+kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_clusterregistrars.yaml
 ```
 
 - Create the ClusterRegistrar
@@ -199,6 +236,8 @@ Check using the following command:
 ```bash
 oc get pods -n compute-config
 ```
+
+If you are running on kcp, you will need to log in to the cluster where the deployment was synced in order to view the pods and logs.
 
 
 **NOTE: Restart the `compute-operator-manager` pod

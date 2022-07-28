@@ -3,7 +3,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: compute-operator-manager-role
+  name: clusterregistrar-role
 rules:
 # Setting this first rule as a convenience for installing the APIResourceSchema and APIExports
 # using service account kubeconfig file on hand via Makefile
