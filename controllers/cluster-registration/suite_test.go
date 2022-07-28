@@ -9,11 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	utilflag "k8s.io/component-base/cli/flag"
@@ -58,7 +56,6 @@ var (
 	computeRuntimeWorkspaceClient       client.Client
 	controllerRestConfig                *rest.Config
 	apiExportVirtualWorkspaceKubeClient kubernetes.Interface
-	virtualWorkspaceDynamicClient       dynamic.Interface
 )
 
 func TestAPIs(t *testing.T) {
@@ -78,8 +75,7 @@ var _ = BeforeSuite(func() {
 	var hubKubeconfigString string
 	computeContext,
 		computeRuntimeWorkspaceClient,
-		apiExportVirtualWorkspaceKubeClient,
-		virtualWorkspaceDynamicClient = test.SetupCompute(scheme,
+		apiExportVirtualWorkspaceKubeClient = test.SetupCompute(scheme,
 		controllerNamespace,
 		"../../build/")
 	controllerRestConfig, hubKubeconfigString = test.SetupControllerEnvironment(scheme, controllerNamespace,
@@ -374,20 +370,6 @@ var _ = Describe("Process registeredCluster: ", func() {
 				}
 				return nil
 			}, 60, 1).Should(BeNil())
-		})
-
-		By("Checking synctarget in location workspace", func() {
-			Eventually(func() error {
-				locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(test.AbsoluteLocationWorkspace))
-				locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
-				klog.Infof("getting synctarget in location workspace %s", test.AbsoluteLocationWorkspace)
-				labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(locationClusterName.String(), ":", "-")
-
-				_, err := virtualWorkspaceDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
-					LabelSelector: labels,
-				})
-				return err
-			}, 30, 10).Should(BeNil())
 		})
 
 		// Check if the service account was created in the location workspace

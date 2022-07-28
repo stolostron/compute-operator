@@ -22,7 +22,6 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -99,12 +98,6 @@ var (
 	AdminComputeKubeconfigFile string = ".kcp/admin.kubeconfig"
 )
 
-var apibindingGVR = schema.GroupVersionResource{
-	Group:    "apis.kcp.dev",
-	Version:  "v1alpha1",
-	Resource: "apibindings",
-}
-
 func UseWorkspace(workspace string, adminComputeKubeconfigFile string) error {
 	klog.Infof("use workspace %s", workspace)
 	kubeconfigPath := os.Getenv("KUBECONFIG")
@@ -170,7 +163,7 @@ func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder
 }
 
 func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath string) (computeContext context.Context,
-	computeRuntimeWorkspaceClient client.Client, apiExportVirtualWorkspaceKubeClient kubernetes.Interface, virtualWorkspaceDynamicClient dynamic.Interface) {
+	computeRuntimeWorkspaceClient client.Client, apiExportVirtualWorkspaceKubeClient kubernetes.Interface) {
 	logf.SetLogger(klog.NewKlogr())
 
 	// Generate readers for appliers
@@ -318,18 +311,12 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 
 	ginkgo.By(fmt.Sprintf("apply APIExport on workspace %s", OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
-
-			apibinding, err := computeAdminDynamicClient.Resource(apibindingGVR).Get(organizationContext, "workload.kcp.dev", metav1.GetOptions{})
-			if err != nil {
-				klog.Error(err, " while getting apibinding")
-			}
-			fmt.Println("apibinding: ", apibinding)
 			klog.Info("create APIExport")
 			computeApplier := organizationAdminApplierBuilder.WithContext(organizationContext).Build()
 			files := []string{
 				"compute-templates/virtual-workspace/apiexport.yaml",
 			}
-			_, err = computeApplier.ApplyCustomResources(readerResources, nil, false, "", files...)
+			_, err := computeApplier.ApplyCustomResources(readerResources, nil, false, "", files...)
 			if err != nil {
 				klog.Error(err, " while applying apiexport")
 			}
@@ -503,8 +490,6 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	apiExportVirtualWorkspaceKubeClient, err = kubernetes.NewForConfig(computeKubeconfig)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-	virtualWorkspaceDynamicClient, err = dynamic.NewForConfig(computeKubeconfig)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return
 }
 

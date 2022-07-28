@@ -39,7 +39,6 @@ var (
 	controllerRestConfig                *rest.Config
 	computeRuntimeWorkspaceClient       client.Client
 	apiExportVirtualWorkspaceKubeClient kubernetes.Interface
-	virtualWorkspaceDynamicClient       dynamic.Interface
 	scheme                              = runtime.NewScheme()
 )
 
@@ -61,8 +60,7 @@ var _ = BeforeSuite(func() {
 
 	computeContext,
 		computeRuntimeWorkspaceClient,
-		apiExportVirtualWorkspaceKubeClient,
-		virtualWorkspaceDynamicClient = test.SetupCompute(scheme,
+		apiExportVirtualWorkspaceKubeClient = test.SetupCompute(scheme,
 		controllerNamespace,
 		"../build/")
 
