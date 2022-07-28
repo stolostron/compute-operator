@@ -116,8 +116,6 @@ echo "\n-- Creating vcluster to host compute service"
 oc create ns ${VC_COMPUTE}
 oc config current-context view | vcluster create ${VC_COMPUTE} --expose --connect=false --namespace=${VC_COMPUTE} --context=
 sleep 5m
-echo "--- kubectl --kubeconfig ./${VC_COMPUTE}.kubeconfig get namespaces"
-kubectl --kubeconfig ./${VC_COMPUTE}.kubeconfig get namespaces
 echo "-- Export vcluster kubeconfig for compute cluster"
 vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config=./${VC_COMPUTE}.kubeconfig
 oc get ns
