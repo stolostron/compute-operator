@@ -131,8 +131,8 @@ oc create ns ${VC_KCP}
 # oc get ns
 # vcluster disconnect
 
-oc config current-context view | vcluster create ${VC_KCP} --expose --connect=false --namespace=${VC_KCP} -f vcluster-values.yml --context=
-echo "-- Connect to and then export vcluster kubeconfig for compute cluster, try oc get ns, and disconnect"
+oc config current-context view | vcluster create ${VC_KCP} --expose --connect=false --namespace=${VC_KCP} --context=
+echo "-- Connect to and then export vcluster kubeconfig for kcp cluster, try oc get ns, and disconnect"
 vcluster connect ${VC_KCP} -n ${VC_KCP} --kube-config=./${VC_KCP}.kubeconfig
 oc get ns
 vcluster disconnect
