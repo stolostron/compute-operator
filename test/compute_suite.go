@@ -116,7 +116,7 @@ func UseWorkspace(workspace string, adminComputeKubeconfigFile string) error {
 	gomega.Expect(os.Setenv("KUBECONFIG", kubeconfigPath)).To(gomega.BeNil())
 	return nil
 }
-func CreateWorkspace(workspace string, absoluteParent string, adminComputeKubeconfigFile string, enter bool) error {
+func CreateWorkspace(workspace string, absoluteParent string, wstype string, adminComputeKubeconfigFile string, enter bool) error {
 	klog.Infof("create workspace %s under %s", workspace, absoluteParent)
 	err := UseWorkspace(absoluteParent, adminComputeKubeconfigFile)
 	if err != nil {
@@ -127,12 +127,13 @@ func CreateWorkspace(workspace string, absoluteParent string, adminComputeKubeco
 	cmd := exec.Command("kubectl", "kcp",
 		"ws",
 		"create",
-		workspace)
+		workspace,
+		"--type",
+		wstype)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err != nil {
-		klog.Errorf("error while creating workspace %s: %s", workspace, err)
 		return err
 	}
 	gomega.Expect(os.Setenv("KUBECONFIG", kubeconfigPath)).To(gomega.BeNil())
@@ -287,7 +288,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	// Create workspace on compute server and enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of organization %s", ComputeOrganization), func() {
 		gomega.Eventually(func() error {
-			return CreateWorkspace(ComputeOrganization, "root", adminComputeKubeconfigFile, true)
+			return CreateWorkspace(ComputeOrganization, "root", "organization", adminComputeKubeconfigFile, true)
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
@@ -445,7 +446,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	// Create location workspace on compute server and do not enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of location workspace %s", LocationWorkspace), func() {
 		gomega.Eventually(func() error {
-			return CreateWorkspace(LocationWorkspace, OrganizationWorkspace, adminComputeKubeconfigFile, false)
+			return CreateWorkspace(LocationWorkspace, OrganizationWorkspace, "universal", adminComputeKubeconfigFile, false)
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
@@ -460,7 +461,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	// Create compute workspace on compute server and enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of cluster workspace %s", ComputeWorkspace), func() {
 		gomega.Eventually(func() error {
-			return CreateWorkspace(ComputeWorkspace, OrganizationWorkspace, adminComputeKubeconfigFile, true)
+			return CreateWorkspace(ComputeWorkspace, OrganizationWorkspace, "universal", adminComputeKubeconfigFile, true)
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
