@@ -132,6 +132,7 @@ oc create ns ${VC_KCP}
 # vcluster disconnect
 
 oc config current-context view | vcluster create ${VC_KCP} --expose --connect=false --namespace=${VC_KCP} --context=
+sleep 5m
 echo "-- Connect to and then export vcluster kubeconfig for kcp cluster, try oc get ns, and disconnect"
 vcluster connect ${VC_KCP} -n ${VC_KCP} --kube-config=./${VC_KCP}.kubeconfig
 oc get ns
