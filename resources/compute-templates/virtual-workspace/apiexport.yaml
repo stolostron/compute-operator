@@ -6,7 +6,6 @@ metadata:
   name: compute-apis
 spec:
   permissionClaims:
-  permissionClaims:
   - group: ""
     resource: secrets
   - group: ""

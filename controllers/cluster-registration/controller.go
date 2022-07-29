@@ -160,7 +160,7 @@ func (o *managerOptions) run() {
 
 	// Save the compute
 
-	setupLog.Info("server url:", "computeKubeconfig.Host", computeKubeconfig.Host)
+	setupLog.Info("kcp server url:", "computeKubeconfig.Host", computeKubeconfig.Host)
 	cfg, err := helpers.RestConfigForAPIExport(context.TODO(), computeKubeconfig, "compute-apis", scheme)
 	if err != nil {
 		setupLog.Error(giterrors.WithStack(err), "error looking up virtual workspace URL")

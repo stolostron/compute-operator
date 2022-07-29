@@ -4,7 +4,6 @@ package installer
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -110,21 +109,20 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	Expect(os.Setenv("POD_NAME", "installer-pod")).To(BeNil())
-	Expect(os.Setenv("POD_NAMESPACE", installationNamespace)).To(BeNil())
-
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: kscheme.Scheme,
 	})
 
 	By("Init the controller", func() {
 		r = &ClusterRegistrarReconciler{
-			Client:             k8sClient,
-			KubeClient:         kubernetes.NewForConfigOrDie(cfg),
-			DynamicClient:      dynamic.NewForConfigOrDie(cfg),
-			APIExtensionClient: apiextensionsclient.NewForConfigOrDie(cfg),
-			Log:                logf.Log,
-			Scheme:             kscheme.Scheme,
+			Client:              k8sClient,
+			KubeClient:          kubernetes.NewForConfigOrDie(cfg),
+			DynamicClient:       dynamic.NewForConfigOrDie(cfg),
+			APIExtensionClient:  apiextensionsclient.NewForConfigOrDie(cfg),
+			Log:                 logf.Log,
+			Scheme:              kscheme.Scheme,
+			ControllerNamespace: installationNamespace,
+			ControllerImage:     "foo.io/bar:latest",
 		}
 		err := r.SetupWithManager(mgr)
 		Expect(err).To(BeNil())

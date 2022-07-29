@@ -24,6 +24,9 @@ CRD_OPTIONS ?= "crd:crdVersions=v1"
 # Bundle Prereqs
 BUNDLE_IMG ?= ${IMAGE_TAG_BASE}-bundle:${VERSION}
 
+# Skip webhook on kcp until Services are supported
+SKIP_WEBHOOK ?= false
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -288,7 +291,7 @@ docker-push:
 deploy: kustomize
 	cp config/installer/kustomization.yaml config/installer/kustomization.yaml.tmp
 	cd config/installer && $(KUSTOMIZE) edit set image controller=${IMG}
-	${KUSTOMIZE} build config/default | kubectl apply -f -
+	IMAGE=${IMG} SKIP_WEBHOOK=${SKIP_WEBHOOK} ${KUSTOMIZE} build config/default | kubectl apply -f -
 	mv config/installer/kustomization.yaml.tmp config/installer/kustomization.yaml
 
 undeploy:
@@ -303,6 +306,10 @@ manifests: controller-gen yq/install kcp-plugin generate
 	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml && \
 	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix latest \
 	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml
+	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_hubconfigs.yaml --prefix latest \
+	> config/apiresourceschema/singapore.open-cluster-management.io_hubconfigs.yaml
+	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_clusterregistrars.yaml --prefix latest \
+	> config/apiresourceschema/singapore.open-cluster-management.io_clusterregistrars.yaml 
 
 samples:
 # Later we can use `cm apply custom-resources --paths .. --values ... --dry-run --outpute-file ...` to generate the files
