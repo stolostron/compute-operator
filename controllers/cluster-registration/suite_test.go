@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	utilflag "k8s.io/component-base/cli/flag"
@@ -56,6 +58,7 @@ var (
 	computeRuntimeWorkspaceClient       client.Client
 	controllerRestConfig                *rest.Config
 	apiExportVirtualWorkspaceKubeClient kubernetes.Interface
+	virtualWorkspaceDynamicClient       dynamic.Interface
 )
 
 func TestAPIs(t *testing.T) {
@@ -75,7 +78,8 @@ var _ = BeforeSuite(func() {
 	var hubKubeconfigString string
 	computeContext,
 		computeRuntimeWorkspaceClient,
-		apiExportVirtualWorkspaceKubeClient = test.SetupCompute(scheme,
+		apiExportVirtualWorkspaceKubeClient,
+		virtualWorkspaceDynamicClient = test.SetupCompute(scheme,
 		controllerNamespace,
 		"../../build/")
 	controllerRestConfig, hubKubeconfigString = test.SetupControllerEnvironment(scheme, controllerNamespace,
@@ -370,6 +374,29 @@ var _ = Describe("Process registeredCluster: ", func() {
 				}
 				return nil
 			}, 60, 1).Should(BeNil())
+		})
+
+		// Check if the synctarget created in the location workspace
+		By("Checking synctarget in location workspace", func() {
+			Eventually(func() error {
+				locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(test.AbsoluteLocationWorkspace))
+				locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
+				klog.Infof("getting synctarget in location workspace %s", test.AbsoluteLocationWorkspace)
+				labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(locationClusterName.String(), ":", "-")
+
+				syncTargetList, err := virtualWorkspaceDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
+					LabelSelector: labels,
+				})
+				if err != nil {
+					return err
+				}
+
+				if len(syncTargetList.Items) == 0 || len(syncTargetList.Items) > 1 {
+					return fmt.Errorf("Synctarget not found in the location workspace")
+				}
+				klog.Infof("synctarget found in the location workspace %s", syncTargetList.Items)
+				return nil
+			}, 60, 10).Should(BeNil())
 		})
 
 		// Check if the service account was created in the location workspace

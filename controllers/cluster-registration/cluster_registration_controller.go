@@ -194,14 +194,13 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 }
 
 func (r *RegisteredClusterReconciler) checkSynctargetExists(locationContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster) (int, error) {
-	locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
 
+	locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
 	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(locationClusterName.String(), ":", "-")
 
 	syncTargetList, err := r.ComputeDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
 		LabelSelector: labels,
 	})
-
 	if err != nil {
 		return 0, giterrors.WithStack(err)
 	}
@@ -221,7 +220,7 @@ func (r *RegisteredClusterReconciler) checkSynctargetExists(locationContext cont
 
 func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster) error {
 
-	logger := r.Log.WithName("createSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
+	logger := r.Log.WithName("syncSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
 
 	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
 
@@ -253,7 +252,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 			if _, err := r.ComputeDynamicClient.Resource(clusterGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
 				return err
 			}
-			logger.V(2).Info("SyncTarget is created")
+			logger.V(2).Info("SyncTarget is created in the location workspace")
 		}
 	}
 	return nil

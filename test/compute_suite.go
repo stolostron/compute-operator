@@ -174,7 +174,7 @@ func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder
 }
 
 func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath string) (computeContext context.Context,
-	computeRuntimeWorkspaceClient client.Client, apiExportVirtualWorkspaceKubeClient kubernetes.Interface) {
+	computeRuntimeWorkspaceClient client.Client, apiExportVirtualWorkspaceKubeClient kubernetes.Interface, virtualWorkspaceDynamicClient dynamic.Interface) {
 	logf.SetLogger(klog.NewKlogr())
 
 	// Generate readers for appliers
@@ -323,6 +323,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	ginkgo.By(fmt.Sprintf("apply APIExport on workspace %s", OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
 
+			klog.Info("get synctarget identityHash from apibinding")
 			apibinding, err := computeAdminDynamicClient.Resource(apibindingGVR).Get(organizationContext, "workload.kcp.dev", metav1.GetOptions{})
 			if err != nil {
 				klog.Error(err, " while getting apibinding")
@@ -340,7 +341,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 			if !found {
 				klog.Error("synctarget boundresource not found in apibinding")
 			}
-			//var IdentityHash string
+
 			for _, v := range synctargetBoundResource {
 				m, ok := v.(interface{})
 				if !ok {
@@ -538,6 +539,9 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	computeKubeconfig := apimachineryclient.NewClusterConfig(cfg)
 	apiExportVirtualWorkspaceKubeClient, err = kubernetes.NewForConfig(computeKubeconfig)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	virtualWorkspaceDynamicClient, err = dynamic.NewForConfig(computeKubeconfig)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	return

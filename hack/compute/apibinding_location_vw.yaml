@@ -7,9 +7,9 @@ metadata:
 spec:
   reference:
     workspace:
-      path: root:demo
+      path: root:{{ .Organization }}
       exportName: compute-apis
   acceptedPermissionClaims:
   - group: workload.kcp.dev
-    identityHash: <identityHash>
+    identityHash: edb6dc430960a1943f33a077f5ab8c69877f6e96ea70fbc962fe618f14268b38
     resource: synctargets
