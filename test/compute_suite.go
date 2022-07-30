@@ -21,7 +21,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -98,6 +100,13 @@ var (
 	AdminComputeKubeconfigFile string = ".kcp/admin.kubeconfig"
 )
 
+var apibindingGVR = schema.GroupVersionResource{
+	Group:    "apis.kcp.dev",
+	Version:  "v1alpha1",
+	Resource: "apibindings",
+}
+var SyncTargetIdenityHash string
+
 func UseWorkspace(workspace string, adminComputeKubeconfigFile string) error {
 	klog.Infof("use workspace %s", workspace)
 	kubeconfigPath := os.Getenv("KUBECONFIG")
@@ -152,8 +161,10 @@ func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder
 	// Values for the appliers
 	values := struct {
 		Organization string
+		IdentityHash string
 	}{
 		Organization: ComputeOrganization,
+		IdentityHash: SyncTargetIdenityHash,
 	}
 	_, err := computeApplier.ApplyCustomResources(readerResources, values, false, "", files...)
 	if err != nil {
@@ -311,12 +322,51 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 
 	ginkgo.By(fmt.Sprintf("apply APIExport on workspace %s", OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
+
+			apibinding, err := computeAdminDynamicClient.Resource(apibindingGVR).Get(organizationContext, "workload.kcp.dev", metav1.GetOptions{})
+			if err != nil {
+				klog.Error(err, " while getting apibinding")
+			}
+
+			unstructuredAPIBinding, err := runtime.DefaultUnstructuredConverter.ToUnstructured(apibinding)
+			if err != nil {
+				klog.Error(err, " while getting coverting apibinding to unstructured")
+			}
+
+			synctargetBoundResource, found, err := unstructured.NestedSlice(unstructuredAPIBinding, "status", "boundResources")
+			if err != nil {
+				klog.Error(err, " while getting boundresource in  apibinding")
+			}
+			if !found {
+				klog.Error("synctarget boundresource not found in apibinding")
+			}
+			//var IdentityHash string
+			for _, v := range synctargetBoundResource {
+				m, ok := v.(interface{})
+				if !ok {
+					klog.Error("error parsing unstructured data")
+				}
+				strMap := m.(map[string]interface{})
+				if strMap["resource"] == "synctargets" {
+					identityhash, ok := strMap["schema"].(map[string]interface{})
+					if ok {
+						SyncTargetIdenityHash = identityhash["identityHash"].(string)
+
+					}
+				}
+			}
+
 			klog.Info("create APIExport")
 			computeApplier := organizationAdminApplierBuilder.WithContext(organizationContext).Build()
 			files := []string{
 				"compute-templates/virtual-workspace/apiexport.yaml",
 			}
-			_, err := computeApplier.ApplyCustomResources(readerResources, nil, false, "", files...)
+			values := struct {
+				IdentityHash string
+			}{
+				IdentityHash: SyncTargetIdenityHash,
+			}
+			_, err = computeApplier.ApplyCustomResources(readerResources, values, false, "", files...)
 			if err != nil {
 				klog.Error(err, " while applying apiexport")
 			}
@@ -449,7 +499,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
-	// Create the APIBinding in the cluster workspace
+	// Create the APIBinding in the location workspace
 	ginkgo.By(fmt.Sprintf("apply APIBinding on workspace %s", LocationWorkspace), func() {
 		gomega.Eventually(func() error {
 			locationContext := logicalcluster.WithCluster(context.Background(), logicalcluster.New(AbsoluteLocationWorkspace))
