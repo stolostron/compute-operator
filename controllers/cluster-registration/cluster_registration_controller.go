@@ -204,7 +204,7 @@ func (r *RegisteredClusterReconciler) checkSynctargetExists(locationContext cont
 	if err != nil {
 		return 0, giterrors.WithStack(err)
 	}
-
+	fmt.Println("synctargetl: ", syncTargetList.Items)
 	r.Log.V(4).Info("Number of synctarget found with lables",
 		"number", len(syncTargetList.Items),
 		RegisteredClusterNamelabel, regCluster.Name,
