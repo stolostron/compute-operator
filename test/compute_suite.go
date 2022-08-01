@@ -153,6 +153,7 @@ func CreateWorkspace(workspace string, absoluteParent string, adminComputeKubeco
 
 func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder *apply.ApplierBuilder, readerResources *clusteradmasset.ScenarioResourcesReader) error {
 	klog.Info("create APIBinding")
+	fmt.Println("idenityhash: ", SyncTargetIdenityHash)
 	computeApplier := computeAdminApplierBuilder.
 		WithContext(computeContext).Build()
 	files := []string{
@@ -543,6 +544,8 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 
 	virtualWorkspaceDynamicClient, err = dynamic.NewForConfig(computeKubeconfig)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	//virtualWorkspaceDynamicClient = computeAdminDynamicClient
 
 	return
 }

@@ -67,3 +67,4 @@ rules:
   - delete 
   - get 
   - watch
+  - list

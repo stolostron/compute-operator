@@ -58,3 +58,13 @@ rules:
   - update
   - watch
   - patch
+- apiGroups:
+  - workload.kcp.dev
+  resources:
+  - synctargets
+  verbs:
+  - create 
+  - delete 
+  - get 
+  - watch
+  - list

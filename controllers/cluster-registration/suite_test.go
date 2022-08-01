@@ -384,20 +384,20 @@ var _ = Describe("Process registeredCluster: ", func() {
 				klog.Infof("getting synctarget in location workspace %s", test.AbsoluteLocationWorkspace)
 				labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(locationClusterName.String(), ":", "-")
 
-				fmt.Println("labels: ", labels)
 				syncTargetList, err := virtualWorkspaceDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
 					LabelSelector: labels,
 				})
 				if err != nil {
 					return err
 				}
-				fmt.Println("synctargetlist: ", syncTargetList.Items)
+
+				fmt.Println("synctargetlist: ", syncTargetList)
 				if len(syncTargetList.Items) == 0 || len(syncTargetList.Items) > 1 {
 					return fmt.Errorf("Synctarget not found in the location workspace")
 				}
 				klog.Infof("synctarget found in the location workspace %s", syncTargetList.Items)
 				return nil
-			}, 60, 1).Should(BeNil())
+			}, 60, 10).Should(BeNil())
 		})
 
 		// Check if the service account was created in the location workspace

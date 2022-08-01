@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	// corev1 "k8s.io/api/core/v1"
+	workloadv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/workload/v1alpha1"
 	"github.com/stolostron/applier/pkg/apply"
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 
@@ -237,7 +238,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 					"apiVersion": workloadv1alpha1.SchemeGroupVersion.String(),
 					"kind":       "SyncTarget",
 					"metadata": map[string]interface{}{
-						"generateName": "registered-cluster-",
+						"name": "registered-test",
 						"labels": map[string]string{
 							RegisteredClusterNamelabel:      regCluster.Name,
 							RegisteredClusterNamespacelabel: regCluster.Namespace,
@@ -252,7 +253,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 			if _, err := r.ComputeDynamicClient.Resource(clusterGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
 				return err
 			}
-			logger.V(2).Info("SyncTarget is created in the location workspace")
+			logger.V(2).Info("Synctarget is created in the location workspace")
 		}
 	}
 	return nil
