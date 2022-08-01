@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -376,28 +377,28 @@ var _ = Describe("Process registeredCluster: ", func() {
 		})
 
 		// Check if the synctarget created in the location workspace
-		// By("Checking synctarget in location workspace", func() {
-		// 	Eventually(func() error {
-		// 		locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(test.AbsoluteLocationWorkspace))
-		// 		locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
-		// 		klog.Infof("getting synctarget in location workspace %s", test.AbsoluteLocationWorkspace)
-		// 		labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(locationClusterName.String(), ":", "-")
+		By("Checking synctarget in location workspace", func() {
+			Eventually(func() error {
+				locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(test.AbsoluteLocationWorkspace))
+				locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
+				klog.Infof("getting synctarget in location workspace %s", test.AbsoluteLocationWorkspace)
+				labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(locationClusterName.String(), ":", "-")
 
-		// 		fmt.Println("labels: ", labels)
-		// 		syncTargetList, err := virtualWorkspaceDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
-		// 			LabelSelector: labels,
-		// 		})
-		// 		if err != nil {
-		// 			return err
-		// 		}
-		// 		fmt.Println("synctargetlist: ", syncTargetList.Items)
-		// 		if len(syncTargetList.Items) == 0 || len(syncTargetList.Items) > 1 {
-		// 			return fmt.Errorf("Synctarget not found in the location workspace")
-		// 		}
-		// 		klog.Infof("synctarget found in the location workspace %s", syncTargetList.Items)
-		// 		return nil
-		// 	}, 60, 1).Should(BeNil())
-		// })
+				fmt.Println("labels: ", labels)
+				syncTargetList, err := virtualWorkspaceDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
+					LabelSelector: labels,
+				})
+				if err != nil {
+					return err
+				}
+				fmt.Println("synctargetlist: ", syncTargetList.Items)
+				if len(syncTargetList.Items) == 0 || len(syncTargetList.Items) > 1 {
+					return fmt.Errorf("Synctarget not found in the location workspace")
+				}
+				klog.Infof("synctarget found in the location workspace %s", syncTargetList.Items)
+				return nil
+			}, 60, 1).Should(BeNil())
+		})
 
 		// Check if the service account was created in the location workspace
 		By("Checking syncer service account in location workspace", func() {
