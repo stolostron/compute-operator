@@ -17,7 +17,10 @@ oc get namespaces
 
 
 echo "--- Create compute-config namespace"
-oc new-project compute-config
+# DOES NOT WORK ON vcluster
+# oc new-project compute-config
+kubectl create namespace compute-config
+kubectl config set-context --current --namespace=compute-config
 
 echo "--- Start deploy"
 make deploy
