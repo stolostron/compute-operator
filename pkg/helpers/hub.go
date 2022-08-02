@@ -8,11 +8,10 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/stolostron/applier/pkg/apply"
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,7 +28,7 @@ type HubInstance struct {
 	HubConfig      *singaporev1alpha1.HubConfig
 	Cluster        cluster.Cluster
 	Client         client.Client
-	ApplierBuilder *clusteradmapply.ApplierBuilder
+	ApplierBuilder *apply.ApplierBuilder
 }
 
 // GetConditionStatus returns the status for a given condition type and whether the condition was found
@@ -171,7 +170,7 @@ func getHubInstance(kubeConfigData []byte, mgr ctrl.Manager, hubConfig *singapor
 	kubeClient := kubernetes.NewForConfigOrDie(hubKubeconfig)
 	dynamicClient := dynamic.NewForConfigOrDie(hubKubeconfig)
 	apiExtensionClient := apiextensionsclient.NewForConfigOrDie(hubKubeconfig)
-	hubApplierBuilder := clusteradmapply.NewApplierBuilder().
+	hubApplierBuilder := apply.NewApplierBuilder().
 		WithClient(kubeClient, apiExtensionClient, dynamicClient)
 
 	hubInstance := HubInstance{

@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	// corev1 "k8s.io/api/core/v1"
+	"github.com/stolostron/applier/pkg/apply"
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 	"github.com/stolostron/compute-operator/resources"
@@ -42,8 +43,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/kcp-dev/logicalcluster"
-
-	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 )
 
 // +kubebuilder:rbac:groups="",resources={secrets},verbs=get;list;watch;create;update;patch
@@ -259,7 +258,7 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 		return giterrors.WithStack(err)
 	}
 
-	applier := clusteradmapply.NewApplierBuilder().
+	applier := apply.NewApplierBuilder().
 		WithClient(r.ComputeKubeClient,
 			r.ComputeAPIExtensionClient,
 			r.ComputeDynamicClient).
@@ -366,7 +365,7 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 
 	// Sync the ClusterRole and ClusterRoleBinding
 
-	// applier := clusteradmapply.NewApplierBuilder().
+	// applier := apply.NewApplierBuilder().
 	// 	WithClient(r.ComputeKubeClient,
 	// 		r.ComputeAPIExtensionClient,
 	// 		r.ComputeDynamicClient).
