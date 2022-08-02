@@ -337,6 +337,8 @@ samples: applier
 	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/apibinding.yaml
 	applier render --paths resources/compute-templates/virtual-workspace/namespace.yaml \
 	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/namespace.yaml
+	applier render --paths resources/compute-templates/virtual-workspace/service_account.yaml \
+	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/service_account.yaml
 	
 
 # Generate code
