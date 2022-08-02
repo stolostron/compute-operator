@@ -391,7 +391,6 @@ var _ = Describe("Process registeredCluster: ", func() {
 					return err
 				}
 
-				fmt.Println("synctargetlist: ", syncTargetList)
 				if len(syncTargetList.Items) == 0 || len(syncTargetList.Items) > 1 {
 					return fmt.Errorf("Synctarget not found in the location workspace")
 				}

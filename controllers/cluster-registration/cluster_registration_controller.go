@@ -205,7 +205,7 @@ func (r *RegisteredClusterReconciler) checkSynctargetExists(locationContext cont
 	if err != nil {
 		return 0, giterrors.WithStack(err)
 	}
-	fmt.Println("synctargetl: ", syncTargetList.Items)
+
 	r.Log.V(4).Info("Number of synctarget found with lables",
 		"number", len(syncTargetList.Items),
 		RegisteredClusterNamelabel, regCluster.Name,
@@ -238,7 +238,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 					"apiVersion": workloadv1alpha1.SchemeGroupVersion.String(),
 					"kind":       "SyncTarget",
 					"metadata": map[string]interface{}{
-						"name": "registered-test",
+						"generateName": "registered-cluster-",
 						"labels": map[string]string{
 							RegisteredClusterNamelabel:      regCluster.Name,
 							RegisteredClusterNamespacelabel: regCluster.Namespace,

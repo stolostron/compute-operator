@@ -153,7 +153,6 @@ func CreateWorkspace(workspace string, absoluteParent string, adminComputeKubeco
 
 func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder *apply.ApplierBuilder, readerResources *clusteradmasset.ScenarioResourcesReader) error {
 	klog.Info("create APIBinding")
-	fmt.Println("idenityhash: ", SyncTargetIdenityHash)
 	computeApplier := computeAdminApplierBuilder.
 		WithContext(computeContext).Build()
 	files := []string{
@@ -323,7 +322,6 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 
 	ginkgo.By(fmt.Sprintf("apply APIExport on workspace %s", OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
-
 			klog.Info("get synctarget identityHash from apibinding")
 			apibinding, err := computeAdminDynamicClient.Resource(apibindingGVR).Get(organizationContext, "workload.kcp.dev", metav1.GetOptions{})
 			if err != nil {
@@ -396,6 +394,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 			}
 			return err
 		}, 60, 3).Should(gomega.BeNil())
+
 		gomega.Eventually(func() error {
 			klog.Info("create service account")
 			computeApplier := computeAdminApplierBuilder.
@@ -497,18 +496,27 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	// Create location workspace on compute server and do not enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of location workspace %s", LocationWorkspace), func() {
 		gomega.Eventually(func() error {
-			return CreateWorkspace(LocationWorkspace, OrganizationWorkspace, adminComputeKubeconfigFile, false)
+			return CreateWorkspace(LocationWorkspace, OrganizationWorkspace, adminComputeKubeconfigFile, true)
 		}, 60, 3).Should(gomega.BeNil())
 	})
+	locationContext := logicalcluster.WithCluster(organizationContext, logicalcluster.New(AbsoluteLocationWorkspace))
 
 	// Create the APIBinding in the location workspace
-	ginkgo.By(fmt.Sprintf("apply APIBinding on workspace %s", LocationWorkspace), func() {
+	ginkgo.By(fmt.Sprintf("apply APIBinding in location workspace %s", LocationWorkspace), func() {
 		gomega.Eventually(func() error {
-			locationContext := logicalcluster.WithCluster(context.Background(), logicalcluster.New(AbsoluteLocationWorkspace))
 			return CreateAPIBinding(locationContext, computeAdminApplierBuilder, readerResources)
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
+	ginkgo.By(fmt.Sprintf("Switch to org workspace  %s", OrganizationWorkspace), func() {
+		gomega.Eventually(func() error {
+			klog.Info("Switch to org workspace %s", OrganizationWorkspace)
+			if err := UseWorkspace(OrganizationWorkspace, adminComputeKubeconfigFile); err != nil {
+				return err
+			}
+			return nil
+		}, 60, 3).Should(gomega.BeNil())
+	})
 	// Create compute workspace on compute server and enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of cluster workspace %s", ComputeWorkspace), func() {
 		gomega.Eventually(func() error {
@@ -544,8 +552,6 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 
 	virtualWorkspaceDynamicClient, err = dynamic.NewForConfig(computeKubeconfig)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-	//virtualWorkspaceDynamicClient = computeAdminDynamicClient
 
 	return
 }
