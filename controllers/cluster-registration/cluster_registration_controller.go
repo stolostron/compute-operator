@@ -28,7 +28,6 @@ import (
 	"github.com/stolostron/applier/pkg/apply"
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 
-	//kcpclient "github.com/kcp-dev/kcp/pkg/client/clientset/versioned"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 	"github.com/stolostron/compute-operator/resources"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -195,9 +194,7 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 }
 
 func (r *RegisteredClusterReconciler) checkSynctargetExists(locationContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster) (int, error) {
-
-	locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
-	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(locationClusterName.String(), ":", "-")
+	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(regCluster.UID)
 
 	syncTargetList, err := r.ComputeDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
 		LabelSelector: labels,
@@ -206,7 +203,7 @@ func (r *RegisteredClusterReconciler) checkSynctargetExists(locationContext cont
 		return 0, giterrors.WithStack(err)
 	}
 
-	r.Log.V(4).Info("Number of synctarget found with lables",
+	r.Log.V(4).Info("Number of synctarget found with labels",
 		"number", len(syncTargetList.Items),
 		RegisteredClusterNamelabel, regCluster.Name,
 		RegisteredClusterNamespacelabel, regCluster.Namespace)
@@ -226,7 +223,6 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
 
 		locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(regCluster.Spec.Location))
-		locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
 
 		syncTargetLength, err := r.checkSynctargetExists(locationContext, regCluster)
 		if err != nil {
@@ -238,11 +234,12 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 					"apiVersion": workloadv1alpha1.SchemeGroupVersion.String(),
 					"kind":       "SyncTarget",
 					"metadata": map[string]interface{}{
-						"generateName": "registered-cluster-",
+						"generateName": regCluster.Name + "-",
 						"labels": map[string]string{
 							RegisteredClusterNamelabel:      regCluster.Name,
 							RegisteredClusterNamespacelabel: regCluster.Namespace,
-							RegisteredClusterWorkspace:      strings.ReplaceAll(locationClusterName.String(), ":", "-"),
+							RegisteredClusterWorkspace:      strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-"),
+							RegisteredClusterUidLabel:       string(regCluster.UID),
 						},
 					},
 					"spec": map[string]interface{}{

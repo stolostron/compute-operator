@@ -174,6 +174,10 @@ var _ = Describe("Process registeredCluster: ", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      registeredClusterName,
 					Namespace: workingClusterComputeNamespace,
+					UID:       "d170e2ad-077b-44b6-b462-81ab9d2ef84b",
+					Annotations: map[string]string{
+						"clusterName": "root:my-org:my-cmpute-ws",
+					},
 				},
 				Spec: singaporev1alpha1.RegisteredClusterSpec{
 					Location: test.AbsoluteLocationWorkspace,
@@ -380,9 +384,9 @@ var _ = Describe("Process registeredCluster: ", func() {
 		By("Checking synctarget in location workspace", func() {
 			Eventually(func() error {
 				locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(test.AbsoluteLocationWorkspace))
-				locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
+				//locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
 				klog.Infof("getting synctarget in location workspace %s", test.AbsoluteLocationWorkspace)
-				labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(locationClusterName.String(), ":", "-")
+				labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
 
 				syncTargetList, err := virtualWorkspaceDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
 					LabelSelector: labels,

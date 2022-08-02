@@ -249,7 +249,7 @@ if you make any changes to the ClusterRegistrar or HubConfig.  This will allow t
 
 # Using
 ## Import a user cluster into controller cluster
-1. Create and enter a new workspace in kcp
+1. Create and enter a new compute workspace in kcp. Compute workspace is the workspace where APIExport(schema) is created and user registers cluster.
 
 2. Create an APIBinding to the compute-apis APIExport
 
@@ -257,6 +257,7 @@ Edit the file hack/compute/apibinding.yaml spec.reference.workspace.path to poin
 ```bash
 kubectl apply -f hack/compute/apibinding.yaml
 ```
+
 3. Confirm the RegisteredCluster API is now available
 ```bash
 % k api-resources | grep registered
@@ -274,9 +275,9 @@ And add the permissionClaim for synctarget and enter the identityhash which you 
    identityHash: <identityhash>
 ```
 
-5. Create APIBinding to the compute-apis APIExport in the location workspace 
+5. Create APIBinding to the compute-apis APIExport in the location workspace. Location workspace is the workspace where synctarget is created. 
 
-Edit the file hack/compute/apibinding_location_vw.yaml spec.reference.workspace.path to point at the workspace you created above in [Generating a kubeconfig for your kcp cluster](#generating-a-kubeconfig-for-your-kcp-cluster)
+Edit the file hack/compute/apibinding.yaml spec.reference.workspace.path to point at the workspace you created above in [Generating a kubeconfig for your kcp cluster](#generating-a-kubeconfig-for-your-kcp-cluster)
 
 Edit the spec.acceptedPermissionClaims.identityHash with the value you got in the step 4
 
@@ -284,7 +285,7 @@ Edit the spec.acceptedPermissionClaims.identityHash with the value you got in th
 kubectl apply -f hack/compute/apibinding_location_vw.yaml
 ```
 
-6. Create a registeredcluster CR in the kcp workspace
+6. Create a registeredcluster CR in the kcp compute workspace.
 
 ```bash
 kubectl create ns <a_namespace>
@@ -294,7 +295,8 @@ kind: RegisteredCluster
 metadata:
   name: <your_cluster_name>
   namespace: <a_namespace>
-spec: {}
+spec: 
+  location: <location-workspace>
 ' | oc create -f -
 ```
 
