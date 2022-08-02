@@ -96,7 +96,7 @@ ifeq (, $(shell which register-gen))
 	REGISTER_GEN_TMP_DIR=$$(mktemp -d) ;\
 	cd $$REGISTER_GEN_TMP_DIR ;\
 	go mod init tmp ;\
-	go install k8s.io/code-generator/cmd/register-gen ;\
+	go install k8s.io/code-generator/cmd/register-gen@v0.23.5 ;\
 	rm -rf $$REGISTER_GEN_TMP_DIR ;\
 	)
 REGISTER_GEN=$(GOBIN)/register-gen
