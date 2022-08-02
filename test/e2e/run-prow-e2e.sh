@@ -112,9 +112,10 @@ echo "--- Show managed cluster"
 sleep 5m
 oc get managedclusters
 
-echo "\n-- Creating vcluster to host compute service"
+echo "-- Creating vcluster to host compute service"
 oc create ns ${VC_COMPUTE}
 oc config current-context view | vcluster create ${VC_COMPUTE} --expose --connect=false --namespace=${VC_COMPUTE} --context=
+echo "-- Sleep a few minutes while vcluster starts..."
 sleep 5m
 echo "-- Export vcluster kubeconfig for compute cluster"
 vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config=./${VC_COMPUTE}.kubeconfig
@@ -132,6 +133,7 @@ oc create ns ${VC_KCP}
 # vcluster disconnect
 
 oc config current-context view | vcluster create ${VC_KCP} --expose --connect=false --namespace=${VC_KCP} --context=
+echo "-- Sleep a few minutes while vcluster starts..."
 sleep 5m
 echo "-- Connect to and then export vcluster kubeconfig for kcp cluster, try oc get ns, and disconnect"
 vcluster connect ${VC_KCP} -n ${VC_KCP} --kube-config=./${VC_KCP}.kubeconfig
