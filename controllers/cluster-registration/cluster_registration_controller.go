@@ -18,16 +18,20 @@ import (
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	// corev1 "k8s.io/api/core/v1"
+	workloadv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/workload/v1alpha1"
 	"github.com/stolostron/applier/pkg/apply"
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
+
 	"github.com/stolostron/compute-operator/pkg/helpers"
 	"github.com/stolostron/compute-operator/resources"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
@@ -57,12 +61,19 @@ import (
 const (
 	RegisteredClusterNamelabel      string = "registeredcluster.singapore.open-cluster-management.io/name"
 	RegisteredClusterNamespacelabel string = "registeredcluster.singapore.open-cluster-management.io/namespace"
+	RegisteredClusterWorkspace      string = "registeredcluster.singapore.open-cluster-management.io/clustername"
 	RegisteredClusterUidLabel       string = "registeredcluster.singapore.open-cluster-management.io/uid"
 	ClusterNameAnnotation           string = "registeredcluster.singapore.open-cluster-management.io/clustername"
 	ManagedClusterSetlabel          string = "cluster.open-cluster-management.io/clusterset"
 )
 
 const defaultSyncerImage = "ghcr.io/kcp-dev/kcp/syncer:v0.6.1"
+
+var clusterGVR = schema.GroupVersionResource{
+	Group:    "workload.kcp.dev",
+	Version:  "v1alpha1",
+	Resource: "synctargets",
+}
 
 // RegisteredClusterReconciler reconciles a RegisteredCluster object
 type RegisteredClusterReconciler struct {
@@ -74,9 +85,10 @@ type RegisteredClusterReconciler struct {
 	ComputeKubeClient         kubernetes.Interface
 	ComputeDynamicClient      dynamic.Interface
 	ComputeAPIExtensionClient apiextensionsclient.Interface
-	Log                       logr.Logger
-	Scheme                    *runtime.Scheme
-	HubClusters               []helpers.HubInstance
+	//KCPClusterClient          *kcpclient.Cluster
+	Log         logr.Logger
+	Scheme      *runtime.Scheme
+	HubClusters []helpers.HubInstance
 }
 
 func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -154,9 +166,9 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 	}
 
 	// sync SyncTarget
-	if err := r.syncSyncTarget(computeContext, ctx, regCluster, &managedCluster, &hubCluster); err != nil {
-		logger.Error(err, "failed to sync SyncTarget")
-		return ctrl.Result{}, err
+	if err := r.syncSyncTarget(computeContext, regCluster, &managedCluster); err != nil {
+		logger.Error(err, "failed to sync SyncTarget in location workspace")
+		return ctrl.Result{}, giterrors.WithStack(err)
 	}
 
 	// sync kcp-syncer service account (currently one per location workspace - probably change to one per syncer, owned by the syncer) in kcp workspace
@@ -179,6 +191,69 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *RegisteredClusterReconciler) checkSynctargetExists(locationContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster) (int, error) {
+	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(regCluster.UID)
+
+	syncTargetList, err := r.ComputeDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
+		LabelSelector: labels,
+	})
+	if err != nil {
+		return 0, giterrors.WithStack(err)
+	}
+
+	r.Log.V(4).Info("Number of synctarget found with labels",
+		"number", len(syncTargetList.Items),
+		RegisteredClusterNamelabel, regCluster.Name,
+		RegisteredClusterNamespacelabel, regCluster.Namespace)
+
+	if len(syncTargetList.Items) == 1 {
+		return len(syncTargetList.Items), nil
+	}
+
+	return len(syncTargetList.Items), nil
+
+}
+
+func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster) error {
+
+	logger := r.Log.WithName("syncSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
+
+	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
+
+		locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(regCluster.Spec.Location))
+
+		syncTargetLength, err := r.checkSynctargetExists(locationContext, regCluster)
+		if err != nil {
+			return giterrors.WithStack(err)
+		}
+		if syncTargetLength == 0 {
+			syncTarget := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": workloadv1alpha1.SchemeGroupVersion.String(),
+					"kind":       "SyncTarget",
+					"metadata": map[string]interface{}{
+						"generateName": regCluster.Name + "-",
+						"labels": map[string]string{
+							RegisteredClusterNamelabel:      regCluster.Name,
+							RegisteredClusterNamespacelabel: regCluster.Namespace,
+							RegisteredClusterWorkspace:      strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-"),
+							RegisteredClusterUidLabel:       string(regCluster.UID),
+						},
+					},
+					"spec": map[string]interface{}{
+						"unschedulable": false,
+					},
+				},
+			}
+			if _, err := r.ComputeDynamicClient.Resource(clusterGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
+				return err
+			}
+			logger.V(2).Info("Synctarget is created in the location workspace")
+		}
+	}
+	return nil
 }
 
 func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster) error {
@@ -319,13 +394,6 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 		return giterrors.WithStack(err)
 	}
 
-	return nil
-}
-
-func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Context, ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance) error {
-	logger := r.Log.WithName("syncSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
-
-	logger.V(2).Info("sync target creation coming soon... need https://github.com/kcp-dev/kcp/issues/1219 ?")
 	return nil
 }
 
