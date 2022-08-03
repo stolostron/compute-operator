@@ -27,7 +27,7 @@ make deploy
 echo "--- Sleep a bit for installer pod to start..."
 sleep 60
 
-echo "--- Show compute  installer deployment"
+echo "--- Show compute installer deployment"
 oc get deployment -n compute-config compute-installer-controller-manager -o yaml
 
 echo "--- Check that the pod is running"
@@ -37,15 +37,16 @@ oc wait --for=condition=ready pods --all --timeout=5m -n compute-config || {
   oc get deployment -n compute-config compute-installer-controller-manager -o yaml
   exit 1
 }
+echo "--- Show compute pods"
 oc get pods -n compute-config
 oc get pods -n compute-config | grep compute-installer-controller-manager || {
   echo "ERROR compute-installer-controller-manager pod not found!"
   exit 1
 }
 
-# TODO
+ls -alh "${SHARED_DIR}"
 echo "--- Create secret using hub kubeconfig"
-oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig=${SHARED_DIR}/${VC_COMPUTE}.kubeconfig -n compute-config
+oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig" -n compute-config
 
 echo "--- Create HubConfig"
 cat > e2e-HubConfig.yaml <<EOF
