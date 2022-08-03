@@ -27,7 +27,7 @@ chmod +x /usr/local/bin/jq
 
 echo "Installing vcluster cli..."
 # Install vcluster to deploy virtual clusters
-curl -kLo /usr/local/bin/vcluster https://github.com/loft-sh/vcluster/releases/download/v0.10.2/vcluster-linux-amd64
+curl -kLo /usr/local/bin/vcluster https://github.com/loft-sh/vcluster/releases/download/v0.11.0/vcluster-linux-amd64
 chmod +x /usr/local/bin/vcluster
 
 # Check vcluster installed properly and can be called

@@ -99,8 +99,8 @@ echo
 echo "--- Export vcluster kubeconfig for managed cluster"
 vcluster connect ${VC_MANAGED} -n ${VC_MANAGED} --update-current=false --kube-config="${SHARED_DIR}/${VC_MANAGED}.kubeconfig"
 
-echo "--- vcluster kubeconfig data: "
-cat "${SHARED_DIR}/${VC_MANAGED}.kubeconfig"
+#echo "--- vcluster kubeconfig data: "
+#cat "${SHARED_DIR}/${VC_MANAGED}.kubeconfig"
 
 echo "--- Import vcluster into hub as managed"
 cm get clusters
@@ -109,7 +109,7 @@ oc label managedcluster -n ${VC_MANAGED} ${VC_MANAGED} vcluster=true
 oc label ns ${VC_MANAGED} vcluster=true
 
 echo "--- Show managed cluster"
-sleep 5m
+sleep 3m
 oc get managedclusters
 
 echo "-- Creating vcluster to host compute service"
@@ -119,6 +119,7 @@ echo "-- Sleep a few minutes while vcluster starts..."
 sleep 5m
 echo "-- Export vcluster kubeconfig for compute cluster"
 vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --update-current=false --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
+vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} 
 oc get ns
 vcluster disconnect
 
