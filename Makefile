@@ -88,7 +88,7 @@ CONTROLLER_GEN=$(shell which controller-gen)
 endif
 
 .PHONY: register-gen
-## Fdownload register-gen
+## Find or download register-gen
 register-gen:
 ifeq (, $(shell which register-gen))
 	@( \
@@ -96,7 +96,7 @@ ifeq (, $(shell which register-gen))
 	REGISTER_GEN_TMP_DIR=$$(mktemp -d) ;\
 	cd $$REGISTER_GEN_TMP_DIR ;\
 	go mod init tmp ;\
-	go get k8s.io/code-generator/cmd/register-gen ;\
+	go install k8s.io/code-generator/cmd/register-gen@v0.23.5 ;\
 	rm -rf $$REGISTER_GEN_TMP_DIR ;\
 	)
 REGISTER_GEN=$(GOBIN)/register-gen
@@ -118,6 +118,23 @@ ifeq (, $(shell which kustomize))
 KUSTOMIZE=$(GOBIN)/kustomize
 else
 KUSTOMIZE=$(shell which kustomize)
+endif
+
+.PHONY: applier
+## Find or download applier
+applier:
+ifeq (, $(shell which applier))
+	@( \
+	set -e ;\
+	APPLIER_TMP_DIR=$$(mktemp -d) ;\
+	cd $$APPLIER_TMP_DIR ;\
+	go mod init tmp ;\
+	go install github.com/stolostron/applier@24eb6dde5781bd5521839dd802d3f923bfb2d6fc ;\
+	rm -rf $$APPLIER_TMP_DIR ;\
+	)
+APPLIER=$(GOBIN)/applier
+else
+APPLIER=$(shell which applier)
 endif
 
 CURL := $(shell which curl 2> /dev/null)
@@ -311,10 +328,18 @@ manifests: controller-gen yq/install kcp-plugin generate
 	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_clusterregistrars.yaml --prefix latest \
 	> config/apiresourceschema/singapore.open-cluster-management.io_clusterregistrars.yaml 
 
-samples:
+samples: applier
 # Later we can use `cm apply custom-resources --paths .. --values ... --dry-run --outpute-file ...` to generate the files
+	rm -rf hack/compute/*
 	cp resources/compute-templates/workspace/* hack/compute
 	cp resources/compute-templates/virtual-workspace/* hack/compute
+	applier render --paths resources/compute-templates/workspace/apibinding.yaml \
+	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/apibinding.yaml
+	applier render --paths resources/compute-templates/virtual-workspace/namespace.yaml \
+	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/namespace.yaml
+	applier render --paths resources/compute-templates/virtual-workspace/service_account.yaml \
+	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/service_account.yaml
+	
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen

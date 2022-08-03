@@ -7,7 +7,7 @@ metadata:
 spec:
   reference:
     workspace:
-      path: root:{{ .Organization }}
+      path: "root:my-org"
       exportName: compute-apis
   acceptedPermissionClaims:
   - group: ""
@@ -18,3 +18,4 @@ spec:
   #   resource: clusterroles
   # - group: "rbac.authorization.k8s.io"
   #   resource: clusterrolebindings
+---

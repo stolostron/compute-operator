@@ -34,13 +34,13 @@ import (
 	// "sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/go-logr/logr"
+	"github.com/stolostron/applier/pkg/apply"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 
+	"github.com/stolostron/applier/pkg/asset"
 	singaporev1alpha1 "github.com/stolostron/compute-operator/api/singapore/v1alpha1"
 	clusterregistrarconfig "github.com/stolostron/compute-operator/config"
 	"github.com/stolostron/compute-operator/deploy"
-	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
-	"open-cluster-management.io/clusteradm/pkg/helpers/asset"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	//+kubebuilder:scaffold:imports
@@ -140,7 +140,7 @@ func (r *ClusterRegistrarReconciler) Reconcile(ctx context.Context, req ctrl.Req
 func (r *ClusterRegistrarReconciler) processClusterRegistrarCreation(ctx context.Context, clusterRegistrar *singaporev1alpha1.ClusterRegistrar) error {
 	r.Log.Info("processClusterRegistrarCreation", "Name", clusterRegistrar.Name)
 
-	applierBuilder := &clusteradmapply.ApplierBuilder{}
+	applierBuilder := &apply.ApplierBuilder{}
 	applier := applierBuilder.WithClient(r.KubeClient, r.APIExtensionClient, r.DynamicClient).Build()
 	readerDeploy := deploy.GetScenarioResourcesReader()
 
@@ -415,7 +415,7 @@ func (r *ClusterRegistrarReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	//Install CRD
-	applierBuilder := &clusteradmapply.ApplierBuilder{}
+	applierBuilder := &apply.ApplierBuilder{}
 	applier := applierBuilder.WithClient(r.KubeClient, r.APIExtensionClient, r.DynamicClient).Build()
 
 	readerClusterRegOperator := clusterregistrarconfig.GetScenarioResourcesReader()
@@ -435,7 +435,7 @@ func (r *ClusterRegistrarReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *ClusterRegistrarReconciler) deployWebhook(ctx context.Context,
-	applier clusteradmapply.Applier,
+	applier apply.Applier,
 	readerDeploy *asset.ScenarioResourcesReader,
 	values struct {
 		Image     string

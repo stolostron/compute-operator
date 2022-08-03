@@ -93,7 +93,7 @@ func (o *managerOptions) run() {
 	kubeClient := kubernetes.NewForConfigOrDie(ctrl.GetConfigOrDie())
 	dynamicClient := dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie())
 	// apiExtensionClient := apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie())
-	// hubApplierBuilder := clusteradmapply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
+	// hubApplierBuilder := apply.NewApplierBuilder().WithClient(kubeClient, apiExtensionClient, dynamicClient).Build()
 
 	// get the clusterRegistrar
 	clusterRegistrarList, err := dynamicClient.Resource(helpers.GvrCR).List(context.TODO(), metav1.ListOptions{})
