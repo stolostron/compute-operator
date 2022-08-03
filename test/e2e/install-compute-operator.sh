@@ -45,7 +45,7 @@ oc get pods -n compute-config | grep compute-installer-controller-manager || {
 
 # TODO
 echo "--- Create secret using hub kubeconfig"
-oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig=${SHARED_DIR}/hub-1.kc -n compute-config
+oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig=./${VC_COMPUTE}.kubeconfig -n compute-config
 
 echo "--- Create HubConfig"
 cat > e2e-HubConfig.yaml <<EOF
