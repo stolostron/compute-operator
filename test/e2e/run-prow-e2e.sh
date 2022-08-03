@@ -97,14 +97,14 @@ oc create ns ${VC_MANAGED}
 oc config current-context view | vcluster create ${VC_MANAGED} --connect=false --expose -f vcluster-values.yml --namespace=${VC_MANAGED} --context=
 echo
 echo "--- Export vcluster kubeconfig for managed cluster"
-vcluster connect ${VC_MANAGED} -n ${VC_MANAGED} --update-current=false --kube-config=./${VC_MANAGED}.kubeconfig
+vcluster connect ${VC_MANAGED} -n ${VC_MANAGED} --update-current=false --kube-config=${SHARED_DIR}/${VC_MANAGED}.kubeconfig
 
 echo "--- vcluster kubeconfig data: "
-cat ./${VC_MANAGED}.kubeconfig
+cat ${SHARED_DIR}/${VC_MANAGED}.kubeconfig
 
 echo "--- Import vcluster into hub as managed"
 cm get clusters
-cm attach cluster --cluster ${VC_MANAGED} --cluster-kubeconfig ./${VC_MANAGED}.kubeconfig
+cm attach cluster --cluster ${VC_MANAGED} --cluster-kubeconfig ${SHARED_DIR}/${VC_MANAGED}.kubeconfig
 oc label managedcluster -n ${VC_MANAGED} ${VC_MANAGED} vcluster=true
 oc label ns ${VC_MANAGED} vcluster=true
 
@@ -118,7 +118,7 @@ oc config current-context view | vcluster create ${VC_COMPUTE} --expose --connec
 echo "-- Sleep a few minutes while vcluster starts..."
 sleep 5m
 echo "-- Export vcluster kubeconfig for compute cluster"
-vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config=./${VC_COMPUTE}.kubeconfig
+vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config=${SHARED_DIR}/${VC_COMPUTE}.kubeconfig
 oc get ns
 vcluster disconnect
 
@@ -136,12 +136,12 @@ oc config current-context view | vcluster create ${VC_KCP} --expose --connect=fa
 echo "-- Sleep a few minutes while vcluster starts..."
 sleep 5m
 echo "-- Connect to and then export vcluster kubeconfig for kcp cluster, try oc get ns, and disconnect"
-vcluster connect ${VC_KCP} -n ${VC_KCP} --kube-config=./${VC_KCP}.kubeconfig
+vcluster connect ${VC_KCP} -n ${VC_KCP} --kube-config=${SHARED_DIR}/${VC_KCP}.kubeconfig
 oc get ns
 vcluster disconnect
 
 # echo "-- Export vcluster kubeconfig for kcp cluster"
-# vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config=./${VC_KCP}.kubeconfig
+# vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config=${SHARED_DIR}/${VC_KCP}.kubeconfig
 
 # # Make sure the managed cluster is ready to be used
 # echo "Waiting up to 15 minutes for managed cluster to be ready"
@@ -196,7 +196,7 @@ export COMPUTE_OPERATOR_DIR=${COMPUTE_OPERATOR_DIR:-"/compute-operator"}
 #}
 
 echo "-- Connect to compute vcluster"
-vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config=./${VC_COMPUTE}.kubeconfig
+vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config=${SHARED_DIR}/${VC_COMPUTE}.kubeconfig
 
 oc get ns
 
