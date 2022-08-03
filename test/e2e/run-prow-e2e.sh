@@ -9,7 +9,6 @@ set -e
 
 echo $SHARED_DIR
 
-
 BROWSER=chrome
 BUILD_WEB_URL=https://prow.ci.openshift.org/view/gs/origin-ci-test/${JOB_NAME}/${BUILD_ID}
 GIT_PULL_NUMBER=$PULL_NUMBER
@@ -21,14 +20,6 @@ OCM_ROUTE=multicloud-console
 export KUBECONFIG="${SHARED_DIR}/hub-1.kc"
 
 OCM_ADDRESS=https://`oc -n $OCM_NAMESPACE get route $OCM_ROUTE -o json | jq -r '.spec.host'`
-# export CYPRESS_BASE_URL=$OCM_ADDRESS
-# export CYPRESS_OC_CLUSTER_URL=$(echo $HUB_CREDS | jq -r '.api_url')
-# export CYPRESS_OC_CLUSTER_USER=$(echo $HUB_CREDS | jq -r '.username')
-# export CYPRESS_OC_CLUSTER_PASS=$(echo $HUB_CREDS | jq -r '.password')
-# # Slightly different for IDP cypress tests
-# export CYPRESS_OPTIONS_HUB_USER=${CYPRESS_OC_CLUSTER_USER}
-# export CYPRESS_OPTIONS_HUB_PASSWORD=${CYPRESS_OC_CLUSTER_PASS}
-# export CYPRESS_BASE_URL=${OCM_ADDRESS}
 
 # # Cypress env variables
 # #export ANSIBLE_URL=$(cat "/etc/e2e-secrets/ansible-url")
@@ -42,23 +33,6 @@ OCM_ADDRESS=https://`oc -n $OCM_NAMESPACE get route $OCM_ROUTE -o json | jq -r '
 export GITHUB_USER=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-user")
 export GITHUB_TOKEN=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-token")
 
-# # GitHub OAuth App for testing Auth Realm with GitHub IDP (Ginkgo tests)
-# export GITHUB_APP_CLIENT_ID=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-app-client-id")
-# export GITHUB_APP_CLIENT_SECRET=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-app-client-secret")
-
-# # GitHub Credentials for creating OAuth apps for testing
-# export CYPRESS_OPTIONS_GH_USER=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-oauth-user")
-# export CYPRESS_OPTIONS_GH_PASSWORD=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-oauth-password")
-# export CYPRESS_OPTIONS_GH_OAUTH_APPS_URL=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-oauth-apps-url")
-# export CYPRESS_OPTIONS_GH_SECRET_KEY_FOR_TOTP=$(cat "/etc/ocm-mgdsvcs-e2e-test/github-secret-key-for-totp")
-
-# # LDAP (Azure Active Directory)
-# export LDAP_AZURE_HOST=$(cat "/etc/ocm-mgdsvcs-e2e-test/ldap-azure-host")
-# export LDAP_AZURE_BIND_DN=$(cat "/etc/ocm-mgdsvcs-e2e-test/ldap-azure-bind-dn")
-# export LDAP_AZURE_BIND_PASSWORD=$(cat "/etc/ocm-mgdsvcs-e2e-test/ldap-azure-bind-password")
-# export LDAP_AZURE_BASE_DN=$(cat "/etc/ocm-mgdsvcs-e2e-test/ldap-azure-base-dn")
-# export LDAP_AZURE_SERVER_CERT=$(cat "/etc/ocm-mgdsvcs-e2e-test/ldap-azure-server-cert")
-
 export ACME_REPO="github.com/acmesh-official/acme.sh"
 export COMPUTE_OPERATOR_REPO="github.com/stolostron/compute-operator"
 
@@ -70,10 +44,6 @@ export GIT_REPO_SLUG=$GIT_REPO_SLUG
 #In order to verify the signed certifiate, we need to use AWS for route53 domain stuff
 export AWS_ACCESS_KEY_ID=$(cat "/etc/ocm-mgdsvcs-e2e-test/aws-access-key")
 export AWS_SECRET_ACCESS_KEY=$(cat "/etc/ocm-mgdsvcs-e2e-test/aws-secret-access-key")
-
-# # Generate a random password for OpenID client secret
-# export OPENID_CLIENT_SECRET=$(head /dev/urandom | LC_CTYPE=C tr -dc a-z0-9 | head -c 16 ; echo '')
-
 
 # Workaround for "error: x509: certificate signed by unknown authority" problem with oc login
 mkdir -p ${HOME}/certificates
@@ -96,18 +66,80 @@ echo "--- Setting up git credentials."
 } >> ghcreds
 git config --global credential.helper 'store --file=ghcreds'
 
-
-
 # Set up Quay credentials.
 echo "--- Setting up Quay credentials."
 export QUAY_TOKEN=$(cat "/etc/acm-cicd-quay-pull")
 
-
-echo "--- Check current hub cluster info"
+echo "--- Check current hub cluster info and current context"
 oc cluster-info
+oc config get-contexts
+
+# Install vcluster
+export VC_MANAGED=vc-managed
+export VC_COMPUTE=vc-compute
+export VC_KCP=vc-kcp
+
+cat <<EOF > vcluster-values.yml
+openshift:
+  enable: true
+sync:
+  networkpolicies:
+    enabled: true  
+  serviceaccounts:
+    enabled: true
+  services:
+    syncServiceSelector: true    
+EOF
+
+echo "-- Creating a vcluster to import as a managed cluster"
+oc create ns ${VC_MANAGED}
+
+oc config current-context view | vcluster create ${VC_MANAGED} --connect=false --expose -f vcluster-values.yml --namespace=${VC_MANAGED} --context=
+echo
+echo "--- Export vcluster kubeconfig for managed cluster"
+vcluster connect ${VC_MANAGED} -n ${VC_MANAGED} --update-current=false --kube-config=./${VC_MANAGED}.kubeconfig
+
+echo "--- vcluster kubeconfig data: "
+cat ./${VC_MANAGED}.kubeconfig
+
+echo "--- Import vcluster into hub as managed"
+cm get clusters
+cm attach cluster --cluster ${VC_MANAGED} --cluster-kubeconfig ./${VC_MANAGED}.kubeconfig
+oc label managedcluster -n ${VC_MANAGED} ${VC_MANAGED} vcluster=true
+oc label ns ${VC_MANAGED} vcluster=true
 
 echo "--- Show managed cluster"
+sleep 5m
 oc get managedclusters
+
+echo "\n-- Creating vcluster to host compute service"
+oc create ns ${VC_COMPUTE}
+oc config current-context view | vcluster create ${VC_COMPUTE} --expose --connect=false --namespace=${VC_COMPUTE} --context=
+sleep 5m
+echo "-- Export vcluster kubeconfig for compute cluster"
+vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config=./${VC_COMPUTE}.kubeconfig
+oc get ns
+vcluster disconnect
+
+echo "-- Creating vcluster to host KCP service"
+oc create ns ${VC_KCP}
+## this fails on oc get ns due to dialup error
+# oc config current-context view | vcluster create ${VC_KCP} --expose --connect=true --namespace=${VC_KCP} -f vcluster-values.yml --context=
+# echo "-- Excplitily state context"
+# oc config current-context view
+# echo "-- Run without setting context" 
+# oc get ns
+# vcluster disconnect
+
+oc config current-context view | vcluster create ${VC_KCP} --expose --connect=false --namespace=${VC_KCP} --context=
+sleep 5m
+echo "-- Connect to and then export vcluster kubeconfig for kcp cluster, try oc get ns, and disconnect"
+vcluster connect ${VC_KCP} -n ${VC_KCP} --kube-config=./${VC_KCP}.kubeconfig
+oc get ns
+vcluster disconnect
+
+# echo "-- Export vcluster kubeconfig for kcp cluster"
+# vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config=./${VC_KCP}.kubeconfig
 
 # # Make sure the managed cluster is ready to be used
 # echo "Waiting up to 15 minutes for managed cluster to be ready"
@@ -145,7 +177,6 @@ oc get managedclusters
 # Location of repo in docker test image
 export COMPUTE_OPERATOR_DIR=${COMPUTE_OPERATOR_DIR:-"/compute-operator"}
 
-
 ## Grab the repo contents
 #idp_dir=$(mktemp -d -t idp-XXXXX)
 #cd "$idp_dir" || exit 1
@@ -162,19 +193,16 @@ export COMPUTE_OPERATOR_DIR=${COMPUTE_OPERATOR_DIR:-"/compute-operator"}
 #    exit 1
 #}
 
+echo "-- Connect to compute vcluster"
+vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config=./${VC_COMPUTE}.kubeconfig
 
+oc get ns
 
 echo "--- Install compute operator ..."
 ./install-compute-operator.sh
 
-# echo "--- Install keycloak for OpenID tests ..."
-# ./install-keycloak.sh
-#
-# # export variable saved from keycloak install/config
-# export OPENID_ISSUER=$(cat "/tmp/openid/openid_issuer")
-# echo "OPENID_ISSUER is ${OPENID_ISSUER}"
-#
-#
+vcluster disconnect
+
 # echo "--- Running ginkgo E2E tests"
 # ./run-ginkgo-e2e-tests.sh
 #
