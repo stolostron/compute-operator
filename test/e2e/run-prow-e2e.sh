@@ -68,7 +68,7 @@ git config --global credential.helper 'store --file=ghcreds'
 
 # Set up Quay credentials.
 echo "--- Setting up Quay credentials."
-export QUAY_TOKEN=$(cat "/etc/acm-cicd-quay-pull")
+export QUAY_TOKEN=$(cat "/etc/acm-cicd-quay-pull/token")
 
 echo "--- Check current hub cluster info and current context"
 oc cluster-info
@@ -114,11 +114,11 @@ oc get managedclusters
 
 echo "-- Creating vcluster to host compute service"
 oc create ns ${VC_COMPUTE}
-oc config current-context view | vcluster create ${VC_COMPUTE} --expose --connect=false --namespace=${VC_COMPUTE} --context=
+oc config current-context view | vcluster create ${VC_COMPUTE} --connect=false --expose --namespace=${VC_COMPUTE} --context=
 echo "-- Sleep a few minutes while vcluster starts..."
 sleep 5m
 echo "-- Export vcluster kubeconfig for compute cluster"
-vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
+vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --update-current=false --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
 oc get ns
 vcluster disconnect
 
