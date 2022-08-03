@@ -249,7 +249,7 @@ if you make any changes to the ClusterRegistrar or HubConfig.  This will allow t
 
 # Using
 ## Import a user cluster into controller cluster
-1. Create and enter a new compute workspace in kcp. Compute workspace is the workspace where APIExport(schema) is created and user registers cluster.
+1. Create and enter a new compute workspace in kcp. The Compute workspace is any workspace bound to the compute-apis APIExport where the user registers clusters.
 
 2. Create an APIBinding to the compute-apis APIExport
 
