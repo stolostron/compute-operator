@@ -119,7 +119,7 @@ echo "-- Sleep a few minutes while vcluster starts..."
 sleep 5m
 echo "-- Export vcluster kubeconfig for compute cluster"
 vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --update-current=false --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
-vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} 
+vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE}
 oc get ns
 vcluster disconnect
 
@@ -196,16 +196,17 @@ export COMPUTE_OPERATOR_DIR=${COMPUTE_OPERATOR_DIR:-"/compute-operator"}
 #    exit 1
 #}
 
-echo "-- Connect to compute vcluster"
-ls -alh "${SHARED_DIR}"
-vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
+# TEMP disable and install compute operator to hub cluster
+# echo "-- Connect to compute vcluster"
+# ls -alh "${SHARED_DIR}"
+# vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
 
 oc get ns
 
 echo "--- Install compute operator ..."
 ./install-compute-operator.sh
 
-vcluster disconnect
+# vcluster disconnect
 
 # echo "--- Running ginkgo E2E tests"
 # ./run-ginkgo-e2e-tests.sh

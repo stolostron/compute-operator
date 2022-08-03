@@ -46,7 +46,9 @@ oc get pods -n compute-config | grep compute-installer-controller-manager || {
 
 ls -alh "${SHARED_DIR}"
 echo "--- Create secret using hub kubeconfig"
-oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig" -n compute-config
+# TEMP disable and install compute operator to hub cluster
+#oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig" -n compute-config
+oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig=""${SHARED_DIR}/hub-1.kc"" -n compute-config
 
 echo "--- Create HubConfig"
 cat > e2e-HubConfig.yaml <<EOF
@@ -66,6 +68,8 @@ sleep 30
 
 echo "--- Check for operator manager and webhook pods also running"
 oc wait --for=condition=ready pods --all --timeout=5m -n compute-config
+
+echo "--- Done waiting, list pods"
 oc get pods -n compute-config
 oc get pods -n compute-config | grep compute-operator-manager || {
   echo "ERROR compute-operator-manager pod not found!"
