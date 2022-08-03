@@ -63,20 +63,26 @@ spec:
 EOF
 oc create -f e2e-HubConfig.yaml
 
-sleep 30
+sleep 10
+oc logs --selector='control-plane=controller-manager'
+sleep 20
 
 
 echo "--- Check for operator manager and webhook pods also running"
 oc wait --for=condition=ready pods --all --timeout=5m -n compute-config
 
 echo "--- Done waiting, list pods"
-oc get pods -n compute-config
+oc get pods -n compute-config -o wide
 oc get pods -n compute-config | grep compute-operator-manager || {
   echo "ERROR compute-operator-manager pod not found!"
+
+  oc logs --selector='control-plane=controller-manager'
   exit 1
 }
 oc get pods -n compute-config | grep compute-webhook-service || {
   echo "ERROR compute-webhook-service pod not found!"
+
+  oc logs --selector='control-plane=controller-manager'
   exit 1
 }
 
