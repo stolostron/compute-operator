@@ -28,7 +28,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
+	clusteradmasset "github.com/stolostron/applier/pkg/asset"
 
 	croconfig "github.com/stolostron/compute-operator/config"
 

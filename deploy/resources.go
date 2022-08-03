@@ -4,7 +4,7 @@ package deploy
 import (
 	"embed"
 
-	"open-cluster-management.io/clusteradm/pkg/helpers/asset"
+	"github.com/stolostron/applier/pkg/asset"
 )
 
 //go:embed compute-operator webhook

@@ -43,9 +43,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/kcp-dev/logicalcluster"
-	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
-	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
+	clusteradmasset "github.com/stolostron/applier/pkg/asset"
 
+	"github.com/stolostron/applier/pkg/apply"
 	croconfig "github.com/stolostron/compute-operator/config"
 	"github.com/stolostron/compute-operator/pkg/helpers"
 	"github.com/stolostron/compute-operator/resources"
@@ -142,7 +142,7 @@ func CreateWorkspace(workspace string, absoluteParent string, adminComputeKubeco
 	return nil
 }
 
-func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder *clusteradmapply.ApplierBuilder, readerResources *clusteradmasset.ScenarioResourcesReader) error {
+func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder *apply.ApplierBuilder, readerResources *clusteradmasset.ScenarioResourcesReader) error {
 	klog.Info("create APIBinding")
 	computeApplier := computeAdminApplierBuilder.
 		WithContext(computeContext).Build()
@@ -255,12 +255,12 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	computeAdminDynamicClient := dynamic.NewForConfigOrDie(computeAdminRestConfig)
 
 	// Create a builder for the workspace
-	computeAdminApplierBuilder := clusteradmapply.NewApplierBuilder().
+	computeAdminApplierBuilder := apply.NewApplierBuilder().
 		WithClient(computeAdminKubernetesClient,
 			computeAdminAPIExtensionClient,
 			computeAdminDynamicClient)
 	// Create a builder for the organization
-	organizationAdminApplierBuilder := clusteradmapply.NewApplierBuilder().
+	organizationAdminApplierBuilder := apply.NewApplierBuilder().
 		WithClient(computeAdminKubernetesClient,
 			computeAdminAPIExtensionClient,
 			computeAdminDynamicClient)
@@ -661,7 +661,7 @@ func InitControllerEnvironment(scheme *runtime.Scheme, controllerNamespace strin
 	controllerAPIExtensionClient := apiextensionsclient.NewForConfigOrDie(controllerRestConfig)
 	controllerDynamicClient := dynamic.NewForConfigOrDie(controllerRestConfig)
 	// Create the hub applier
-	controllerApplierBuilder := clusteradmapply.NewApplierBuilder().
+	controllerApplierBuilder := apply.NewApplierBuilder().
 		WithClient(controllerKubernetesClient, controllerAPIExtensionClient, controllerDynamicClient)
 
 	// Create the clusterRegistrar with the reference of the kcpConfig Secret
