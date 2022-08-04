@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -193,6 +195,46 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 	return ctrl.Result{}, nil
 }
 
+// List of regexes to exclude from labels and cluster claims copied to sync target labels
+var excludeLabelREs = []string{
+	"^feature\\.open-cluster-management\\.io\\/addon",
+}
+
+// Return all of the ManagedCluster labels and cluster claims that should be exposed as labels on the SyncTarget
+func (r *RegisteredClusterReconciler) getSyncTargetLabels(cluster clusterapiv1.ManagedCluster, excludeLabelRegExps []string) map[string]string {
+	logger := r.Log.WithName("getSyncTargetLabels").WithValues("namespace", cluster.Namespace, "name", cluster.Name, "cluster")
+	labels := make(map[string]string)
+
+	for k, v := range cluster.Labels {
+		labels[k] = v
+	}
+
+	for _, clusterClaim := range cluster.Status.ClusterClaims {
+		if errs := validation.IsValidLabelValue(clusterClaim.Value); len(errs) != 0 {
+			logger.V(4).Info("excluding cluster claim", "claim", clusterClaim.Value)
+		} else {
+			labels[clusterClaim.Name] = clusterClaim.Value
+		}
+
+	}
+
+	for _, excludeLabelRegex := range excludeLabelRegExps {
+		for k := range labels {
+			r, e := regexp.MatchString(excludeLabelRegex, k)
+			if e != nil {
+				logger.Error(e, "Error evaluating regex", "regex", excludeLabelRegex)
+				continue
+			}
+
+			if r {
+				logger.V(4).Info("excluding label", "label", k)
+				delete(labels, k)
+			}
+		}
+	}
+	return labels
+}
+
 func (r *RegisteredClusterReconciler) getSyncTarget(locationContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster) (*unstructured.Unstructured, error) {
 	logger := r.Log.WithName("getSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "cluster", regCluster.Annotations["clusterName"])
 
@@ -235,13 +277,20 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 			return giterrors.WithStack(err)
 		}
 
+		// Add labels to uniquely identify RegisteredCluster
 		labels := map[string]string{
 			RegisteredClusterNamelabel:      regCluster.Name,
 			RegisteredClusterNamespacelabel: regCluster.Namespace,
 			RegisteredClusterWorkspace:      strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-"),
 			RegisteredClusterUidLabel:       string(regCluster.UID),
 		}
+		// Copy the labels from the RegsiteredCluster
 		for k, v := range regCluster.Labels {
+			labels[k] = v
+		}
+		// Copy the labels and clusterclaims from the ManagedCluster
+		managedClusterLabels := r.getSyncTargetLabels(*managedCluster, excludeLabelREs)
+		for k, v := range managedClusterLabels {
 			labels[k] = v
 		}
 
