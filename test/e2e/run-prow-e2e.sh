@@ -159,8 +159,15 @@ echo "-- Install kubectl kcp plugin extensions"
 make install
 
 echo "-- Start kcp"
-kcp start &>${KCP_TMP_DIR}/kcp.log &
+$(kcp start > ${KCP_TMP_DIR}/kcp.log) &
+T_KCP=${!}
 
+sleep 10
+set +e
+ls -alh ${KCP_TMP_DIR}/.kcp
+
+tail ${KCP_TMP_DIR}/kcp.log
+set -e
 echo "-- Test kcp"
 kubectl --kubeconfig=${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig api-resources
 

@@ -187,8 +187,6 @@ ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 		cd kcp ;\
 		git checkout v0.6.4; \
 		make install WHAT="./cmd/kubectl-kcp"; \
-		make install WHAT="./cmd/kubectl-workspace"; \
-		make install WHAT="./cmd/kubectl-ws"; \
 		make install WHAT="./cmd/kcp"; \
 	)
 endif
