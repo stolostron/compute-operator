@@ -126,7 +126,9 @@ sleep 5m
 echo "-- Export vcluster kubeconfig for compute cluster"
 vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --update-current=false --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
 vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE}
+echo "-- Check compute vcluster namespaces"
 oc get ns
+echo "-- compute vcluster disconnect"
 vcluster disconnect
 
 # echo "-- Creating vcluster to host KCP service"
@@ -148,11 +150,13 @@ vcluster disconnect
 # oc get ns
 # vcluster disconnect
 
+echo "-- Check namespaces"
+oc get ns
 
 echo "-- Download KCP "
 cd ${KCP_TMP_DIR}
 git clone https://github.com/kcp-dev/kcp.git
-cd kcp
+pushd kcp
 git checkout ${KCP_GIT_BRANCH}
 
 echo "-- Install kubectl kcp plugin extensions"
@@ -160,14 +164,17 @@ make install
 
 echo "-- Start kcp"
 $(kcp start > ${KCP_TMP_DIR}/kcp.log) &
-T_KCP=${!}
+PID_KCP=${!}
 
 sleep 10
 set +e
-ls -alh ${KCP_TMP_DIR}/.kcp
+ls -al ${KCP_TMP_DIR}/.kcp
 
-tail ${KCP_TMP_DIR}/kcp.log
+tail -50 ${KCP_TMP_DIR}/kcp.log
 set -e
+
+popd
+
 echo "-- Test kcp"
 kubectl --kubeconfig=${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig api-resources
 
@@ -231,6 +238,7 @@ export COMPUTE_OPERATOR_DIR=${COMPUTE_OPERATOR_DIR:-"/compute-operator"}
 # ls -alh "${SHARED_DIR}"
 # vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
 
+echo "-- Check namespaces"
 oc get ns
 
 echo "--- Install compute operator ..."
