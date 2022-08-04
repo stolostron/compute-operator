@@ -61,7 +61,7 @@ kubectl create serviceaccount compute-operator -n default
 4. Generate the kubeconfig from this SA
 ```bash
 # build/generate_kubeconfig_from_sa.sh sa_name sa_namespace kubeconfig_filename
-build/generate_kubeconfig_from_sa.sh compute-operator default /tmp/kubeconfig-compute-operator.yaml
+build/generate_kubeconfig_from_sa.sh <kcp-kubeconfig> compute-operator default /tmp/kubeconfig-compute-operator.yaml
 ```
 The location of the new kubeconfig will be displayed
 ```
@@ -249,7 +249,7 @@ if you make any changes to the ClusterRegistrar or HubConfig.  This will allow t
 
 # Using
 ## Import a user cluster into controller cluster
-1. Create and enter a new workspace in kcp
+1. Create and enter a new compute workspace in kcp. The Compute workspace is any workspace bound to the compute-apis APIExport where the user registers clusters.
 
 2. Create an APIBinding to the compute-apis APIExport
 
@@ -257,13 +257,35 @@ Edit the file hack/compute/apibinding.yaml spec.reference.workspace.path to poin
 ```bash
 kubectl apply -f hack/compute/apibinding.yaml
 ```
+
 3. Confirm the RegisteredCluster API is now available
 ```bash
 % k api-resources | grep registered
 registeredclusters                             singapore.open-cluster-management.io/v1alpha1   true         RegisteredCluster
 ```
 
-4. Create a registeredcluster CR in the kcp workspace
+4. Get the identityhash for synctarget resource in kcp
+```bash
+kubectl get apibindings workload.kcp.dev -o jsonpath='{.status.boundResources[?(@.resource=="synctargets")].schema.identityHash}'
+```
+And add the permissionClaim for synctarget and enter the identityhash which you got by executing above command in the apiexport `compute-apis` as follows
+```bash
+ - group: workload.kcp.dev
+   resource: synctargets
+   identityHash: <identityhash>
+```
+
+5. Create APIBinding to the compute-apis APIExport in the location workspace. Location workspace is the workspace where synctarget is created. 
+
+Edit the file hack/compute/apibinding.yaml spec.reference.workspace.path to point at the workspace you created above in [Generating a kubeconfig for your kcp cluster](#generating-a-kubeconfig-for-your-kcp-cluster)
+
+Edit the spec.acceptedPermissionClaims.identityHash with the value you got in the step 4
+
+```bash
+kubectl apply -f hack/compute/apibinding_location_vw.yaml
+```
+
+6. Create a registeredcluster CR in the kcp compute workspace.
 
 ```bash
 kubectl create ns <a_namespace>
@@ -273,7 +295,8 @@ kind: RegisteredCluster
 metadata:
   name: <your_cluster_name>
   namespace: <a_namespace>
-spec: {}
+spec: 
+  location: <location-workspace>
 ' | oc create -f -
 ```
 

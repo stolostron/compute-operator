@@ -21,7 +21,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -98,6 +100,13 @@ var (
 	AdminComputeKubeconfigFile string = ".kcp/admin.kubeconfig"
 )
 
+var apibindingGVR = schema.GroupVersionResource{
+	Group:    "apis.kcp.dev",
+	Version:  "v1alpha1",
+	Resource: "apibindings",
+}
+var SyncTargetIdenityHash string
+
 func UseWorkspace(workspace string, adminComputeKubeconfigFile string) error {
 	klog.Infof("use workspace %s", workspace)
 	kubeconfigPath := os.Getenv("KUBECONFIG")
@@ -152,8 +161,10 @@ func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder
 	// Values for the appliers
 	values := struct {
 		Organization string
+		IdentityHash string
 	}{
 		Organization: ComputeOrganization,
+		IdentityHash: SyncTargetIdenityHash,
 	}
 	_, err := computeApplier.ApplyCustomResources(readerResources, values, false, "", files...)
 	if err != nil {
@@ -163,7 +174,7 @@ func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder
 }
 
 func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath string) (computeContext context.Context,
-	computeRuntimeWorkspaceClient client.Client, apiExportVirtualWorkspaceKubeClient kubernetes.Interface) {
+	computeRuntimeWorkspaceClient client.Client, apiExportVirtualWorkspaceKubeClient kubernetes.Interface, virtualWorkspaceDynamicClient dynamic.Interface) {
 	logf.SetLogger(klog.NewKlogr())
 
 	// Generate readers for appliers
@@ -311,12 +322,51 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 
 	ginkgo.By(fmt.Sprintf("apply APIExport on workspace %s", OrganizationWorkspace), func() {
 		gomega.Eventually(func() error {
+			klog.Info("get synctarget identityHash from apibinding")
+			apibinding, err := computeAdminDynamicClient.Resource(apibindingGVR).Get(organizationContext, "workload.kcp.dev", metav1.GetOptions{})
+			if err != nil {
+				klog.Error(err, " while getting apibinding")
+			}
+
+			unstructuredAPIBinding, err := runtime.DefaultUnstructuredConverter.ToUnstructured(apibinding)
+			if err != nil {
+				klog.Error(err, " while getting coverting apibinding to unstructured")
+			}
+
+			synctargetBoundResource, found, err := unstructured.NestedSlice(unstructuredAPIBinding, "status", "boundResources")
+			if err != nil {
+				klog.Error(err, " while getting boundresource in  apibinding")
+			}
+			if !found {
+				klog.Error("synctarget boundresource not found in apibinding")
+			}
+
+			for _, v := range synctargetBoundResource {
+				m, ok := v.(interface{})
+				if !ok {
+					klog.Error("error parsing unstructured data")
+				}
+				strMap := m.(map[string]interface{})
+				if strMap["resource"] == "synctargets" {
+					identityhash, ok := strMap["schema"].(map[string]interface{})
+					if ok {
+						SyncTargetIdenityHash = identityhash["identityHash"].(string)
+
+					}
+				}
+			}
+
 			klog.Info("create APIExport")
 			computeApplier := organizationAdminApplierBuilder.WithContext(organizationContext).Build()
 			files := []string{
 				"compute-templates/virtual-workspace/apiexport.yaml",
 			}
-			_, err := computeApplier.ApplyCustomResources(readerResources, nil, false, "", files...)
+			values := struct {
+				IdentityHash string
+			}{
+				IdentityHash: SyncTargetIdenityHash,
+			}
+			_, err = computeApplier.ApplyCustomResources(readerResources, values, false, "", files...)
 			if err != nil {
 				klog.Error(err, " while applying apiexport")
 			}
@@ -344,6 +394,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 			}
 			return err
 		}, 60, 3).Should(gomega.BeNil())
+
 		gomega.Eventually(func() error {
 			klog.Info("create service account")
 			computeApplier := computeAdminApplierBuilder.
@@ -445,18 +496,27 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	// Create location workspace on compute server and do not enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of location workspace %s", LocationWorkspace), func() {
 		gomega.Eventually(func() error {
-			return CreateWorkspace(LocationWorkspace, OrganizationWorkspace, adminComputeKubeconfigFile, false)
+			return CreateWorkspace(LocationWorkspace, OrganizationWorkspace, adminComputeKubeconfigFile, true)
 		}, 60, 3).Should(gomega.BeNil())
 	})
+	locationContext := logicalcluster.WithCluster(organizationContext, logicalcluster.New(AbsoluteLocationWorkspace))
 
-	// Create the APIBinding in the cluster workspace
-	ginkgo.By(fmt.Sprintf("apply APIBinding on workspace %s", LocationWorkspace), func() {
+	// Create the APIBinding in the location workspace
+	ginkgo.By(fmt.Sprintf("apply APIBinding in location workspace %s", LocationWorkspace), func() {
 		gomega.Eventually(func() error {
-			locationContext := logicalcluster.WithCluster(context.Background(), logicalcluster.New(AbsoluteLocationWorkspace))
 			return CreateAPIBinding(locationContext, computeAdminApplierBuilder, readerResources)
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
+	ginkgo.By(fmt.Sprintf("Switch to org workspace  %s", OrganizationWorkspace), func() {
+		gomega.Eventually(func() error {
+			klog.Info("Switch to org workspace %s", OrganizationWorkspace)
+			if err := UseWorkspace(OrganizationWorkspace, adminComputeKubeconfigFile); err != nil {
+				return err
+			}
+			return nil
+		}, 60, 3).Should(gomega.BeNil())
+	})
 	// Create compute workspace on compute server and enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of cluster workspace %s", ComputeWorkspace), func() {
 		gomega.Eventually(func() error {
@@ -488,6 +548,9 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	computeKubeconfig := apimachineryclient.NewClusterConfig(cfg)
 	apiExportVirtualWorkspaceKubeClient, err = kubernetes.NewForConfig(computeKubeconfig)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	virtualWorkspaceDynamicClient, err = dynamic.NewForConfig(computeKubeconfig)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	return

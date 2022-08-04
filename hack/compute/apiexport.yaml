@@ -14,5 +14,8 @@ spec:
   #   resource: clusterroles
   # - group: "rbac.authorization.k8s.io"
   #   resource: clusterrolebindings
+  - group: workload.kcp.dev
+    resource: synctargets
+    identityHash: <identityHash>
   latestResourceSchemas:
   - latest.registeredclusters.singapore.open-cluster-management.io
