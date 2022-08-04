@@ -9,6 +9,7 @@ require (
 	//github.com/kcp-dev/kcp v0.6.1
 	github.com/kcp-dev/kcp/pkg/apis v0.6.1
 	github.com/kcp-dev/logicalcluster v1.1.1-0.20220705215104-8e46328c24a5
+	github.com/martinlindhe/base36 v1.1.1
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.19.0
 	github.com/openshift/generic-admission-server v1.14.1-0.20220220163846-6395b86cc87e

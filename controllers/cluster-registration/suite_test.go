@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog/v2"
@@ -126,6 +127,23 @@ var _ = AfterSuite(func() {
 	test.TearDownCompute()
 })
 
+func getSyncTarget(locationContext context.Context, registeredCluster *singaporev1alpha1.RegisteredCluster) (unstructured.Unstructured, error) {
+	labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
+
+	syncTargetList, err := virtualWorkspaceDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
+		LabelSelector: labels,
+	})
+	if err != nil {
+		return unstructured.Unstructured{}, err
+	}
+
+	if len(syncTargetList.Items) == 1 {
+		return syncTargetList.Items[0], nil
+	}
+
+	return unstructured.Unstructured{}, nil
+}
+
 var _ = Describe("Process registeredCluster: ", func() {
 	It("Process cluster-registration registeredCluster", func() {
 		controllerRuntimeClient, err := client.New(controllerRestConfig, client.Options{Scheme: scheme})
@@ -180,7 +198,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					},
 				},
 				Spec: singaporev1alpha1.RegisteredClusterSpec{
-					Location: test.AbsoluteLocationWorkspace,
+					Location: []string{test.AbsoluteLocationWorkspace1, test.AbsoluteLocationWorkspace2},
 				},
 			}
 		})
@@ -381,24 +399,26 @@ var _ = Describe("Process registeredCluster: ", func() {
 		})
 
 		// Check if the synctarget created in the location workspace
-		By("Checking synctarget in location workspace", func() {
+		By("Checking synctarget in location workspaces", func() {
 			Eventually(func() error {
-				locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(test.AbsoluteLocationWorkspace))
-				//locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
-				klog.Infof("getting synctarget in location workspace %s", test.AbsoluteLocationWorkspace)
-				labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
+				for _, locationWorkspace := range registeredCluster.Spec.Location {
+					locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
+					//locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
+					klog.Infof("getting synctarget in location workspace %s", locationWorkspace)
+					labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
 
-				syncTargetList, err := virtualWorkspaceDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
-					LabelSelector: labels,
-				})
-				if err != nil {
-					return err
-				}
+					syncTargetList, err := virtualWorkspaceDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
+						LabelSelector: labels,
+					})
+					if err != nil {
+						return err
+					}
 
-				if len(syncTargetList.Items) == 0 || len(syncTargetList.Items) > 1 {
-					return fmt.Errorf("Synctarget not found in the location workspace")
+					if len(syncTargetList.Items) == 0 || len(syncTargetList.Items) > 1 {
+						return fmt.Errorf("Synctarget not found in the location workspace")
+					}
+					klog.Infof("synctarget found in the location workspace-%s %s", locationWorkspace, syncTargetList.Items)
 				}
-				klog.Infof("synctarget found in the location workspace %s", syncTargetList.Items)
 				return nil
 			}, 60, 10).Should(BeNil())
 		})
@@ -406,30 +426,44 @@ var _ = Describe("Process registeredCluster: ", func() {
 		// Check if the service account was created in the location workspace
 		By("Checking syncer service account in location workspace", func() {
 			Eventually(func() error {
-				locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(test.AbsoluteLocationWorkspace))
-				klog.Infof("getting service account %s in workspace %s", helpers.GetSyncerServiceAccountName(), test.AbsoluteLocationWorkspace)
-				_, err := apiExportVirtualWorkspaceKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, helpers.GetSyncerServiceAccountName(), metav1.GetOptions{})
-				if err != nil {
-					klog.Errorf("failed getting service account %s", err)
+				for _, locationWorkspace := range registeredCluster.Spec.Location {
+					locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
+					klog.Infof("getting service account %s in workspace %s", helpers.GetSyncerServiceAccountName(), locationWorkspace)
+					_, err := apiExportVirtualWorkspaceKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, helpers.GetSyncerServiceAccountName(), metav1.GetOptions{})
+					if err != nil {
+						klog.Errorf("failed getting service account %s", err)
+						return err
+					}
 				}
-				return err
+				return nil
 			}, 30, 10).Should(BeNil())
 		})
 
 		// Check if the manifestwork was created on the hub
 		By("Checking manifestwork", func() {
 			Eventually(func() error {
-				manifestwork := &manifestworkv1.ManifestWork{}
+				for _, locationWorkspace := range registeredCluster.Spec.Location {
 
-				err := controllerRuntimeClient.Get(context.TODO(),
-					types.NamespacedName{
-						Name:      helpers.GetSyncerName(registeredCluster.Name),
-						Namespace: managedCluster.Name,
-					},
-					manifestwork)
-				if err != nil {
-					klog.Info("Waiting manifestwork", "Error", err)
-					return err
+					locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
+
+					synctarget, err := getSyncTarget(locationContext, registeredCluster)
+					if err != nil {
+						klog.Info("SyncTarget Not found", "Error", err)
+						return err
+					}
+					manifestwork := &manifestworkv1.ManifestWork{}
+
+					err = controllerRuntimeClient.Get(context.TODO(),
+						types.NamespacedName{
+							Name:      helpers.GetSyncerName(synctarget),
+							Namespace: managedCluster.Name,
+						},
+						manifestwork)
+					if err != nil {
+						klog.Info("Waiting manifestwork", "Error", err)
+						return err
+					}
+
 				}
 				return nil
 			}, 60, 5).Should(BeNil())
@@ -438,27 +472,35 @@ var _ = Describe("Process registeredCluster: ", func() {
 		// As the manifestwork controller is not installed, patch the manifestwork
 		By("Patching manifestwork status", func() {
 
-			manifestwork := &manifestworkv1.ManifestWork{}
+			for _, locationWorkspace := range registeredCluster.Spec.Location {
 
-			err := controllerRuntimeClient.Get(context.TODO(),
-				types.NamespacedName{
-					Name:      helpers.GetSyncerName(registeredCluster.Name),
-					Namespace: managedCluster.Name,
-				},
-				manifestwork)
-			Expect(err).Should(BeNil())
+				locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
 
-			manifestwork.Status.Conditions = []metav1.Condition{
-				{
-					Type:               manifestworkv1.WorkApplied,
-					Status:             metav1.ConditionTrue,
-					LastTransitionTime: metav1.Now(),
-					Reason:             "Applied",
-					Message:            "Manifestwork applied",
-				},
+				synctarget, err := getSyncTarget(locationContext, registeredCluster)
+				Expect(err).Should(BeNil())
+
+				manifestwork := &manifestworkv1.ManifestWork{}
+
+				err = controllerRuntimeClient.Get(context.TODO(),
+					types.NamespacedName{
+						Name:      helpers.GetSyncerName(synctarget),
+						Namespace: managedCluster.Name,
+					},
+					manifestwork)
+				Expect(err).Should(BeNil())
+
+				manifestwork.Status.Conditions = []metav1.Condition{
+					{
+						Type:               manifestworkv1.WorkApplied,
+						Status:             metav1.ConditionTrue,
+						LastTransitionTime: metav1.Now(),
+						Reason:             "Applied",
+						Message:            "Manifestwork applied",
+					},
+				}
+				err = controllerRuntimeClient.Update(context.TODO(), manifestwork)
+				Expect(err).Should(BeNil())
 			}
-			err = controllerRuntimeClient.Update(context.TODO(), manifestwork)
-			Expect(err).Should(BeNil())
 		})
 
 		// Delete the registeredcluster

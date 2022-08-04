@@ -66,7 +66,9 @@ const (
 	// The compute workspace (where RegisteredCluster is created)
 	ComputeWorkspace string = "my-compute-ws"
 	// The location workspace (where SyncTarget is generated)
-	LocationWorkspace string = "my-location-ws"
+	LocationWorkspace1 string = "my-location-ws1"
+	// The location workspace where SyncTarget is generated
+	LocationWorkspace2 string = "my-location-ws2"
 	// The controller service account on the compute
 	ControllerComputeServiceAccount string = "compute-operator"
 	// the namespace on the compute
@@ -76,8 +78,9 @@ const (
 	// The compute organization workspace
 	OrganizationWorkspace string = "root:" + ComputeOrganization
 	// The compute cluster workspace
-	AbsoluteComputeWorkspace  string = OrganizationWorkspace + ":" + ComputeWorkspace
-	AbsoluteLocationWorkspace string = OrganizationWorkspace + ":" + LocationWorkspace
+	AbsoluteComputeWorkspace   string = OrganizationWorkspace + ":" + ComputeWorkspace
+	AbsoluteLocationWorkspace1 string = OrganizationWorkspace + ":" + LocationWorkspace1
+	AbsoluteLocationWorkspace2 string = OrganizationWorkspace + ":" + LocationWorkspace2
 	// The directory for test environment assets
 	TestEnvDir string = ".testenv"
 	// the test environment kubeconfig file
@@ -494,17 +497,42 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 	})
 
 	// Create location workspace on compute server and do not enter in the ws
-	ginkgo.By(fmt.Sprintf("creation of location workspace %s", LocationWorkspace), func() {
+	ginkgo.By(fmt.Sprintf("creation of location workspace1 %s", LocationWorkspace1), func() {
 		gomega.Eventually(func() error {
-			return CreateWorkspace(LocationWorkspace, OrganizationWorkspace, adminComputeKubeconfigFile, true)
+			return CreateWorkspace(LocationWorkspace1, OrganizationWorkspace, adminComputeKubeconfigFile, true)
 		}, 60, 3).Should(gomega.BeNil())
 	})
-	locationContext := logicalcluster.WithCluster(organizationContext, logicalcluster.New(AbsoluteLocationWorkspace))
 
 	// Create the APIBinding in the location workspace
-	ginkgo.By(fmt.Sprintf("apply APIBinding in location workspace %s", LocationWorkspace), func() {
+	ginkgo.By(fmt.Sprintf("apply APIBinding in location workspace1 %s", LocationWorkspace1), func() {
 		gomega.Eventually(func() error {
+			locationContext := logicalcluster.WithCluster(organizationContext, logicalcluster.New(AbsoluteLocationWorkspace1))
 			return CreateAPIBinding(locationContext, computeAdminApplierBuilder, readerResources)
+		}, 60, 3).Should(gomega.BeNil())
+	})
+
+	ginkgo.By(fmt.Sprintf("Switch to org workspace  %s", OrganizationWorkspace), func() {
+		gomega.Eventually(func() error {
+			klog.Info("Switch to org workspace %s", OrganizationWorkspace)
+			if err := UseWorkspace(OrganizationWorkspace, adminComputeKubeconfigFile); err != nil {
+				return err
+			}
+			return nil
+		}, 60, 3).Should(gomega.BeNil())
+	})
+
+	// Create location workspace on compute server and do not enter in the ws
+	ginkgo.By(fmt.Sprintf("creation of location workspace2 %s", LocationWorkspace2), func() {
+		gomega.Eventually(func() error {
+			return CreateWorkspace(LocationWorkspace2, OrganizationWorkspace, adminComputeKubeconfigFile, true)
+		}, 60, 3).Should(gomega.BeNil())
+	})
+
+	// Create the APIBinding in the location workspace
+	ginkgo.By(fmt.Sprintf("apply APIBinding in location workspace2 %s", LocationWorkspace2), func() {
+		gomega.Eventually(func() error {
+			locationContext2 := logicalcluster.WithCluster(organizationContext, logicalcluster.New(AbsoluteLocationWorkspace2))
+			return CreateAPIBinding(locationContext2, computeAdminApplierBuilder, readerResources)
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
