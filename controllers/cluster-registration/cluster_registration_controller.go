@@ -239,9 +239,9 @@ func (r *RegisteredClusterReconciler) getSyncTargetLabels(cluster clusterapiv1.M
 }
 
 func (r *RegisteredClusterReconciler) getSyncTarget(locationContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster) (*unstructured.Unstructured, error) {
-	logger := r.Log.WithName("getSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "cluster", regCluster.Annotations["clusterName"])
+	logger := r.Log.WithName("getSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "cluster", regCluster.ClusterName)
 
-	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(regCluster.UID)
+	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(regCluster.ClusterName, ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(regCluster.UID)
 	syncTargetList, err := r.ComputeDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
 		LabelSelector: labels,
 	})
@@ -269,7 +269,7 @@ func (r *RegisteredClusterReconciler) getSyncTarget(locationContext context.Cont
 
 func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, locationWorkspace string, managedCluster *clusterapiv1.ManagedCluster) error {
 
-	logger := r.Log.WithName("syncSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
+	logger := r.Log.WithName("syncSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name, "Location workspace", locationWorkspace)
 
 	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
 
@@ -284,7 +284,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 		labels := map[string]string{
 			RegisteredClusterNamelabel:      regCluster.Name,
 			RegisteredClusterNamespacelabel: regCluster.Namespace,
-			RegisteredClusterWorkspace:      strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-"),
+			RegisteredClusterWorkspace:      strings.ReplaceAll(regCluster.ClusterName, ":", "-"),
 			RegisteredClusterUidLabel:       string(regCluster.UID),
 		}
 		// Copy the labels from the RegsiteredCluster
@@ -314,7 +314,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 			if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
 				return err
 			}
-			logger.V(2).Info("SyncTarget is created in the location workspace")
+			logger.V(2).Info("SyncTarget is created in the location workspace ")
 		} else {
 			// Update SyncTarget labels. Merge with existing labels found on SyncTarget since kcp adds some too
 			syncTargetLabels := syncTarget.GetLabels()
@@ -325,7 +325,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 				if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Update(locationContext, syncTarget, metav1.UpdateOptions{}); err != nil {
 					return err
 				}
-				logger.V(2).Info("SyncTarget is updated in the location workspace")
+				logger.V(2).Info("SyncTarget is updated in the location workspace ")
 			} else {
 				r.Log.V(2).Info("no changes detected to SyncTarget", "labels", labels)
 			}
