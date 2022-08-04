@@ -137,7 +137,8 @@ oc config current-context view | vcluster create ${VC_KCP} --expose --connect=fa
 echo "-- Sleep a few minutes while vcluster starts..."
 sleep 5m
 echo "-- Connect to and then export vcluster kubeconfig for kcp cluster, try oc get ns, and disconnect"
-vcluster connect ${VC_KCP} -n ${VC_KCP} --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
+vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
+vcluster connect ${VC_KCP} -n ${VC_KCP}
 oc get ns
 vcluster disconnect
 
