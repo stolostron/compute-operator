@@ -34,13 +34,12 @@ chmod +x /usr/local/bin/vcluster
 echo "Check install with vcluster --version"
 vcluster --version
 
-# TODO - don't think we need this
-# echo "Installing cm-cli..."
-# curl -kLo cm.tar.gz https://github.com/stolostron/cm-cli/releases/download/v1.0.14/cm_linux_amd64.tar.gz
-# mkdir cm-unpacked
-# tar -xzf cm.tar.gz -C cm-unpacked
-# chmod 755 ./cm-unpacked/cm
-# mv ./cm-unpacked/cm /usr/local/bin/cm
-# cm version
+echo "Installing cm-cli..."
+curl -kLo cm.tar.gz https://github.com/stolostron/cm-cli/releases/download/v1.0.14/cm_linux_amd64.tar.gz
+mkdir cm-unpacked
+tar -xzf cm.tar.gz -C cm-unpacked
+chmod 755 ./cm-unpacked/cm
+mv ./cm-unpacked/cm /usr/local/bin/cm
+cm version
 
 echo 'set up complete'

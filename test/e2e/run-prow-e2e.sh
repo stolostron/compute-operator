@@ -178,6 +178,9 @@ popd
 echo "-- Test kcp"
 kubectl --kubeconfig=${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig api-resources
 
+echo "-- Show kcp workspaces"
+kubectl --kubeconfig=${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig get workspaces
+
 # echo "-- Export vcluster kubeconfig for kcp cluster"
 # vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
 
