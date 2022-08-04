@@ -127,21 +127,24 @@ var _ = AfterSuite(func() {
 	test.TearDownCompute()
 })
 
-func getSyncTarget(locationContext context.Context, registeredCluster *singaporev1alpha1.RegisteredCluster) (unstructured.Unstructured, error) {
-	labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
+func getSyncTarget(locationContext context.Context, registeredCluster *singaporev1alpha1.RegisteredCluster) (*unstructured.Unstructured, error) {
+	labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.ClusterName, ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
 
-	syncTargetList, err := virtualWorkspaceDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
+	syncTargetList, err := virtualWorkspaceDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
 		LabelSelector: labels,
 	})
 	if err != nil {
-		return unstructured.Unstructured{}, err
+		return nil, err
 	}
 
-	if len(syncTargetList.Items) == 1 {
-		return syncTargetList.Items[0], nil
+	if len(syncTargetList.Items) == 0 {
+		return nil, nil
+	}
+	if len(syncTargetList.Items) > 1 {
+		return nil, fmt.Errorf("more than one synctarget found for registered cluster")
 	}
 
-	return unstructured.Unstructured{}, nil
+	return &syncTargetList.Items[0], nil
 }
 
 var _ = Describe("Process registeredCluster: ", func() {
@@ -190,12 +193,10 @@ var _ = Describe("Process registeredCluster: ", func() {
 			}, 60, 3).Should(BeNil())
 			registeredCluster = &singaporev1alpha1.RegisteredCluster{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      registeredClusterName,
-					Namespace: workingClusterComputeNamespace,
-					UID:       "d170e2ad-077b-44b6-b462-81ab9d2ef84b",
-					Annotations: map[string]string{
-						"clusterName": "root:my-org:my-cmpute-ws",
-					},
+					Name:        registeredClusterName,
+					Namespace:   workingClusterComputeNamespace,
+					UID:         "d170e2ad-077b-44b6-b462-81ab9d2ef84b",
+					ClusterName: "root:my-org:my-cmpute-ws",
 				},
 				Spec: singaporev1alpha1.RegisteredClusterSpec{
 					Location: []string{test.AbsoluteLocationWorkspace1, test.AbsoluteLocationWorkspace2},
@@ -405,7 +406,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
 					//locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
 					klog.Infof("getting synctarget in location workspace %s", locationWorkspace)
-					labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
+					labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.ClusterName, ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
 
 					syncTargetList, err := virtualWorkspaceDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
 						LabelSelector: labels,
