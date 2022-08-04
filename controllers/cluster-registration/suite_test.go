@@ -388,7 +388,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 				klog.Infof("getting synctarget in location workspace %s", test.AbsoluteLocationWorkspace)
 				labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
 
-				syncTargetList, err := virtualWorkspaceDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
+				syncTargetList, err := virtualWorkspaceDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
 					LabelSelector: labels,
 				})
 				if err != nil {

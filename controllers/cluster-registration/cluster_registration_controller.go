@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -69,7 +71,7 @@ const (
 
 const defaultSyncerImage = "ghcr.io/kcp-dev/kcp/syncer:v0.6.1"
 
-var clusterGVR = schema.GroupVersionResource{
+var syncTargetGVR = schema.GroupVersionResource{
 	Group:    "workload.kcp.dev",
 	Version:  "v1alpha1",
 	Resource: "synctargets",
@@ -193,26 +195,72 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 	return ctrl.Result{}, nil
 }
 
-func (r *RegisteredClusterReconciler) checkSynctargetExists(locationContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster) (int, error) {
-	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(regCluster.UID)
+// List of regexes to exclude from labels and cluster claims copied to sync target labels
+var excludeLabelREs = []string{
+	"^feature\\.open-cluster-management\\.io\\/addon",
+}
 
-	syncTargetList, err := r.ComputeDynamicClient.Resource(clusterGVR).List(locationContext, metav1.ListOptions{
-		LabelSelector: labels,
-	})
-	if err != nil {
-		return 0, giterrors.WithStack(err)
+// Return all of the ManagedCluster labels and cluster claims that should be exposed as labels on the SyncTarget
+func (r *RegisteredClusterReconciler) getSyncTargetLabels(cluster clusterapiv1.ManagedCluster, excludeLabelRegExps []string) map[string]string {
+	logger := r.Log.WithName("getSyncTargetLabels").WithValues("namespace", cluster.Namespace, "name", cluster.Name, "cluster")
+	labels := make(map[string]string)
+
+	for k, v := range cluster.Labels {
+		labels[k] = v
 	}
 
-	r.Log.V(4).Info("Number of synctarget found with labels",
+	for _, clusterClaim := range cluster.Status.ClusterClaims {
+		if errs := validation.IsValidLabelValue(clusterClaim.Value); len(errs) != 0 {
+			logger.V(4).Info("excluding cluster claim", "claim", clusterClaim.Value)
+		} else {
+			labels[clusterClaim.Name] = clusterClaim.Value
+		}
+
+	}
+
+	for _, excludeLabelRegex := range excludeLabelRegExps {
+		for k := range labels {
+			r, e := regexp.MatchString(excludeLabelRegex, k)
+			if e != nil {
+				logger.Error(e, "Error evaluating regex", "regex", excludeLabelRegex)
+				continue
+			}
+
+			if r {
+				logger.V(4).Info("excluding label", "label", k)
+				delete(labels, k)
+			}
+		}
+	}
+	return labels
+}
+
+func (r *RegisteredClusterReconciler) getSyncTarget(locationContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster) (*unstructured.Unstructured, error) {
+	logger := r.Log.WithName("getSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "cluster", regCluster.Annotations["clusterName"])
+
+	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(regCluster.UID)
+	syncTargetList, err := r.ComputeDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
+		LabelSelector: labels,
+	})
+
+	if err != nil {
+		r.Log.Error(err, "error getting SyncTarget list")
+		return nil, giterrors.WithStack(err)
+	}
+
+	r.Log.V(2).Info("Number of synctargets found with labels",
 		"number", len(syncTargetList.Items),
 		RegisteredClusterNamelabel, regCluster.Name,
 		RegisteredClusterNamespacelabel, regCluster.Namespace)
 
-	if len(syncTargetList.Items) == 1 {
-		return len(syncTargetList.Items), nil
+	if len(syncTargetList.Items) == 0 {
+		return nil, nil
+	}
+	if len(syncTargetList.Items) > 1 {
+		logger.Error(err, "more than one synctarget found for registered cluster")
 	}
 
-	return len(syncTargetList.Items), nil
+	return &syncTargetList.Items[0], nil
 
 }
 
@@ -224,36 +272,90 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 
 		locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(regCluster.Spec.Location))
 
-		syncTargetLength, err := r.checkSynctargetExists(locationContext, regCluster)
+		syncTarget, err := r.getSyncTarget(locationContext, regCluster)
 		if err != nil {
 			return giterrors.WithStack(err)
 		}
-		if syncTargetLength == 0 {
+
+		// Add labels to uniquely identify RegisteredCluster
+		labels := map[string]string{
+			RegisteredClusterNamelabel:      regCluster.Name,
+			RegisteredClusterNamespacelabel: regCluster.Namespace,
+			RegisteredClusterWorkspace:      strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-"),
+			RegisteredClusterUidLabel:       string(regCluster.UID),
+		}
+		// Copy the labels from the RegsiteredCluster
+		for k, v := range regCluster.Labels {
+			labels[k] = v
+		}
+		// Copy the labels and clusterclaims from the ManagedCluster
+		managedClusterLabels := r.getSyncTargetLabels(*managedCluster, excludeLabelREs)
+		for k, v := range managedClusterLabels {
+			labels[k] = v
+		}
+
+		if syncTarget == nil {
 			syncTarget := &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"apiVersion": workloadv1alpha1.SchemeGroupVersion.String(),
 					"kind":       "SyncTarget",
 					"metadata": map[string]interface{}{
 						"generateName": regCluster.Name + "-",
-						"labels": map[string]string{
-							RegisteredClusterNamelabel:      regCluster.Name,
-							RegisteredClusterNamespacelabel: regCluster.Namespace,
-							RegisteredClusterWorkspace:      strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-"),
-							RegisteredClusterUidLabel:       string(regCluster.UID),
-						},
+						"labels":       labels,
 					},
 					"spec": map[string]interface{}{
 						"unschedulable": false,
 					},
 				},
 			}
-			if _, err := r.ComputeDynamicClient.Resource(clusterGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
+			if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
 				return err
 			}
-			logger.V(2).Info("Synctarget is created in the location workspace")
+			logger.V(2).Info("SyncTarget is created in the location workspace")
+		} else {
+			// Update SyncTarget labels. Merge with existing labels found on SyncTarget since kcp adds some too
+			syncTargetLabels := syncTarget.GetLabels()
+			modified := mergeMap(&syncTargetLabels, labels)
+
+			if modified {
+				syncTarget.SetLabels(syncTargetLabels)
+				if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Update(locationContext, syncTarget, metav1.UpdateOptions{}); err != nil {
+					return err
+				}
+				logger.V(2).Info("SyncTarget is updated in the location workspace")
+			} else {
+				r.Log.V(2).Info("no changes detected to SyncTarget", "labels", labels)
+			}
 		}
 	}
 	return nil
+}
+
+// Adapted from openshift/library-go
+func mergeMap(existing *map[string]string, required map[string]string) bool {
+	modified := false
+
+	if *existing == nil {
+		*existing = map[string]string{}
+	}
+	for k, v := range required {
+		actualKey := k
+		removeKey := false
+
+		if existingV, ok := (*existing)[actualKey]; removeKey {
+			if !ok {
+				continue
+			}
+			// value found -> it should be removed
+			delete(*existing, actualKey)
+			modified = true
+
+		} else if !ok || v != existingV {
+			modified = true
+			(*existing)[actualKey] = v
+		}
+	}
+	return modified
 }
 
 func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster) error {
