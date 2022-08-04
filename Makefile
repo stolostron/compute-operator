@@ -185,8 +185,10 @@ ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 		cd $$KCP_TMP_DIR ;\
 		git clone https://github.com/kcp-dev/kcp.git ;\
 		cd kcp ;\
-		git checkout v0.6.1; \
+		git checkout v0.6.4; \
 		make install WHAT="./cmd/kubectl-kcp"; \
+		make install WHAT="./cmd/kubectl-workspace"; \
+		make install WHAT="./cmd/kubectl-ws"; \
 		make install WHAT="./cmd/kcp"; \
 	)
 endif
@@ -326,7 +328,7 @@ manifests: controller-gen yq/install kcp-plugin generate
 	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_hubconfigs.yaml --prefix latest \
 	> config/apiresourceschema/singapore.open-cluster-management.io_hubconfigs.yaml
 	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_clusterregistrars.yaml --prefix latest \
-	> config/apiresourceschema/singapore.open-cluster-management.io_clusterregistrars.yaml 
+	> config/apiresourceschema/singapore.open-cluster-management.io_clusterregistrars.yaml
 
 samples: applier
 # Later we can use `cm apply custom-resources --paths .. --values ... --dry-run --outpute-file ...` to generate the files
@@ -339,7 +341,7 @@ samples: applier
 	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/namespace.yaml
 	applier render --paths resources/compute-templates/virtual-workspace/service_account.yaml \
 	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/service_account.yaml
-	
+
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen

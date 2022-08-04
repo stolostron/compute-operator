@@ -51,7 +51,7 @@ echo "--- Create secret using hub kubeconfig"
 oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/hub-1.kc" -n compute-config
 
 echo "--- Create HubConfig"
-echo '
+cat > e2e-HubConfig.yaml <<EOF
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: HubConfig
 metadata:
@@ -60,17 +60,21 @@ metadata:
 spec:
   kubeconfigSecretRef:
     name: e2e-hub-kubeconfig
-' | oc create -f -
+EOF
+oc create -f e2e-HubConfig.yaml
+
 
 sleep 10
 oc logs --selector='control-plane=controller-manager'
 
-kubectl create secret generic kcp-kubeconfig -n compute-config --from-file=kubeconfig=/tmp/kubeconfig-compute-operator.yaml
+##kubectl create secret generic kcp-kubeconfig -n compute-config --from-file=kubeconfig=/tmp/kubeconfig-compute-operator.yaml
 #oc create secret generic kcp-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig" -n compute-config
-oc create secret generic kcp-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/${VC_KCP}.kubeconfig" -n compute-config
+#oc create secret generic kcp-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/${VC_KCP}.kubeconfig" -n compute-config
+oc create secret generic kcp-kubeconfig --from-file=kubeconfig="${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig" -n compute-config
+
 
 echo "--- Create ClusterRegistrar"
-echo '
+cat > e2e-ClusterRegistrar.yaml <<EOF
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: ClusterRegistrar
 metadata:
@@ -79,7 +83,9 @@ spec:
   computeService:
     computeKubeconfigSecretRef:
       name: kcp-kubeconfig
-' | oc create -f -
+EOF
+oc create -f e2e-ClusterRegistrar.yaml
+
 
 sleep 10
 oc logs --selector='control-plane=controller-manager'

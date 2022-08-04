@@ -19,6 +19,12 @@ OCM_ROUTE=multicloud-console
 # Hub cluster
 export KUBECONFIG="${SHARED_DIR}/hub-1.kc"
 
+export KCP_GIT_BRANCH="v0.6.4"
+export KCP_SYNCER_IMAGE="ghcr.io/kcp-dev/kcp/syncer:release-0.6"
+export KCP_TMP_DIR=$(mktemp -d)
+
+
+
 OCM_ADDRESS=https://`oc -n $OCM_NAMESPACE get route $OCM_ROUTE -o json | jq -r '.spec.host'`
 
 # # Cypress env variables
@@ -123,24 +129,40 @@ vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE}
 oc get ns
 vcluster disconnect
 
-echo "-- Creating vcluster to host KCP service"
-oc create ns ${VC_KCP}
-## this fails on oc get ns due to dialup error
-# oc config current-context view | vcluster create ${VC_KCP} --expose --connect=true --namespace=${VC_KCP} -f vcluster-values.yml --context=
-# echo "-- Excplitily state context"
-# oc config current-context view
-# echo "-- Run without setting context"
+# echo "-- Creating vcluster to host KCP service"
+# oc create ns ${VC_KCP}
+# ## this fails on oc get ns due to dialup error
+# # oc config current-context view | vcluster create ${VC_KCP} --expose --connect=true --namespace=${VC_KCP} -f vcluster-values.yml --context=
+# # echo "-- Excplitily state context"
+# # oc config current-context view
+# # echo "-- Run without setting context"
+# # oc get ns
+# # vcluster disconnect
+#
+# oc config current-context view | vcluster create ${VC_KCP} --expose --connect=false --namespace=${VC_KCP} --context=
+# echo "-- Sleep a few minutes while vcluster starts..."
+# sleep 5m
+# echo "-- Connect to and then export vcluster kubeconfig for kcp cluster, try oc get ns, and disconnect"
+# vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
+# vcluster connect ${VC_KCP} -n ${VC_KCP}
 # oc get ns
 # vcluster disconnect
 
-oc config current-context view | vcluster create ${VC_KCP} --expose --connect=false --namespace=${VC_KCP} --context=
-echo "-- Sleep a few minutes while vcluster starts..."
-sleep 5m
-echo "-- Connect to and then export vcluster kubeconfig for kcp cluster, try oc get ns, and disconnect"
-vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
-vcluster connect ${VC_KCP} -n ${VC_KCP}
-oc get ns
-vcluster disconnect
+
+echo "-- Download KCP "
+cd ${KCP_TMP_DIR}
+git clone https://github.com/kcp-dev/kcp.git
+cd kcp
+git checkout ${KCP_GIT_BRANCH}
+
+echo "-- Install kubectl kcp plugin extensions"
+make install
+
+echo "-- Start kcp"
+kcp start &>${KCP_TMP_DIR}/kcp.log &
+
+echo "-- Test kcp"
+kubectl --kubeconfig=${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig api-resources
 
 # echo "-- Export vcluster kubeconfig for kcp cluster"
 # vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
