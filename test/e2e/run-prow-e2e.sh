@@ -1,13 +1,13 @@
 #!/bin/bash
 # Copyright Red Hat
 
+#trap "kill 0" EXIT
+
 set -e
 
 ###############################################################################
 # Test Setup
 ###############################################################################
-
-echo $SHARED_DIR
 
 BROWSER=chrome
 BUILD_WEB_URL=https://prow.ci.openshift.org/view/gs/origin-ci-test/${JOB_NAME}/${BUILD_ID}
@@ -23,6 +23,24 @@ export KCP_GIT_BRANCH="v0.6.4"
 export KCP_SYNCER_IMAGE="ghcr.io/kcp-dev/kcp/syncer:release-0.6"
 export KCP_TMP_DIR=$(mktemp -d)
 
+export KCP_KUBECONFIG_DIR="${SHARED_DIR}/kcp"
+export KCP_KUBECONFIG="admin.kubeconfig"
+
+# The compute workspace (where RegisteredCluster is created)
+export COMPUTE_WORKSPACE="my-compute-ws"
+# The location workspace (where SyncTarget is generated)
+export LOCATION_WORKSPACE="my-location-ws"
+# The controller service account on the compute
+export CONTROLLER_COMPUTE_SERVICE_ACCOUNT="compute-operator"
+# the namespace on the compute
+export CONTROLLER_COMPUTE_SERVICE_ACCOUNT_NAMESPACE="sa-ws"
+# The compute organization
+export COMPUTE_ORGANIZATION="my-org"
+# The compute organization workspace
+export ORGANIZATION_WORKSPACE="root:"${COMPUTE_ORGANIZATION}
+# The compute cluster workspace
+export ABSOLUTE_COMPUTE_WORKSPACE=${ORGANIZATION_WORKSPACE}":"${COMPUTE_WORKSPACE}
+export ABSOLUTE_LOCATION_WORKSPACE=${ORGANIZATION_WORKSPACE}":"${LOCATION_WORKSPACE}
 
 
 OCM_ADDRESS=https://`oc -n $OCM_NAMESPACE get route $OCM_ROUTE -o json | jq -r '.spec.host'`
@@ -163,26 +181,29 @@ echo "-- Install kubectl kcp plugin extensions"
 make install
 
 echo "-- Start kcp"
-$(kcp start > ${KCP_TMP_DIR}/kcp.log) &
-PID_KCP=${!}
+# Maybe want to add: -v=6
+kcp start &>"${ARTIFACT_DIR}/kcp.log" &
+export KCP_PID=${!}
+echo "-- PID for kcp is ${KCP_PID}"
+
 
 sleep 10
-set +e
-ls -al ${KCP_TMP_DIR}/.kcp
+ls -al ${KCP_TMP_DIR}/kcp/.kcp
 
-tail -50 ${KCP_TMP_DIR}/kcp.log
-set -e
+# Copy the KCP .kcp contents to a shared location for easier use by other scripts
+mkdir -p "${KCP_KUBECONFIG_DIR}"
+cp "${KCP_TMP_DIR}/kcp/.kcp/${KCP_KUBECONFIG}"  "${KCP_KUBECONFIG_DIR}"
 
 popd
 
 echo "-- Test kcp"
-KUBECONFIG="${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig" kubectl api-resources
+KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl api-resources
 
 echo "-- Show context"
-KUBECONFIG="${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig" kubectl config get-contexts
+KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl config get-contexts
 
 echo "-- Show kcp workspaces"
-KUBECONFIG="${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig" kubectl get workspaces
+KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl get workspaces
 
 # echo "-- Export vcluster kubeconfig for kcp cluster"
 # vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
