@@ -193,10 +193,12 @@ var _ = Describe("Process registeredCluster: ", func() {
 			}, 60, 3).Should(BeNil())
 			registeredCluster = &singaporev1alpha1.RegisteredCluster{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        registeredClusterName,
-					Namespace:   workingClusterComputeNamespace,
-					UID:         "d170e2ad-077b-44b6-b462-81ab9d2ef84b",
-					ClusterName: "root:my-org:my-cmpute-ws",
+					Name:      registeredClusterName,
+					Namespace: workingClusterComputeNamespace,
+					UID:       "d170e2ad-077b-44b6-b462-81ab9d2ef84b",
+					Annotations: map[string]string{
+						logicalcluster.AnnotationKey: "root:my-org:my-cmpute-ws",
+					},
 				},
 				Spec: singaporev1alpha1.RegisteredClusterSpec{
 					Location: []string{test.AbsoluteLocationWorkspace1, test.AbsoluteLocationWorkspace2},

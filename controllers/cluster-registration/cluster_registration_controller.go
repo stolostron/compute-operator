@@ -166,6 +166,11 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 		logger.Error(err, "failed to update import command")
 		return ctrl.Result{}, err
 	}
+	// update status of registeredcluster
+	if err := r.updateRegisteredClusterStatus(computeContext, regCluster, &managedCluster); err != nil {
+		logger.Error(err, "failed to update registered cluster status")
+		return ctrl.Result{}, err
+	}
 
 	if len(regCluster.Spec.Location) > 0 {
 		for _, locationWorkspace := range regCluster.Spec.Location {
@@ -188,11 +193,6 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 				return ctrl.Result{}, err
 			}
 		}
-	}
-	// update status of registeredcluster
-	if err := r.updateRegisteredClusterStatus(computeContext, regCluster, &managedCluster); err != nil {
-		logger.Error(err, "failed to update registered cluster status")
-		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
@@ -311,6 +311,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 					},
 				},
 			}
+
 			if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
 				return err
 			}
