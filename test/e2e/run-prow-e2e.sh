@@ -172,7 +172,7 @@ echo "-- Check namespaces"
 oc get ns
 
 echo "-- Download KCP "
-cd ${KCP_TMP_DIR}
+pushd ${KCP_TMP_DIR}
 git clone https://github.com/kcp-dev/kcp.git
 pushd kcp
 git checkout ${KCP_GIT_BRANCH}
@@ -194,6 +194,7 @@ ls -al ${KCP_TMP_DIR}/kcp/.kcp
 mkdir -p "${KCP_KUBECONFIG_DIR}"
 cp "${KCP_TMP_DIR}/kcp/.kcp/${KCP_KUBECONFIG}"  "${KCP_KUBECONFIG_DIR}"
 
+popd
 popd
 
 echo "-- Test kcp"
