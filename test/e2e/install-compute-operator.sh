@@ -91,6 +91,10 @@ sleep 10
 oc logs --selector='control-plane=controller-manager'
 
 sleep 20
+oc logs --selector='control-plane=controller-manager'
+
+echo "--- Show pods"
+oc get pods -n compute-config -o wide
 
 
 echo "--- Check for operator manager and webhook pods also running"
