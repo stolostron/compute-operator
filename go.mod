@@ -8,7 +8,7 @@ require (
 	github.com/kcp-dev/apimachinery v0.0.0-20220708220956-c302aeddfde7
 	//github.com/kcp-dev/kcp v0.6.1
 	github.com/kcp-dev/kcp/pkg/apis v0.6.1
-	github.com/kcp-dev/logicalcluster v1.1.1-0.20220705215104-8e46328c24a5
+	github.com/kcp-dev/logicalcluster/v2 v2.0.0-alpha.1
 	github.com/martinlindhe/base36 v1.1.1
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.19.0
@@ -70,6 +70,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kcp-dev/logicalcluster v1.1.1-0.20220705215104-8e46328c24a5 // indirect
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect

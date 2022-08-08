@@ -48,7 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/kcp-dev/logicalcluster"
+	"github.com/kcp-dev/logicalcluster/v2"
 )
 
 // +kubebuilder:rbac:groups="",resources={secrets},verbs=get;list;watch;create;update;patch
@@ -171,20 +171,20 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 		for _, locationWorkspace := range regCluster.Spec.Location {
 			// sync SyncTarget
 			if err := r.syncSyncTarget(computeContext, regCluster, locationWorkspace, &managedCluster); err != nil {
-				logger.Error(err, "failed to sync SyncTarget in location workspace")
+				logger.Error(err, "failed to sync SyncTarget in location workspace %s", locationWorkspace)
 				return ctrl.Result{}, giterrors.WithStack(err)
 			}
 
 			// sync kcp-syncer service account (currently one per location workspace - probably change to one per syncer, owned by the syncer) in kcp workspace
 			token := ""
 			if token, err = r.syncServiceAccount(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster); err != nil {
-				logger.Error(err, "failed to sync ServiceAccount")
+				logger.Error(err, "failed to sync ServiceAccount in the location workspace %s", locationWorkspace)
 				return ctrl.Result{}, err
 			}
 
 			// sync kcp-syncer deployment and supporting resources
 			if err := r.syncKcpSyncer(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster, token); err != nil {
-				logger.Error(err, "failed to sync kcp-syncer")
+				logger.Error(err, "failed to sync kcp-syncer in the location workspace %s", locationWorkspace)
 				return ctrl.Result{}, err
 			}
 		}
@@ -239,9 +239,9 @@ func (r *RegisteredClusterReconciler) getSyncTargetLabels(cluster clusterapiv1.M
 }
 
 func (r *RegisteredClusterReconciler) getSyncTarget(locationContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster) (*unstructured.Unstructured, error) {
-	logger := r.Log.WithName("getSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "cluster", regCluster.ClusterName)
+	logger := r.Log.WithName("getSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "cluster", logicalcluster.From(regCluster).String())
 
-	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(regCluster.ClusterName, ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(regCluster.UID)
+	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(logicalcluster.From(regCluster).String(), ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(regCluster.UID)
 	syncTargetList, err := r.ComputeDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
 		LabelSelector: labels,
 	})
@@ -284,7 +284,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 		labels := map[string]string{
 			RegisteredClusterNamelabel:      regCluster.Name,
 			RegisteredClusterNamespacelabel: regCluster.Namespace,
-			RegisteredClusterWorkspace:      strings.ReplaceAll(regCluster.ClusterName, ":", "-"),
+			RegisteredClusterWorkspace:      strings.ReplaceAll(logicalcluster.From(regCluster).String(), ":", "-"),
 			RegisteredClusterUidLabel:       string(regCluster.UID),
 		}
 		// Copy the labels from the RegsiteredCluster
@@ -476,11 +476,11 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 		Name:          regCluster.Name,
 		Namespace:     regCluster.Namespace,
 		ImportCommand: importCommand,
-		ClusterName:   regCluster.ClusterName,
+		ClusterName:   logicalcluster.From(regCluster).String(),
 	}
 
 	r.Log.V(2).Info("create secret on compute",
-		"cluster", regCluster.ClusterName,
+		"cluster", logicalcluster.From(regCluster).String(),
 		"namespace", regCluster.Namespace,
 		"name", regCluster.Name)
 
@@ -579,7 +579,7 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 
 	// Printed after sleep is over
 	r.Log.V(1).Info("SKIPPED create clusterrole and clusterrolebinding for now... permission not yet allowed",
-		"cluster", regCluster.ClusterName,
+		"cluster", logicalcluster.From(regCluster).String(),
 		"namespace", regCluster.Namespace,
 		"name", regCluster.Name)
 	if err != nil {

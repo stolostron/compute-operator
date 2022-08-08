@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/rest"
 	utilflag "k8s.io/component-base/cli/flag"
 
-	"github.com/kcp-dev/logicalcluster"
+	"github.com/kcp-dev/logicalcluster/v2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spf13/pflag"
@@ -128,7 +128,7 @@ var _ = AfterSuite(func() {
 })
 
 func getSyncTarget(locationContext context.Context, registeredCluster *singaporev1alpha1.RegisteredCluster) (*unstructured.Unstructured, error) {
-	labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.ClusterName, ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
+	labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(logicalcluster.From(registeredCluster).String(), ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
 
 	syncTargetList, err := virtualWorkspaceDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
 		LabelSelector: labels,
@@ -406,7 +406,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
 					//locationClusterName, _ := logicalcluster.ClusterFromContext(locationContext)
 					klog.Infof("getting synctarget in location workspace %s", locationWorkspace)
-					labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(registeredCluster.ClusterName, ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
+					labels := RegisteredClusterNamelabel + "=" + registeredCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + registeredCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(logicalcluster.From(registeredCluster).String(), ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(registeredCluster.UID)
 
 					syncTargetList, err := virtualWorkspaceDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
 						LabelSelector: labels,

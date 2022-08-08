@@ -44,7 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/kcp-dev/logicalcluster"
+	"github.com/kcp-dev/logicalcluster/v2"
 	clusteradmasset "github.com/stolostron/applier/pkg/asset"
 
 	"github.com/stolostron/applier/pkg/apply"
@@ -496,7 +496,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
-	// Create location workspace on compute server and do not enter in the ws
+	// Create location workspace on compute server and enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of location workspace1 %s", LocationWorkspace1), func() {
 		gomega.Eventually(func() error {
 			return CreateWorkspace(LocationWorkspace1, OrganizationWorkspace, adminComputeKubeconfigFile, true)
@@ -521,7 +521,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 		}, 60, 3).Should(gomega.BeNil())
 	})
 
-	// Create location workspace on compute server and do not enter in the ws
+	// Create location workspace on compute server and enter in the ws
 	ginkgo.By(fmt.Sprintf("creation of location workspace2 %s", LocationWorkspace2), func() {
 		gomega.Eventually(func() error {
 			return CreateWorkspace(LocationWorkspace2, OrganizationWorkspace, adminComputeKubeconfigFile, true)
