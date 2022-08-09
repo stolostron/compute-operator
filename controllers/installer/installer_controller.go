@@ -176,9 +176,12 @@ func (r *ClusterRegistrarReconciler) processClusterRegistrarCreation(ctx context
 	}
 
 	//Deploy webhook
+	r.Log.Info("checking SKIP_WEBHOOK", "SKIP_WEBHOOK", os.Getenv("SKIP_WEBHOOK"))
 	if os.Getenv("SKIP_WEBHOOK") != "true" {
+		r.Log.Info("deploying webhook")
 		return r.deployWebhook(ctx, applier, readerDeploy, values)
 	} else {
+		r.Log.Info("skipping webhook deployment")
 		return nil
 	}
 }

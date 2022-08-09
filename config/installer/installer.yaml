@@ -61,7 +61,7 @@ spec:
           valueFrom:
             configMapKeyRef:
               name: installer-config
-              key: IMAGE
+              key: SKIP_WEBHOOK
         image: controller:latest
         livenessProbe:
           httpGet:
