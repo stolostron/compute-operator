@@ -48,7 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/kcp-dev/logicalcluster"
+	"github.com/kcp-dev/logicalcluster/v2"
 )
 
 // +kubebuilder:rbac:groups="",resources={secrets},verbs=get;list;watch;create;update;patch
@@ -166,30 +166,33 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 		logger.Error(err, "failed to update import command")
 		return ctrl.Result{}, err
 	}
-
-	// sync SyncTarget
-	if err := r.syncSyncTarget(computeContext, regCluster, &managedCluster); err != nil {
-		logger.Error(err, "failed to sync SyncTarget in location workspace")
-		return ctrl.Result{}, giterrors.WithStack(err)
-	}
-
-	// sync kcp-syncer service account (currently one per location workspace - probably change to one per syncer, owned by the syncer) in kcp workspace
-	token := ""
-	if token, err = r.syncServiceAccount(computeContext, ctx, regCluster, &managedCluster, &hubCluster); err != nil {
-		logger.Error(err, "failed to sync ServiceAccount")
-		return ctrl.Result{}, err
-	}
-
-	// sync kcp-syncer deployment and supporting resources
-	if err := r.syncKcpSyncer(computeContext, ctx, regCluster, &managedCluster, &hubCluster, token); err != nil {
-		logger.Error(err, "failed to sync kcp-syncer")
-		return ctrl.Result{}, err
-	}
-
 	// update status of registeredcluster
 	if err := r.updateRegisteredClusterStatus(computeContext, regCluster, &managedCluster); err != nil {
 		logger.Error(err, "failed to update registered cluster status")
 		return ctrl.Result{}, err
+	}
+
+	if len(regCluster.Spec.Location) > 0 {
+		for _, locationWorkspace := range regCluster.Spec.Location {
+			// sync SyncTarget
+			if err := r.syncSyncTarget(computeContext, regCluster, locationWorkspace, &managedCluster); err != nil {
+				logger.Error(err, "failed to sync SyncTarget in location workspace %s", locationWorkspace)
+				return ctrl.Result{}, giterrors.WithStack(err)
+			}
+
+			// sync kcp-syncer service account (currently one per location workspace - probably change to one per syncer, owned by the syncer) in kcp workspace
+			token := ""
+			if token, err = r.syncServiceAccount(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster); err != nil {
+				logger.Error(err, "failed to sync ServiceAccount in the location workspace %s", locationWorkspace)
+				return ctrl.Result{}, err
+			}
+
+			// sync kcp-syncer deployment and supporting resources
+			if err := r.syncKcpSyncer(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster, token); err != nil {
+				logger.Error(err, "failed to sync kcp-syncer in the location workspace %s", locationWorkspace)
+				return ctrl.Result{}, err
+			}
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -236,9 +239,9 @@ func (r *RegisteredClusterReconciler) getSyncTargetLabels(cluster clusterapiv1.M
 }
 
 func (r *RegisteredClusterReconciler) getSyncTarget(locationContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster) (*unstructured.Unstructured, error) {
-	logger := r.Log.WithName("getSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "cluster", regCluster.Annotations["clusterName"])
+	logger := r.Log.WithName("getSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "cluster", logicalcluster.From(regCluster).String())
 
-	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(regCluster.UID)
+	labels := RegisteredClusterNamelabel + "=" + regCluster.Name + "," + RegisteredClusterNamespacelabel + "=" + regCluster.Namespace + "," + RegisteredClusterWorkspace + "=" + strings.ReplaceAll(logicalcluster.From(regCluster).String(), ":", "-") + "," + RegisteredClusterUidLabel + "=" + string(regCluster.UID)
 	syncTargetList, err := r.ComputeDynamicClient.Resource(syncTargetGVR).List(locationContext, metav1.ListOptions{
 		LabelSelector: labels,
 	})
@@ -264,13 +267,13 @@ func (r *RegisteredClusterReconciler) getSyncTarget(locationContext context.Cont
 
 }
 
-func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster) error {
+func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, locationWorkspace string, managedCluster *clusterapiv1.ManagedCluster) error {
 
-	logger := r.Log.WithName("syncSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
+	logger := r.Log.WithName("syncSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name, "Location workspace", locationWorkspace)
 
 	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
 
-		locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(regCluster.Spec.Location))
+		locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
 
 		syncTarget, err := r.getSyncTarget(locationContext, regCluster)
 		if err != nil {
@@ -281,7 +284,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 		labels := map[string]string{
 			RegisteredClusterNamelabel:      regCluster.Name,
 			RegisteredClusterNamespacelabel: regCluster.Namespace,
-			RegisteredClusterWorkspace:      strings.ReplaceAll(regCluster.Annotations["clusterName"], ":", "-"),
+			RegisteredClusterWorkspace:      strings.ReplaceAll(logicalcluster.From(regCluster).String(), ":", "-"),
 			RegisteredClusterUidLabel:       string(regCluster.UID),
 		}
 		// Copy the labels from the RegsiteredCluster
@@ -308,10 +311,11 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 					},
 				},
 			}
+
 			if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
 				return err
 			}
-			logger.V(2).Info("SyncTarget is created in the location workspace")
+			logger.V(2).Info("SyncTarget is created in the location workspace ")
 		} else {
 			// Update SyncTarget labels. Merge with existing labels found on SyncTarget since kcp adds some too
 			syncTargetLabels := syncTarget.GetLabels()
@@ -322,11 +326,12 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 				if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Update(locationContext, syncTarget, metav1.UpdateOptions{}); err != nil {
 					return err
 				}
-				logger.V(2).Info("SyncTarget is updated in the location workspace")
+				logger.V(2).Info("SyncTarget is updated in the location workspace ")
 			} else {
 				r.Log.V(2).Info("no changes detected to SyncTarget", "labels", labels)
 			}
 		}
+
 	}
 	return nil
 }
@@ -472,11 +477,11 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 		Name:          regCluster.Name,
 		Namespace:     regCluster.Namespace,
 		ImportCommand: importCommand,
-		ClusterName:   regCluster.ClusterName,
+		ClusterName:   logicalcluster.From(regCluster).String(),
 	}
 
 	r.Log.V(2).Info("create secret on compute",
-		"cluster", regCluster.ClusterName,
+		"cluster", logicalcluster.From(regCluster).String(),
 		"namespace", regCluster.Namespace,
 		"name", regCluster.Name)
 
@@ -502,6 +507,7 @@ func (r *RegisteredClusterReconciler) updateImportCommand(computeContext context
 func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.Context,
 	ctx context.Context,
 	regCluster *singaporev1alpha1.RegisteredCluster,
+	locationWorkspace string,
 	managedCluster *clusterapiv1.ManagedCluster,
 	hubCluster *helpers.HubInstance) (string, error) {
 
@@ -513,7 +519,7 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 	saName := helpers.GetSyncerServiceAccountName()
 
 	// sa, err := r.ComputeKubeClient.Cluster(logicalcluster.New(regCluster.Spec.Location)).CoreV1().ServiceAccounts("default").Get(ctx, saName, metav1.GetOptions{})
-	locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(regCluster.Spec.Location))
+	locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
 	sa, err := r.ComputeKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, saName, metav1.GetOptions{})
 	if err != nil {
 		if !k8serrors.IsNotFound(err) {
@@ -574,7 +580,7 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 
 	// Printed after sleep is over
 	r.Log.V(1).Info("SKIPPED create clusterrole and clusterrolebinding for now... permission not yet allowed",
-		"cluster", regCluster.ClusterName,
+		"cluster", logicalcluster.From(regCluster).String(),
 		"namespace", regCluster.Namespace,
 		"name", regCluster.Name)
 	if err != nil {
@@ -582,18 +588,18 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 	}
 
 	// Return the ServiceAccount token
-	token, err := r.getKcpSyncerSAToken(computeContext, regCluster, sa)
+	token, err := r.getKcpSyncerSAToken(computeContext, regCluster, locationWorkspace, sa)
 	return token, err
 
 }
 
-func (r *RegisteredClusterReconciler) getKcpSyncerSAToken(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, sa *corev1.ServiceAccount) (string, error) {
+func (r *RegisteredClusterReconciler) getKcpSyncerSAToken(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, locationWorkspace string, sa *corev1.ServiceAccount) (string, error) {
 
 	r.Log.V(2).Info("getKcpSyncerSAToken",
 		"service account", sa.Name)
 
 	saName := helpers.GetSyncerServiceAccountName()
-	locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(regCluster.Spec.Location))
+	locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
 
 	for _, secretRef := range sa.Secrets {
 		r.Log.V(4).Info("checking secret",
@@ -644,7 +650,7 @@ func getSyncerImage() string {
 	return defaultSyncerImage
 }
 
-func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Context, ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance, token string) error {
+func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Context, ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, locationWorkspace string, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance, token string) error {
 	logger := r.Log.WithName("syncKcpSyncer").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
 
 	// If cluster has joined, sync the ManifestWork to create the kcp-syncer deployment and supporting resources
@@ -654,7 +660,13 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 
 		applier := hubCluster.ApplierBuilder.Build()
 
-		syncerName := helpers.GetSyncerName(regCluster.Name)
+		locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
+		syncTarget, err := r.getSyncTarget(locationContext, regCluster)
+		if err != nil {
+			return err
+		}
+
+		syncerName := helpers.GetSyncerName(syncTarget)
 
 		kcpURL, err := url.Parse(r.ComputeConfig.Host)
 		if err != nil {
@@ -662,7 +674,7 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 		}
 
 		logger.V(2).Info("syncKcpSyncer", "url path", kcpURL.Path)
-		logger.V(2).Info("syncKcpSyncer", "reg cluster location", regCluster.Spec.Location)
+		logger.V(2).Info("syncKcpSyncer", "reg cluster location", locationWorkspace)
 
 		values := struct {
 			KcpSyncerName                   string
@@ -691,8 +703,8 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 			RegisteredClusterNamespace:      regCluster.Namespace,
 			ClusterNameAnnotation:           ClusterNameAnnotation,
 			RegisteredClusterClusterName:    managedCluster.Annotations[ClusterNameAnnotation],
-			LogicalCluster:                  regCluster.Spec.Location,
-			LogicalClusterLabel:             strings.ReplaceAll(regCluster.Spec.Location, ":", "_"),
+			LogicalCluster:                  locationWorkspace,
+			LogicalClusterLabel:             strings.ReplaceAll(locationWorkspace, ":", "_"),
 			Image:                           getSyncerImage(),
 		}
 
@@ -728,33 +740,44 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 func (r *RegisteredClusterReconciler) processRegclusterDeletion(ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance) (ctrl.Result, error) {
 
 	// TODO - update this
-	manifestwork := &manifestworkv1.ManifestWork{}
-	manifestworkName := helpers.GetSyncerName(regCluster.Name)
-	err := hubCluster.Client.Get(ctx,
-		types.NamespacedName{
-			Name:      manifestworkName,
-			Namespace: managedCluster.Name},
-		manifestwork)
-	switch {
-	case err == nil:
-		r.Log.Info("delete manifestwork", "name", manifestworkName)
-		if err := hubCluster.Client.Delete(ctx, manifestwork); err != nil {
-			return ctrl.Result{}, giterrors.WithStack(err)
-		}
-		r.Log.Info("waiting manifestwork to be deleted",
-			"name", manifestworkName,
-			"namespace", managedCluster.Name)
-		return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Second}, nil
-	case !k8serrors.IsNotFound(err):
+	if len(regCluster.Spec.Location) > 0 {
+		for _, locationWorkspace := range regCluster.Spec.Location {
 
-		return ctrl.Result{}, giterrors.WithStack(err)
+			locationContext := logicalcluster.WithCluster(ctx, logicalcluster.New(locationWorkspace))
+			syncTarget, err := r.getSyncTarget(locationContext, regCluster)
+			if err != nil {
+				return ctrl.Result{}, giterrors.WithStack(err)
+			}
+
+			manifestwork := &manifestworkv1.ManifestWork{}
+			manifestworkName := helpers.GetSyncerName(syncTarget)
+			err = hubCluster.Client.Get(ctx,
+				types.NamespacedName{
+					Name:      manifestworkName,
+					Namespace: managedCluster.Name},
+				manifestwork)
+			switch {
+			case err == nil:
+				r.Log.Info("delete manifestwork", "name", manifestworkName)
+				if err := hubCluster.Client.Delete(ctx, manifestwork); err != nil {
+					return ctrl.Result{}, giterrors.WithStack(err)
+				}
+				r.Log.Info("waiting manifestwork to be deleted",
+					"name", manifestworkName,
+					"namespace", managedCluster.Name)
+				return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Second}, nil
+			case !k8serrors.IsNotFound(err):
+
+				return ctrl.Result{}, giterrors.WithStack(err)
+			}
+			r.Log.Info("deleted manifestwork", "name", manifestworkName)
+		}
 	}
-	r.Log.Info("deleted manifestwork", "name", manifestworkName)
 
 	// TODO - remaining cleanup - https://issues.redhat.com/browse/CMCS-145
 
 	cluster := &clusterapiv1.ManagedCluster{}
-	err = hubCluster.Client.Get(ctx,
+	err := hubCluster.Client.Get(ctx,
 		types.NamespacedName{
 			Name: managedCluster.Name},
 		cluster)

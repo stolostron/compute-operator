@@ -5,10 +5,10 @@ go 1.18
 require (
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/go-logr/logr v1.2.3
-	github.com/kcp-dev/apimachinery v0.0.0-20220708220956-c302aeddfde7
-	//github.com/kcp-dev/kcp v0.6.1
+	github.com/kcp-dev/apimachinery v0.0.0-20220803185518-868856d14e8a
 	github.com/kcp-dev/kcp/pkg/apis v0.6.1
-	github.com/kcp-dev/logicalcluster v1.1.1-0.20220705215104-8e46328c24a5
+	github.com/kcp-dev/logicalcluster/v2 v2.0.0-alpha.1
+	github.com/martinlindhe/base36 v1.1.1
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.19.0
 	github.com/openshift/generic-admission-server v1.14.1-0.20220220163846-6395b86cc87e
@@ -19,7 +19,7 @@ require (
 	k8s.io/api v0.24.3
 	k8s.io/apiextensions-apiserver v0.24.2
 	k8s.io/apimachinery v0.24.3
-	k8s.io/apiserver v0.24.0
+	k8s.io/apiserver v0.24.3
 	k8s.io/client-go v0.24.3
 	k8s.io/component-base v0.24.3
 	k8s.io/klog/v2 v2.60.1
@@ -40,7 +40,7 @@ require (
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
@@ -57,11 +57,11 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/go-cmp v0.5.7 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20220401020641-b5a4dc8f4f2a // indirect
 	github.com/google/uuid v1.3.0 // indirect
-	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
@@ -127,16 +127,6 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // Lock gnostic path to googleapis/gnostic instead of google/gnostic
+replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20220328201542-3ee0da9b0b42 // Lock gnostic path to googleapis/gnostic instead of google/gnostic
 
-replace sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.11.3-0.20220713175340-cbf0522c1b34
-
-replace (
-	k8s.io/api => k8s.io/api v0.23.5
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.23.5
-	k8s.io/apimachinery => k8s.io/apimachinery v0.23.5
-	k8s.io/apiserver => k8s.io/apiserver v0.23.5
-	k8s.io/client-go => k8s.io/client-go v0.23.5
-	k8s.io/component-base => k8s.io/component-base v0.23.5
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.23.5
-)
+replace sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.12.2-0.20220808200255-4b60fd66e5de
