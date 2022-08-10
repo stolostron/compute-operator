@@ -431,8 +431,14 @@ var _ = Describe("Process registeredCluster: ", func() {
 			Eventually(func() error {
 				for _, locationWorkspace := range registeredCluster.Spec.Location {
 					locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
-					klog.Infof("getting service account %s in workspace %s", helpers.GetSyncerServiceAccountName(), locationWorkspace)
-					_, err := apiExportVirtualWorkspaceKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, helpers.GetSyncerServiceAccountName(), metav1.GetOptions{})
+
+					syncTarget, err := getSyncTarget(locationContext, registeredCluster)
+					if err != nil {
+						klog.Errorf("failed getting sync target %s", err)
+						return err
+					}
+					klog.Infof("getting service account %s in workspace %s", helpers.GetSyncerName(syncTarget), locationWorkspace)
+					_, err = apiExportVirtualWorkspaceKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, helpers.GetSyncerName(syncTarget), metav1.GetOptions{})
 					if err != nil {
 						klog.Errorf("failed getting service account %s", err)
 						return err

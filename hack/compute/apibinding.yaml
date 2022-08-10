@@ -15,10 +15,10 @@ spec:
   - group: ""
     resource: serviceaccounts
   - group: workload.kcp.dev
-    identityHash: <identityHash>
     resource: synctargets
-  # - group: "rbac.authorization.k8s.io"
-  #   resource: clusterroles
-  # - group: "rbac.authorization.k8s.io"
-  #   resource: clusterrolebindings
+    identityHash: <identityHash>
+  - group: "rbac.authorization.k8s.io"
+    resource: clusterroles
+  - group: "rbac.authorization.k8s.io"
+    resource: clusterrolebindings
 ---

@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/pointer"
 
 	// corev1 "k8s.io/api/core/v1"
 	workloadv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/workload/v1alpha1"
@@ -180,7 +181,7 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 				return ctrl.Result{}, giterrors.WithStack(err)
 			}
 
-			// sync kcp-syncer service account (currently one per location workspace - probably change to one per syncer, owned by the syncer) in kcp workspace
+			// sync kcp-syncer service account
 			token := ""
 			if token, err = r.syncServiceAccount(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster); err != nil {
 				logger.Error(err, "failed to sync ServiceAccount in the location workspace %s", locationWorkspace)
@@ -515,11 +516,15 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 		"registered cluster", regCluster.Name,
 		"location", regCluster.Spec.Location)
 
-	// Create the ServiceAccount if it doesn't yet exist
-	saName := helpers.GetSyncerServiceAccountName()
-
-	// sa, err := r.ComputeKubeClient.Cluster(logicalcluster.New(regCluster.Spec.Location)).CoreV1().ServiceAccounts("default").Get(ctx, saName, metav1.GetOptions{})
 	locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
+	syncTarget, err := r.getSyncTarget(locationContext, regCluster)
+	if err != nil {
+		return "", err
+	}
+
+	// Create the ServiceAccount if it doesn't yet exist
+	saName := helpers.GetSyncerName(syncTarget)
+
 	sa, err := r.ComputeKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, saName, metav1.GetOptions{})
 	if err != nil {
 		if !k8serrors.IsNotFound(err) {
@@ -529,6 +534,14 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 		sa = &corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: saName,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: syncTarget.GetAPIVersion(),
+						Kind:       syncTarget.GetKind(),
+						Name:       syncTarget.GetName(),
+						UID:        syncTarget.GetUID(),
+						Controller: pointer.BoolPtr(true),
+					}},
 			},
 		}
 		r.Log.V(2).Info("syncServiceAccount",
@@ -540,46 +553,35 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 	}
 
 	// Sync the ClusterRole and ClusterRoleBinding
+	applier := apply.NewApplierBuilder().
+		WithClient(r.ComputeKubeClient,
+			r.ComputeAPIExtensionClient,
+			r.ComputeDynamicClient).
+		WithOwner(syncTarget, false, true, r.Scheme).
+		WithContext(locationContext).
+		Build()
 
-	// applier := apply.NewApplierBuilder().
-	// 	WithClient(r.ComputeKubeClient,
-	// 		r.ComputeAPIExtensionClient,
-	// 		r.ComputeDynamicClient).
-	// 	// WithOwner(regCluster, false, true, r.Scheme). //TODO - add owner synctarget
-	// 	WithContext(locationContext).
-	// 	Build()
+	readerDeploy := resources.GetScenarioResourcesReader()
 
-	// readerDeploy := resources.GetScenarioResourcesReader()
+	files := []string{
+		"cluster-registration/kcp_syncer_clusterrole.yaml",
+		"cluster-registration/kcp_syncer_clusterrolebinding.yaml",
+	}
 
-	// files := []string{
-	// 	"cluster-registration/kcp_syncer_clusterrole.yaml",
-	// 	"cluster-registration/kcp_syncer_clusterrolebinding.yaml",
-	// }
+	values := struct {
+		KcpSyncerName      string
+		SyncTargetName     string
+		ServiceAccountName string
+	}{
+		KcpSyncerName:      helpers.GetSyncerName(syncTarget),
+		SyncTargetName:     syncTarget.GetName(),
+		ServiceAccountName: saName,
+	}
 
-	// values := struct {
-	// 	KcpSyncerName      string
-	// 	SyncTargetName     string
-	// 	ServiceAccountName string
-	// }{
-	// 	KcpSyncerName:      helpers.GetSyncerName(regCluster.Name),
-	// 	SyncTargetName:     regCluster.Name, // TODO - Get this from SyncTarget.Name
-	// 	ServiceAccountName: saName,
-	// }
-	// fmt.Println("Sleep Start.....")
-
-	// // Calling Sleep method so I can see what the KCP log is doing...
-	// time.Sleep(10 * time.Second)
-
-	// // Printed after sleep is over
-	// fmt.Println("Sleep Over.....")
-	// _, err = applier.ApplyDirectly(readerDeploy, values, false, "", files...)
-	// fmt.Println("AFTER Sleep Start.....")
-
-	// // Calling Sleep method
-	// time.Sleep(10 * time.Second)
+	_, err = applier.ApplyDirectly(readerDeploy, values, false, "", files...)
 
 	// Printed after sleep is over
-	r.Log.V(1).Info("SKIPPED create clusterrole and clusterrolebinding for now... permission not yet allowed",
+	r.Log.V(1).Info("created clusterrole and clusterrolebinding",
 		"cluster", logicalcluster.From(regCluster).String(),
 		"namespace", regCluster.Namespace,
 		"name", regCluster.Name)
@@ -598,8 +600,12 @@ func (r *RegisteredClusterReconciler) getKcpSyncerSAToken(computeContext context
 	r.Log.V(2).Info("getKcpSyncerSAToken",
 		"service account", sa.Name)
 
-	saName := helpers.GetSyncerServiceAccountName()
 	locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
+	syncTarget, err := r.getSyncTarget(locationContext, regCluster)
+	if err != nil {
+		return "", err
+	}
+	saName := helpers.GetSyncerName(syncTarget)
 
 	for _, secretRef := range sa.Secrets {
 		r.Log.V(4).Info("checking secret",
@@ -695,7 +701,7 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 			KcpSyncerName:                   syncerName,
 			KcpToken:                        token,
 			KcpServer:                       fmt.Sprintf("%s://%s", kcpURL.Scheme, kcpURL.Host),
-			SyncTargetName:                  regCluster.Name, // TODO - Get this from SyncTarget.Name
+			SyncTargetName:                  syncTarget.GetName(),
 			ManagedClusterName:              managedCluster.Name,
 			RegisteredClusterNameLabel:      RegisteredClusterNamelabel,
 			RegisteredClusterNamespaceLabel: RegisteredClusterNamespacelabel,

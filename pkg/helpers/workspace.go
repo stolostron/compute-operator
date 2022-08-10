@@ -28,7 +28,3 @@ func GetSyncerName(syncTarget *unstructured.Unstructured) string { // Should be 
 	base36hash := strings.ToLower(base36.EncodeBytes(syncerHash[:]))
 	return fmt.Sprintf("%s-%s-%s", GetSyncerPrefix(), syncTarget.GetName(), base36hash[:8])
 }
-
-func GetSyncerServiceAccountName() string {
-	return "kcp-syncer-sa"
-}

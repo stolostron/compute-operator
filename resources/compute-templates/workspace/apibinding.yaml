@@ -17,7 +17,7 @@ spec:
   - group: workload.kcp.dev
     resource: synctargets
     identityHash: {{ .IdentityHash }}
-  # - group: "rbac.authorization.k8s.io"
-  #   resource: clusterroles
-  # - group: "rbac.authorization.k8s.io"
-  #   resource: clusterrolebindings
+  - group: "rbac.authorization.k8s.io"
+    resource: clusterroles
+  - group: "rbac.authorization.k8s.io"
+    resource: clusterrolebindings
