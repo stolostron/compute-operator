@@ -19,8 +19,8 @@ OCM_ROUTE=multicloud-console
 # Hub cluster
 export KUBECONFIG="${SHARED_DIR}/hub-1.kc"
 
-export KCP_GIT_BRANCH="v0.6.4"
-export KCP_SYNCER_IMAGE="ghcr.io/kcp-dev/kcp/syncer:release-0.6"
+export KCP_GIT_BRANCH="v0.7.0"
+export KCP_SYNCER_IMAGE="ghcr.io/kcp-dev/kcp/syncer:release-0.7"
 export KCP_TMP_DIR=$(mktemp -d)
 
 export KCP_KUBECONFIG_DIR="${SHARED_DIR}/kcp"

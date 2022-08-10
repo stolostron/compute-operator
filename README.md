@@ -296,7 +296,9 @@ metadata:
   name: <your_cluster_name>
   namespace: <a_namespace>
 spec: 
-  location: <location-workspace>
+  location: 
+  - <location-workspace1>
+  - <location-workspace2>
 ' | oc create -f -
 ```
 

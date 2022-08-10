@@ -5,4 +5,6 @@ metadata:
   name: registered-cluster
   namespace: rc-ws
 spec:
-  location: "root:my-org:my-location-ws"
+  location: 
+    - "root:my-org:my-location-ws1"
+    - "root:my-org:my-location-ws2"
