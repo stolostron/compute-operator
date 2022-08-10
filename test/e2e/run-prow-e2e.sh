@@ -203,8 +203,20 @@ KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl api-resources
 echo "-- Show kcp context"
 KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl config get-contexts
 
-echo "-- Show kcp workspaces"
-KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl get workspaces
+echo "-- Show current kcp workspace"
+KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl ws .
+
+echo "-- Change to home kcp workspace"
+KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl ws
+
+echo "-- Change to previous kcp workspace"
+KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl ws -
+
+echo "-- Show cluster server for kcp"
+KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl config view - o jsonpath='{.clusters[?(@.name == "root")].cluster.server}'
+
+echo "-- Show current kcp workspace 2"
+KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl kcp ws .
 
 # echo "-- Export vcluster kubeconfig for kcp cluster"
 # vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
