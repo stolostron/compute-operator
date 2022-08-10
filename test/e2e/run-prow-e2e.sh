@@ -197,10 +197,10 @@ cp "${KCP_TMP_DIR}/kcp/.kcp/${KCP_KUBECONFIG}"  "${KCP_KUBECONFIG_DIR}"
 popd
 popd
 
-echo "-- Test kcp"
+echo "-- Test kcp api-resources"
 KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl api-resources
 
-echo "-- Show context"
+echo "-- Show kcp context"
 KUBECONFIG="${KCP_KUBECONFIG_DIR}/${KCP_KUBECONFIG}" kubectl config get-contexts
 
 echo "-- Show kcp workspaces"
@@ -266,10 +266,14 @@ export COMPUTE_OPERATOR_DIR=${COMPUTE_OPERATOR_DIR:-"/compute-operator"}
 # ls -alh "${SHARED_DIR}"
 # vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
 
-echo "-- Check namespaces"
+echo "-- Check hub cluster namespaces"
 oc get ns
 
-echo "--- Install compute operator ..."
+echo "--- Show managed clusters on hub"
+oc get managedclusters
+
+
+echo "--- Install compute operator on hub ..."
 ./install-compute-operator.sh
 
 # vcluster disconnect

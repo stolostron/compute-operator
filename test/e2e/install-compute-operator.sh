@@ -4,7 +4,7 @@
 
 set -e
 
-echo "--- Install the compute operator ..."
+echo "--- Install the compute operator on hub ..."
 
 cd ${COMPUTE_OPERATOR_DIR}
 
