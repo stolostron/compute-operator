@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestManagedClusterSetNameForWorkspace(t *testing.T) {
+func TestComputeWorkspaceName(t *testing.T) {
 	workspaceName := "janedoe"
-	name := ManagedClusterSetNameForWorkspace(workspaceName)
+	name := ComputeWorkspaceName(workspaceName)
 	if workspaceName != name {
-		t.Fatalf(`ManagedClusterSet name is not as expected. Expected %s, actual %s`, workspaceName, name)
+		t.Fatalf(`Workspace name is not as expected. Expected %s, actual %s`, workspaceName, name)
 	}
 }
