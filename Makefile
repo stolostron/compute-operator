@@ -185,7 +185,7 @@ ifeq (, $(shell kubectl plugin list 2>/dev/null | grep kubectl-kcp))
 		cd $$KCP_TMP_DIR ;\
 		git clone https://github.com/kcp-dev/kcp.git ;\
 		cd kcp ;\
-		git checkout v0.7.0; \
+		git checkout v0.7.1; \
 		make install WHAT="./cmd/kubectl-kcp"; \
 		make install WHAT="./cmd/kcp"; \
 	)
@@ -339,7 +339,10 @@ samples: applier
 	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/namespace.yaml
 	applier render --paths resources/compute-templates/virtual-workspace/service_account.yaml \
 	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/service_account.yaml
-
+	applier render --paths resources/compute-templates/virtual-workspace/role_binding.yaml \
+	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/role_binding.yaml
+	applier render --paths resources/compute-templates/virtual-workspace/apiexport.yaml \
+	               --values resources/compute-templates/hack-values.yaml --output-file hack/compute/apiexport.yaml
 
 # Generate code
 generate: kubebuilder-tools controller-gen register-gen
