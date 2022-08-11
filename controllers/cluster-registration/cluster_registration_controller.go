@@ -173,25 +173,27 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 		return ctrl.Result{}, err
 	}
 
-	if len(regCluster.Spec.Location) > 0 {
-		for _, locationWorkspace := range regCluster.Spec.Location {
-			// sync SyncTarget
-			if err := r.syncSyncTarget(computeContext, regCluster, locationWorkspace, &managedCluster); err != nil {
-				logger.Error(err, "failed to sync SyncTarget in location workspace %s", locationWorkspace)
-				return ctrl.Result{}, giterrors.WithStack(err)
-			}
+	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
+		if len(regCluster.Spec.Location) > 0 {
+			for _, locationWorkspace := range regCluster.Spec.Location {
+				// sync SyncTarget
+				if err := r.syncSyncTarget(computeContext, regCluster, locationWorkspace, &managedCluster); err != nil {
+					logger.Error(err, "failed to sync SyncTarget in location workspace %s", locationWorkspace)
+					return ctrl.Result{}, giterrors.WithStack(err)
+				}
 
-			// sync kcp-syncer service account
-			token := ""
-			if token, err = r.syncServiceAccount(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster); err != nil {
-				logger.Error(err, "failed to sync ServiceAccount in the location workspace %s", locationWorkspace)
-				return ctrl.Result{}, err
-			}
+				// sync kcp-syncer service account
+				token := ""
+				if token, err = r.syncServiceAccount(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster); err != nil {
+					logger.Error(err, "failed to sync ServiceAccount in the location workspace %s", locationWorkspace)
+					return ctrl.Result{}, err
+				}
 
-			// sync kcp-syncer deployment and supporting resources
-			if err := r.syncKcpSyncer(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster, token); err != nil {
-				logger.Error(err, "failed to sync kcp-syncer in the location workspace %s", locationWorkspace)
-				return ctrl.Result{}, err
+				// sync kcp-syncer deployment and supporting resources
+				if err := r.syncKcpSyncer(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster, token); err != nil {
+					logger.Error(err, "failed to sync kcp-syncer in the location workspace %s", locationWorkspace)
+					return ctrl.Result{}, err
+				}
 			}
 		}
 	}
@@ -272,68 +274,65 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 
 	logger := r.Log.WithName("syncSyncTarget").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name, "Location workspace", locationWorkspace)
 
-	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
+	locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
 
-		locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
+	syncTarget, err := r.getSyncTarget(locationContext, regCluster)
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
 
-		syncTarget, err := r.getSyncTarget(locationContext, regCluster)
-		if err != nil {
-			return giterrors.WithStack(err)
-		}
+	// Add labels to uniquely identify RegisteredCluster
+	labels := map[string]string{
+		RegisteredClusterNamelabel:      regCluster.Name,
+		RegisteredClusterNamespacelabel: regCluster.Namespace,
+		RegisteredClusterWorkspace:      strings.ReplaceAll(logicalcluster.From(regCluster).String(), ":", "-"),
+		RegisteredClusterUidLabel:       string(regCluster.UID),
+	}
+	// Copy the labels from the RegsiteredCluster
+	for k, v := range regCluster.Labels {
+		labels[k] = v
+	}
+	// Copy the labels and clusterclaims from the ManagedCluster
+	managedClusterLabels := r.getSyncTargetLabels(*managedCluster, excludeLabelREs)
+	for k, v := range managedClusterLabels {
+		labels[k] = v
+	}
 
-		// Add labels to uniquely identify RegisteredCluster
-		labels := map[string]string{
-			RegisteredClusterNamelabel:      regCluster.Name,
-			RegisteredClusterNamespacelabel: regCluster.Namespace,
-			RegisteredClusterWorkspace:      strings.ReplaceAll(logicalcluster.From(regCluster).String(), ":", "-"),
-			RegisteredClusterUidLabel:       string(regCluster.UID),
-		}
-		// Copy the labels from the RegsiteredCluster
-		for k, v := range regCluster.Labels {
-			labels[k] = v
-		}
-		// Copy the labels and clusterclaims from the ManagedCluster
-		managedClusterLabels := r.getSyncTargetLabels(*managedCluster, excludeLabelREs)
-		for k, v := range managedClusterLabels {
-			labels[k] = v
-		}
-
-		if syncTarget == nil {
-			syncTarget := &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": workloadv1alpha1.SchemeGroupVersion.String(),
-					"kind":       "SyncTarget",
-					"metadata": map[string]interface{}{
-						"generateName": regCluster.Name + "-",
-						"labels":       labels,
-					},
-					"spec": map[string]interface{}{
-						"unschedulable": false,
-					},
+	if syncTarget == nil {
+		syncTarget := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": workloadv1alpha1.SchemeGroupVersion.String(),
+				"kind":       "SyncTarget",
+				"metadata": map[string]interface{}{
+					"generateName": regCluster.Name + "-",
+					"labels":       labels,
 				},
-			}
+				"spec": map[string]interface{}{
+					"unschedulable": false,
+				},
+			},
+		}
 
-			if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
+		if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
+			return err
+		}
+		logger.V(2).Info("SyncTarget is created in the location workspace ")
+	} else {
+		// Update SyncTarget labels. Merge with existing labels found on SyncTarget since kcp adds some too
+		syncTargetLabels := syncTarget.GetLabels()
+		modified := mergeMap(&syncTargetLabels, labels)
+
+		if modified {
+			syncTarget.SetLabels(syncTargetLabels)
+			if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Update(locationContext, syncTarget, metav1.UpdateOptions{}); err != nil {
 				return err
 			}
-			logger.V(2).Info("SyncTarget is created in the location workspace ")
+			logger.V(2).Info("SyncTarget is updated in the location workspace ")
 		} else {
-			// Update SyncTarget labels. Merge with existing labels found on SyncTarget since kcp adds some too
-			syncTargetLabels := syncTarget.GetLabels()
-			modified := mergeMap(&syncTargetLabels, labels)
-
-			if modified {
-				syncTarget.SetLabels(syncTargetLabels)
-				if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Update(locationContext, syncTarget, metav1.UpdateOptions{}); err != nil {
-					return err
-				}
-				logger.V(2).Info("SyncTarget is updated in the location workspace ")
-			} else {
-				r.Log.V(2).Info("no changes detected to SyncTarget", "labels", labels)
-			}
+			r.Log.V(2).Info("no changes detected to SyncTarget", "labels", labels)
 		}
-
 	}
+
 	return nil
 }
 
@@ -687,6 +686,7 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 			KcpToken                        string
 			KcpServer                       string
 			SyncTargetName                  string
+			SyncTargetUid                   string
 			ManagedClusterName              string
 			RegisteredClusterNameLabel      string
 			RegisteredClusterNamespaceLabel string
@@ -702,6 +702,7 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 			KcpToken:                        token,
 			KcpServer:                       fmt.Sprintf("%s://%s", kcpURL.Scheme, kcpURL.Host),
 			SyncTargetName:                  syncTarget.GetName(),
+			SyncTargetUid:                   string(syncTarget.GetUID()),
 			ManagedClusterName:              managedCluster.Name,
 			RegisteredClusterNameLabel:      RegisteredClusterNamelabel,
 			RegisteredClusterNamespaceLabel: RegisteredClusterNamespacelabel,
