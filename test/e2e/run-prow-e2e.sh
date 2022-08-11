@@ -178,6 +178,14 @@ vcluster disconnect
 # oc get ns
 # vcluster disconnect
 
+
+echo "-- Check namespaces"
+oc get ns
+
+echo "-- Check catalogsource"
+oc get catalogsource -A
+
+
 echo "-- Install cert-manager operator "
 kubectl kustomize "./operators/cert-manager" > certmgr.yaml
 kubectl apply -f certmgr.yaml
@@ -195,6 +203,9 @@ echo "OK"
 
 echo "-- Check namespaces"
 oc get ns
+
+echo "-- Check operators"
+oc get operators
 
 echo "-- Download KCP "
 pushd ${KCP_REPO_TEMP_DIR}
@@ -246,6 +257,7 @@ ckcp_temp_dir=$ckcp_manifest_dir/overlays/temp
 
 kcp_org="root:default"
 #kcp_workspace="pipeline-service-compute"
+# older versions of yq need the 'e' parameter
 kcp_version="$(yq e '.images[] | select(.name == "kcp") | .newTag' "$SCRIPT_DIR/kcp/overlays/dev/kustomization.yaml")"
 
 # To ensure kustomization.yaml file under overlays/temp won't be changed, remove the directory overlays/temp if it exists
@@ -284,6 +296,7 @@ patches:
         value: $ckcp_route " >>"$ckcp_temp_dir/kustomization.yaml"
 
 echo -n "  - kcp $kcp_version: "
+# older versions of kubectl will have kustomize errors. 4.10.20 works
 kubectl apply -k "$ckcp_temp_dir" >/dev/null 2>&1
 # Check if ckcp pod status is Ready
 kubectl wait --for=condition=Ready -n ckcp pod -l=app=kcp-in-a-pod --timeout=90s >/dev/null 2>&1

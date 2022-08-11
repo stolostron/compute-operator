@@ -374,3 +374,9 @@ build-e2e-test-image:
 	docker build . \
 	-f Dockerfile.cypress \
 	-t ${IMG_E2E_TEST}
+
+.PHONY: e2e-ginkgo-test
+e2e-ginkgo-test:
+	@echo running e2e ginkgo tests
+#	ginkgo -tags e2e -v test/e2e -- -v=5
+	ginkgo -tags e2e test/e2e 
