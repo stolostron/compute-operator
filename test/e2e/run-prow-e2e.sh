@@ -187,8 +187,10 @@ oc get catalogsource -A
 
 
 echo "-- Install cert-manager operator "
-kubectl kustomize "./operators/cert-manager" > certmgr.yaml
-kubectl apply -f certmgr.yaml
+export CERT_MGR_TEMP_DIR=$(mktemp -d)
+
+kubectl kustomize "./operators/cert-manager" > ${CERT_MGR_TEMP_DIR}/certmgr.yaml
+kubectl apply -f ${CERT_MGR_TEMP_DIR}/certmgr.yaml
 
 
 # Perform a dry-run create of a
