@@ -256,7 +256,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 
 				mcsName, err := getManagedClusterSetName(controllerRuntimeClient, registeredCluster)
 				if err != nil {
-					klog.Info("SyncTarget Not found", "Error", err)
+					klog.Info("ManagedClusterSet Not found", "Error", err)
 					return err
 				}
 				managedClusters := &clusterapiv1.ManagedClusterList{}
@@ -271,7 +271,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					klog.Info("Waiting managedCluster", "Error", err)
 					return err
 				}
-				fmt.Println("managedclusters : ", managedClusters)
+
 				if len(managedClusters.Items) != 1 {
 					return fmt.Errorf("Number of managedCluster found %d", len(managedClusters.Items))
 				}
