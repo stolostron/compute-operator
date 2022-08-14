@@ -15,7 +15,7 @@ func ComputeWorkspaceName(workspaceName string) string {
 	// TODO: THIS IS NOT SUFFICIENT AT ALL. Probably doesn't handle all illegal characters and does NOT uniquely identify a workspace.
 	// https://issues.redhat.com/browse/CMCS-158 should ensure uniqueness and ensure a valid managed cluster set name is generated
 	// TODO: incorporate kcp shard info
-	return strings.ReplaceAll(strings.ReplaceAll(workspaceName, ":", "-"), "-", "--")
+	return strings.ReplaceAll(strings.ReplaceAll(workspaceName, "-", "--"), ":", "-")
 }
 
 func GetSyncerPrefix() string {
