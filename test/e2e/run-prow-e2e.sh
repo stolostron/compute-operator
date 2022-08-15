@@ -109,75 +109,79 @@ echo "--- Check current hub cluster info and current context"
 oc cluster-info
 oc config get-contexts
 
-# Install vcluster
-export VC_MANAGED=vc-managed
-export VC_COMPUTE=vc-compute
-export VC_KCP=vc-kcp
-
-cat <<EOF > vcluster-values.yml
-openshift:
-  enable: true
-sync:
-  networkpolicies:
-    enabled: true
-  serviceaccounts:
-    enabled: true
-  services:
-    syncServiceSelector: true
-EOF
-
-echo "-- Creating a vcluster to import as a managed cluster"
-oc create ns ${VC_MANAGED}
-#vcluster create ${VC_MANAGED} --connect=false --namespace=${VC_MANAGED}
-oc config current-context view | vcluster create ${VC_MANAGED} --connect=false --expose -f vcluster-values.yml --namespace=${VC_MANAGED} --context=
-echo
-echo "--- Export vcluster kubeconfig for managed cluster"
-vcluster connect ${VC_MANAGED} -n ${VC_MANAGED} --update-current=false --kube-config="${SHARED_DIR}/${VC_MANAGED}.kubeconfig"
-
-#echo "--- vcluster kubeconfig data: "
-#cat "${SHARED_DIR}/${VC_MANAGED}.kubeconfig"
-
-echo "--- Import vcluster into hub as managed"
-cm get clusters
-cm attach cluster --cluster ${VC_MANAGED} --cluster-kubeconfig "${SHARED_DIR}/${VC_MANAGED}.kubeconfig"
-oc label managedcluster -n ${VC_MANAGED} ${VC_MANAGED} vcluster=true
-oc label ns ${VC_MANAGED} vcluster=true
-
-echo "--- Show managed cluster"
-sleep 3m
+echo "--- Show managed clusters"
 oc get managedclusters
 
-echo "-- Creating vcluster to host compute service"
-oc create ns ${VC_COMPUTE}
-oc config current-context view | vcluster create ${VC_COMPUTE} --connect=false --expose --namespace=${VC_COMPUTE} --context=
-echo "-- Sleep a few minutes while vcluster starts..."
-sleep 5m
-echo "-- Export vcluster kubeconfig for compute cluster"
-vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --update-current=false --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
-vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE}
-echo "-- Check compute vcluster namespaces"
-oc get ns
-echo "-- compute vcluster disconnect"
-vcluster disconnect
 
-# echo "-- Creating vcluster to host KCP service"
-# oc create ns ${VC_KCP}
-# ## this fails on oc get ns due to dialup error
-# # oc config current-context view | vcluster create ${VC_KCP} --expose --connect=true --namespace=${VC_KCP} -f vcluster-values.yml --context=
-# # echo "-- Excplitily state context"
-# # oc config current-context view
-# # echo "-- Run without setting context"
-# # oc get ns
-# # vcluster disconnect
+# # Install vcluster
+# export VC_MANAGED=vc-managed
+# export VC_COMPUTE=vc-compute
+# export VC_KCP=vc-kcp
 #
-# oc config current-context view | vcluster create ${VC_KCP} --expose --connect=false --namespace=${VC_KCP} --context=
+# cat <<EOF > vcluster-values.yml
+# openshift:
+#   enable: true
+# sync:
+#   networkpolicies:
+#     enabled: true
+#   serviceaccounts:
+#     enabled: true
+#   services:
+#     syncServiceSelector: true
+# EOF
+#
+# echo "-- Creating a vcluster to import as a managed cluster"
+# oc create ns ${VC_MANAGED}
+# #vcluster create ${VC_MANAGED} --connect=false --namespace=${VC_MANAGED}
+# oc config current-context view | vcluster create ${VC_MANAGED} --connect=false --expose -f vcluster-values.yml --namespace=${VC_MANAGED} --context=
+# echo
+# echo "--- Export vcluster kubeconfig for managed cluster"
+# vcluster connect ${VC_MANAGED} -n ${VC_MANAGED} --update-current=false --kube-config="${SHARED_DIR}/${VC_MANAGED}.kubeconfig"
+#
+# #echo "--- vcluster kubeconfig data: "
+# #cat "${SHARED_DIR}/${VC_MANAGED}.kubeconfig"
+#
+# echo "--- Import vcluster into hub as managed"
+# cm get clusters
+# cm attach cluster --cluster ${VC_MANAGED} --cluster-kubeconfig "${SHARED_DIR}/${VC_MANAGED}.kubeconfig"
+# oc label managedcluster -n ${VC_MANAGED} ${VC_MANAGED} vcluster=true
+# oc label ns ${VC_MANAGED} vcluster=true
+#
+# echo "--- Show managed cluster"
+# sleep 3m
+# oc get managedclusters
+#
+# echo "-- Creating vcluster to host compute service"
+# oc create ns ${VC_COMPUTE}
+# oc config current-context view | vcluster create ${VC_COMPUTE} --connect=false --expose --namespace=${VC_COMPUTE} --context=
 # echo "-- Sleep a few minutes while vcluster starts..."
 # sleep 5m
-# echo "-- Connect to and then export vcluster kubeconfig for kcp cluster, try oc get ns, and disconnect"
-# vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
-# vcluster connect ${VC_KCP} -n ${VC_KCP}
+# echo "-- Export vcluster kubeconfig for compute cluster"
+# vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --update-current=false --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
+# vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE}
+# echo "-- Check compute vcluster namespaces"
 # oc get ns
+# echo "-- compute vcluster disconnect"
 # vcluster disconnect
+#
+# # echo "-- Creating vcluster to host KCP service"
+# # oc create ns ${VC_KCP}
+# # ## this fails on oc get ns due to dialup error
+# # # oc config current-context view | vcluster create ${VC_KCP} --expose --connect=true --namespace=${VC_KCP} -f vcluster-values.yml --context=
+# # # echo "-- Excplitily state context"
+# # # oc config current-context view
+# # # echo "-- Run without setting context"
+# # # oc get ns
+# # # vcluster disconnect
+# #
+# # oc config current-context view | vcluster create ${VC_KCP} --expose --connect=false --namespace=${VC_KCP} --context=
+# # echo "-- Sleep a few minutes while vcluster starts..."
+# # sleep 5m
+# # echo "-- Connect to and then export vcluster kubeconfig for kcp cluster, try oc get ns, and disconnect"
+# # vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
+# # vcluster connect ${VC_KCP} -n ${VC_KCP}
+# # oc get ns
+# # vcluster disconnect
 
 
 echo "-- Check namespaces"
