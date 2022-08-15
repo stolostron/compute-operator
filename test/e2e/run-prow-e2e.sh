@@ -195,9 +195,13 @@ kubectl apply -f ${CERT_MGR_TEMP_DIR}/certmgr.yaml
 
 sleep 30
 echo "-- Check subscription"
-oc get subscriptions -n openshift-cert-manager-operator   openshift-cert-manager-operator -oyaml
+# Only for OpenbShift 4.10 and above, does not work on 4.9
+#oc get subscriptions -n openshift-cert-manager-operator openshift-cert-manager-operator -oyaml
+oc get subscriptions -n openshift-operators cert-manager -oyaml || true
 echo "-- Check CSV"
-oc get csv -n openshift-cert-manager-operator
+# Only for OpenbShift 4.10 and above, does not work on 4.9
+#oc get csv -n openshift-cert-manager-operator
+oc get csv -n openshift-operators || true
 
 # Perform a dry-run create of a
 # Certificate resource in order to verify that CRDs are installed and all the
