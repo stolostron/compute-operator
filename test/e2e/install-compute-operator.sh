@@ -8,7 +8,7 @@ echo "--- Install the compute operator on hub ..."
 
 cd ${COMPUTE_OPERATOR_DIR}
 
-export IMG="quay.io/stolostron/compute-operator:2.6.0-PR${PULL_NUMBER}-${PULL_PULL_SHA}"
+export IMG="quay.io/stolostron/compute-operator:2.7.0-PR${PULL_NUMBER}-${PULL_PULL_SHA}"
 echo "--- Quay image is ${IMG}"
 
 echo "--- Check namespace - before"
