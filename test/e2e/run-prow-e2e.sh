@@ -189,9 +189,15 @@ oc get catalogsource -A
 echo "-- Install cert-manager operator "
 export CERT_MGR_TEMP_DIR=$(mktemp -d)
 
+# OpenShift 4.9 does not have RedHat Cert Manager available so use community one
 kubectl kustomize "./operators/cert-manager" > ${CERT_MGR_TEMP_DIR}/certmgr.yaml
 kubectl apply -f ${CERT_MGR_TEMP_DIR}/certmgr.yaml
 
+sleep 30
+echo "-- Check subscription"
+oc get subscriptions -n openshift-cert-manager-operator   openshift-cert-manager-operator -oyaml
+echo "-- Check CSV"
+oc get csv -n openshift-cert-manager-operator
 
 # Perform a dry-run create of a
 # Certificate resource in order to verify that CRDs are installed and all the
