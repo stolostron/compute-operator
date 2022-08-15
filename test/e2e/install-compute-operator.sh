@@ -70,7 +70,8 @@ oc logs --selector='control-plane=controller-manager'
 ##kubectl create secret generic kcp-kubeconfig -n compute-config --from-file=kubeconfig=/tmp/kubeconfig-compute-operator.yaml
 #oc create secret generic kcp-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig" -n compute-config
 #oc create secret generic kcp-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/${VC_KCP}.kubeconfig" -n compute-config
-oc create secret generic kcp-kubeconfig --from-file=kubeconfig="${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig" -n compute-config
+#oc create secret generic kcp-kubeconfig --from-file=kubeconfig="${KCP_TMP_DIR}/kcp/.kcp/admin.kubeconfig" -n compute-config
+oc create secret generic kcp-kubeconfig --from-file=kubeconfig="${KCP_KUBECONFIG}" -n compute-config
 
 
 echo "--- Create ClusterRegistrar"
