@@ -31,9 +31,10 @@ export KCP_SYNCER_IMAGE="ghcr.io/kcp-dev/kcp/syncer:release-0.7"
 export KCP_REPO_TEMP_DIR=$(mktemp -d)
 
 export KCP_KUBECONFIG_DIR="${SHARED_DIR}/kcp"
+mkdir -p ${KCP_KUBECONFIG_DIR}
 export KCP_KUBECONFIG="${KCP_KUBECONFIG_DIR}/admin.kubeconfig"
 
-
+# code from AppStudio used a different name so just map for now
 KUBECONFIG_KCP="${KCP_KUBECONFIG}"
 
 # The compute workspace (where RegisteredCluster is created)
@@ -352,8 +353,6 @@ KUBECONFIG="$KUBECONFIG_KCP" kubectl kcp workspace use "$ws_name"
 #  --work-dir "$WORK_DIR"
 #KUBECONFIG_KCP="$WORK_DIR/credentials/kubeconfig/kcp/ckcp-ckcp.${ws_name}.${kcp_workspace}.kubeconfig"
 
-# copy kcp KUBECONFIG to SHARED_DIRECTORY so it can be used by other tasks
-cp  "{$KUBECONFIG_KCP}" "${KCP_KUBECONFIG}"
 echo "=============== "
 
 echo "-- Check namespaces"
