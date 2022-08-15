@@ -377,7 +377,7 @@ echo "-- Change to previous kcp workspace"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws -
 
 echo "-- Show cluster server for kcp"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl config view - o jsonpath='{.clusters[?(@.name == "root")].cluster.server}'
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl config view -o jsonpath='{.clusters[?(@.name == "root")].cluster.server}'
 
 echo "-- Show current kcp workspace 2"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws .
