@@ -25,6 +25,10 @@ type HubConfigSpec struct {
 	// If it's zero, the created Client will use DefaultQPS: 100.0
 	// +optional
 	QPS string `json:"QPS,omitempty"`
+
+	// Maximum of registeredcluster on the hub
+	// <= zero means it will not accept registeredcluster.
+	MaxRegisteredCluster int `json:"maxRegisteredCluster"`
 }
 
 // HubConfigStatus defines the observed state of HubConfig

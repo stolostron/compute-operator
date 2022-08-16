@@ -46,14 +46,6 @@ func GetConditionStatus(conditions []metav1.Condition, t string) (status metav1.
 	return "", false
 }
 
-func GetHubCluster(workspace string, hubInstances []HubInstance) (HubInstance, error) {
-	// For now, we always assume there is only one hub cluster. //TODO Later we will replace this with a lookup.
-	if len(hubInstances) == 0 {
-		return HubInstance{}, errors.New("hub cluster is not configured")
-	}
-	return hubInstances[0], nil
-}
-
 func GetHubClusters(ctx context.Context, mgr ctrl.Manager, kubeClient kubernetes.Interface, dynamicClient dynamic.Interface) ([]HubInstance, error) {
 	setupLog := ctrl.Log.WithName("setup")
 	hubInstances := make([]HubInstance, 0)

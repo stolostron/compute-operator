@@ -205,7 +205,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 			defer ginkgo.GinkgoRecover()
 			computeServer = exec.Command("kcp",
 				"start",
-				"-v=6",
+				// "-v=6",
 			)
 
 			// Create io.writer for kcp log
@@ -724,6 +724,7 @@ func InitControllerEnvironment(scheme *runtime.Scheme, controllerNamespace strin
 				KubeConfigSecretRef: corev1.LocalObjectReference{
 					Name: "my-hub-kube-config",
 				},
+				MaxRegisteredCluster: 1,
 			},
 		}
 		err := controllerRuntimeClient.Create(context.TODO(), hubConfig)

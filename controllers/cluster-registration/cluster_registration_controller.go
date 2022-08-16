@@ -4,6 +4,7 @@ package registeredcluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -118,7 +119,7 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 		return reconcile.Result{}, giterrors.WithStack(err)
 	}
 
-	hubCluster, err := helpers.GetHubCluster(req.Namespace, r.HubClusters)
+	hubCluster, err := r.getHubCluster(ctx, regCluster, r.HubClusters, req.ClusterName)
 	if err != nil {
 		logger.Error(err, "failed to get HubCluster for RegisteredCluster workspace")
 		return ctrl.Result{}, err
@@ -173,7 +174,7 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 		return ctrl.Result{}, err
 	}
 
-	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
+	if status, ok := helpers.GetConditionStatus(managedCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
 		if len(regCluster.Spec.Location) > 0 {
 			for _, locationWorkspace := range regCluster.Spec.Location {
 				// sync SyncTarget
@@ -397,6 +398,46 @@ func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(computeConte
 	}
 
 	return nil
+}
+
+func (r *RegisteredClusterReconciler) getHubCluster(ctx context.Context,
+	regCluster *singaporev1alpha1.RegisteredCluster,
+	hubInstances []helpers.HubInstance,
+	clusterName string) (helpers.HubInstance, error) {
+	// For now, we always assume there is only one hub cluster. //TODO Later we will replace this with a lookup.
+	log := ctrl.Log.WithName("GetHubCluster")
+	if len(hubInstances) == 0 {
+		return helpers.HubInstance{}, errors.New("hub cluster is not configured")
+	}
+	for _, hubInstance := range hubInstances {
+		// Search if already has the annotation
+		if _, err := r.getManagedCluster(ctx, regCluster, &hubInstance, clusterName); err == nil {
+			log.V(2).Info("managedCluster already exists for regCluster",
+				"namespace", regCluster.Namespace,
+				"name", regCluster.Name,
+				"clusterName", clusterName)
+			return hubInstance, nil
+		}
+		// Count the number of managedcluster to take the first hub which didn't maxout yet
+		// its number of managedcluster
+		managedClusterList := &clusterapiv1.ManagedClusterList{}
+		if err := hubInstance.Client.List(ctx, managedClusterList); err != nil {
+			// Error reading the object - requeue the request.
+			return helpers.HubInstance{}, giterrors.WithStack(err)
+		}
+		if len(managedClusterList.Items) < hubInstance.HubConfig.Spec.MaxRegisteredCluster {
+			log.V(2).Info(fmt.Sprintf("hub %s is selected as its number of managedclusters is %d/%d",
+				hubInstance.HubConfig.Name,
+				len(managedClusterList.Items),
+				hubInstance.HubConfig.Spec.MaxRegisteredCluster))
+			return hubInstance, nil
+		}
+	}
+	// If all clusters maxout their number of cluster then take the first one
+	log.V(2).Info("no hub found, taking the first one",
+		"namespace", hubInstances[0].HubConfig.Namespace,
+		"name", hubInstances[0].HubConfig.Name)
+	return hubInstances[0], nil
 }
 
 func (r *RegisteredClusterReconciler) getManagedCluster(ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, hubCluster *helpers.HubInstance, clusterName string) (clusterapiv1.ManagedCluster, error) {
@@ -659,7 +700,7 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 	logger := r.Log.WithName("syncKcpSyncer").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "managed cluster name", managedCluster.Name)
 
 	// If cluster has joined, sync the ManifestWork to create the kcp-syncer deployment and supporting resources
-	if status, ok := helpers.GetConditionStatus(regCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
+	if status, ok := helpers.GetConditionStatus(managedCluster.Status.Conditions, clusterapiv1.ManagedClusterConditionJoined); ok && status == metav1.ConditionTrue {
 
 		readerDeploy := resources.GetScenarioResourcesReader()
 
@@ -861,7 +902,9 @@ func registeredClusterPredicate() predicate.Predicate {
 			new, okNew := e.ObjectNew.(*singaporev1alpha1.RegisteredCluster)
 			old, okOld := e.ObjectOld.(*singaporev1alpha1.RegisteredCluster)
 			if okNew && okOld {
-				if equality.Semantic.DeepEqual(old.Status, new.Status) {
+				// if equality.Semantic.DeepEqual(old.Status, new.Status) {
+				if !equality.Semantic.DeepEqual(old.Spec, new.Spec) {
+					// 	!equality.Semantic.DeepEqual(old.Status, new.Status) {
 					log := ctrl.Log.WithName("controllers").WithName("RegisteredCluster").WithName("registeredClusterPredicate").WithValues("namespace", new.GetNamespace(), "name", new.GetName())
 					log.V(1).Info("process registeredcluster update")
 					return true
