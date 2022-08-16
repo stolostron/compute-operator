@@ -8,6 +8,7 @@ echo "--- Install the compute operator on hub ..."
 
 cd ${COMPUTE_OPERATOR_DIR}
 
+echo "COMPONENT_VERSION is ${COMPONENT_VERSION}"
 export IMG="quay.io/stolostron/compute-operator:2.7.0-PR${PULL_NUMBER}-${PULL_PULL_SHA}"
 echo "--- Quay image is ${IMG}"
 
