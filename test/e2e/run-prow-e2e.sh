@@ -334,6 +334,11 @@ done
 kubectl cp "ckcp/$podname:/etc/kcp/config/admin.kubeconfig" "$KUBECONFIG_KCP" >/dev/null 2>&1
 echo "OK"
 
+echo "=============== kcp kubeconfig ===================="
+cat "$KUBECONFIG_KCP"
+echo "=============== kcp kubeconfig ===================="
+
+
 # Check if external ip is assigned and replace kcp's external IP in the kubeconfig file
 echo -n "  - Route: "
 if grep -q "ckcp-ckcp.apps.domain.org" "$KUBECONFIG_KCP"; then
@@ -383,7 +388,10 @@ KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws -
 echo "-- Show cluster server for kcp"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl config view -o jsonpath='{.clusters[?(@.name == "root")].cluster.server}'
 
-echo "-- Show current kcp workspace 2"
+echo "-- Create kcp workspace"
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp workspace create e2e --enter
+
+echo "-- Show current kcp workspace (new workspace)"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws .
 
 # echo "-- Export vcluster kubeconfig for kcp cluster"

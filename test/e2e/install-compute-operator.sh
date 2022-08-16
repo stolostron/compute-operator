@@ -49,6 +49,8 @@ echo "--- Create secret using hub kubeconfig"
 #oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig" -n compute-config
 oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/hub-1.kc" -n compute-config
 
+kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_hubconfigs.yaml
+
 echo "--- Create HubConfig"
 cat > e2e-HubConfig.yaml <<EOF
 apiVersion: singapore.open-cluster-management.io/v1alpha1
