@@ -12,8 +12,9 @@ import (
 )
 
 func ComputeWorkspaceName(workspaceName string) string {
-	// TODO: THIS IS NOT SUFFICIENT AT ALL. Probably doesn't handle all illegal characters and does NOT uniquely identify a workspace.
-	// https://issues.redhat.com/browse/CMCS-158 should ensure uniqueness and ensure a valid managed cluster set name is generated
+	// TODO: This probably doesn't handle all illegal characters. This identifies unquie workspace but doesn't handle deleted and recreated workspace
+	// with same name.
+	// https://issues.redhat.com/browse/CMCS-184 Use persistent identifiers to ensure uniqueness when they come in kcp.
 	// TODO: incorporate kcp shard info
 	return strings.ReplaceAll(strings.ReplaceAll(workspaceName, "-", "--"), ":", "-")
 }
