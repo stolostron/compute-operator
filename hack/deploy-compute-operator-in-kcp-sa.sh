@@ -13,7 +13,6 @@
 #    ➜ kubectl ws .
 #    Current workspace is "root:rh-sso-xxxx:compute-operator".
 #
-#
 set -x
 
 echo "deploying the compute operator into KCP"
