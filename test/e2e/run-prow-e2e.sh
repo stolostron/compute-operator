@@ -36,6 +36,7 @@ export KCP_REPO_TEMP_DIR=$(mktemp -d)
 export KCP_KUBECONFIG_DIR="${SHARED_DIR}/kcp"
 mkdir -p ${KCP_KUBECONFIG_DIR}
 export KCP_KUBECONFIG="${KCP_KUBECONFIG_DIR}/admin.kubeconfig"
+export KCP_SA_KUBECONFIG="${KCP_SA_KUBECONFIG_DIR}/sa.admin.kubeconfig"
 
 # code from AppStudio used a different name so just map for now
 KUBECONFIG_KCP="${KCP_KUBECONFIG}"
@@ -219,23 +220,33 @@ KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws -
 #echo "-- Show cluster server for kcp"
 #KUBECONFIG="${KCP_KUBECONFIG}" kubectl config view -o jsonpath='{.clusters[?(@.name == "root")].cluster.server}'
 
-echo "-- Show current kcp workspace (new workspace)"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws .
+echo "-- Use kcp workspace ${ORGANIZATION_WORKSPACE}"
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws use ${ORGANIZATION_WORKSPACE}
 
-echo "-- Create service account"
+echo "-- Create service account ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT}"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl create serviceaccount ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT}
 
 IDENTITY_HASH=`KUBECONFIG="${KCP_KUBECONFIG}" kubectl get apibindings workload.kcp.dev -o jsonpath='{.status.boundResources[?(@.resource=="synctargets")].schema.identityHash}'`
+echo "IdentityHash: ${IDENTITY_HASH}"
 
 pushd ${COMPUTE_OPERATOR_DIR}
 echo "\nIdentityHash: ${IDENTITY_HASH}" >> resources/compute-templates/hack-values.yaml
 
-echo "-- Run applier"
-make applier
+echo "-- make samples"
+make samples
 
 echo "-- Apply role and rolebinding"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/role.yaml
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/role_binding.yaml
+
+KUBECONFIG="${KCP_KUBECONFIG}" build/generate_kubeconfig_from_sa.sh ${KCP_KUBECONFIG} ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT} default ${KCP_SA_KUBECONFIG}
+
+IDENTITY_HASH2=`KUBECONFIG="${KCP_KUBECONFIG}" kubectl get apibindings workload.kcp.dev -o jsonpath='{.status.boundResources[?(@.resource=="synctargets")].schema.identityHash}'`
+
+echo "IdentityHash(2): ${IDENTITY_HASH}"
+
+echo "-- Test kcp api-resources"
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl api-resources
 
 
 echo "-- Change to org workspace"
