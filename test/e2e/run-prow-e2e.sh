@@ -219,9 +219,6 @@ KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws -
 #echo "-- Show cluster server for kcp"
 #KUBECONFIG="${KCP_KUBECONFIG}" kubectl config view -o jsonpath='{.clusters[?(@.name == "root")].cluster.server}'
 
-echo "-- Create kcp workspace"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp workspace create ${COMPUTE_ORGANIZATION} --enter
-
 echo "-- Show current kcp workspace (new workspace)"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws .
 
