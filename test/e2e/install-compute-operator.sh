@@ -49,7 +49,8 @@ echo "--- Create secret using hub kubeconfig"
 #oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig" -n compute-config
 oc create secret generic e2e-hub-kubeconfig --from-file=kubeconfig="${SHARED_DIR}/hub-1.kc" -n compute-config
 
-kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_hubconfigs.yaml
+# Should not be needed since running in OpenShift
+#kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_hubconfigs.yaml
 
 echo "--- Create HubConfig"
 cat > e2e-HubConfig.yaml <<EOF
@@ -65,9 +66,11 @@ EOF
 oc create -f e2e-HubConfig.yaml
 
 
-sleep 10
+sleep 15
+echo "--- Logs for controller-manager"
 oc logs --selector='control-plane=controller-manager'
-
+sleep 15
+echo "--- Logs for compute-operator-manager"
 oc logs --selector='control-plane=compute-operator-manager'
 
 
@@ -93,9 +96,11 @@ oc create -f e2e-ClusterRegistrar.yaml
 
 
 sleep 10
+echo "--- Logs for controller-manager"
 oc logs --selector='control-plane=controller-manager'
 
 sleep 20
+echo "--- Logs for compute-operator-manager"
 oc logs --selector='control-plane=compute-operator-manager'
 
 echo "--- Show pods"
