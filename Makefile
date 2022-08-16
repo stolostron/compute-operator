@@ -323,10 +323,6 @@ manifests: controller-gen yq/install kcp-plugin generate
 	${YQ} e '.metadata.name = "leader-election-operator-role" | .metadata.namespace = "{{ .Namespace }}"' config/rbac/leader_election_role.yaml > deploy/compute-operator/leader_election_role.yaml && \
 	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_registeredclusters.yaml --prefix latest \
 	> config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml
-	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_hubconfigs.yaml --prefix latest \
-	> config/apiresourceschema/singapore.open-cluster-management.io_hubconfigs.yaml
-	kubectl kcp crd snapshot --filename config/crd/singapore.open-cluster-management.io_clusterregistrars.yaml --prefix latest \
-	> config/apiresourceschema/singapore.open-cluster-management.io_clusterregistrars.yaml
 
 samples: applier
 # Later we can use `cm apply custom-resources --paths .. --values ... --dry-run --outpute-file ...` to generate the files
@@ -379,4 +375,4 @@ build-e2e-test-image:
 e2e-ginkgo-test:
 	@echo running e2e ginkgo tests
 #	ginkgo -tags e2e -v test/e2e -- -v=5
-	ginkgo -tags e2e test/e2e 
+	ginkgo -tags e2e test/e2e

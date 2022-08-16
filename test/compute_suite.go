@@ -34,6 +34,7 @@ import (
 	apisv1alpha1 "github.com/kcp-dev/kcp/pkg/apis/apis/v1alpha1"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+	clusterapiv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
 
 	apimachineryclient "github.com/kcp-dev/apimachinery/pkg/client"
@@ -603,6 +604,8 @@ func SetupControllerEnvironment(scheme *runtime.Scheme,
 	err = appsv1.AddToScheme(scheme)
 	gomega.Expect(err).Should(gomega.BeNil())
 	err = clusterapiv1.AddToScheme(scheme)
+	gomega.Expect(err).Should(gomega.BeNil())
+	err = clusterapiv1beta1.AddToScheme(scheme)
 	gomega.Expect(err).Should(gomega.BeNil())
 	err = singaporev1alpha1.AddToScheme(scheme)
 	gomega.Expect(err).Should(gomega.BeNil())

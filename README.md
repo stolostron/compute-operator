@@ -163,13 +163,6 @@ oc create secret generic <secret_name> --from-file=kubeconfig=/tmp/managed-hub-c
 
 3. Create the hub config on the controller cluster:
 
-If you are running on kcp, you will first need to install the APIResourceSchema for HubConfig.
-```bash
-kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_hubconfigs.yaml
-```
-
-Create the HubConfig:
-
 ```bash
 echo '
 apiVersion: singapore.open-cluster-management.io/v1alpha1
@@ -206,11 +199,6 @@ The secret must have the kcp kubeconfig in key `kubeconfig`.
 
 ```bash
 kubectl create secret generic kcp-kubeconfig -n compute-config --from-file=kubeconfig=/tmp/kubeconfig-compute-operator.yaml
-```
-
-If you are running on kcp, install the APIResourceSchema for ClusterRegistrar.
-```bash
-kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_clusterregistrars.yaml
 ```
 
 - Create the ClusterRegistrar

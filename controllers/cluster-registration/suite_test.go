@@ -32,6 +32,7 @@ import (
 	"k8s.io/klog/v2"
 
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+	clusterapiv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -87,6 +88,7 @@ var _ = BeforeSuite(func() {
 		[]string{
 			filepath.Join("..", "..", "test", "config", "crd", "external"),
 		})
+
 	test.InitControllerEnvironment(scheme, controllerNamespace, controllerRestConfig, hubKubeconfigString)
 	// Launch the compute-operator manager
 	go func() {
@@ -146,6 +148,25 @@ func getSyncTarget(locationContext context.Context, registeredCluster *singapore
 
 	return &syncTargetList.Items[0], nil
 }
+func getManagedClusterSetName(controllerRuntimeClient client.Client, registeredCluster *singaporev1alpha1.RegisteredCluster) (string, error) {
+	managedClusterSets := &clusterapiv1beta1.ManagedClusterSetList{}
+
+	if err := controllerRuntimeClient.List(context.TODO(),
+		managedClusterSets,
+		client.MatchingLabels{
+			ManagedClusterSetClustername: helpers.ComputeWorkspaceName(logicalcluster.From(registeredCluster).String()),
+		}); err != nil {
+		klog.Info("Waiting managedClusterSet", "Error", err)
+		return "", err
+	}
+	if len(managedClusterSets.Items) != 1 {
+		return "", fmt.Errorf("Number of managedClusterSet found %d", len(managedClusterSets.Items))
+	}
+	if len(managedClusterSets.Items) == 1 {
+		return managedClusterSets.Items[0].Name, nil
+	}
+	return "", nil
+}
 
 var _ = Describe("Process registeredCluster: ", func() {
 	It("Process cluster-registration registeredCluster", func() {
@@ -197,7 +218,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 					Namespace: workingClusterComputeNamespace,
 					UID:       "d170e2ad-077b-44b6-b462-81ab9d2ef84b",
 					Annotations: map[string]string{
-						logicalcluster.AnnotationKey: "root:my-org:my-cmpute-ws",
+						logicalcluster.AnnotationKey: "root:my-org:my-compute-ws",
 					},
 				},
 				Spec: singaporev1alpha1.RegisteredClusterSpec{
@@ -205,11 +226,39 @@ var _ = Describe("Process registeredCluster: ", func() {
 				},
 			}
 		})
+
+		By("Checking managedCluserSet", func() {
+			Eventually(func() error {
+				managedClusterSets := &clusterapiv1beta1.ManagedClusterSetList{}
+
+				if err := controllerRuntimeClient.List(context.TODO(),
+					managedClusterSets,
+					client.MatchingLabels{
+						ManagedClusterSetClustername: helpers.ComputeWorkspaceName(logicalcluster.From(registeredCluster).String()),
+					}); err != nil {
+					klog.Info("Waiting managedClusterSet", "Error", err)
+					return err
+				}
+				if len(managedClusterSets.Items) != 1 {
+					return fmt.Errorf("Number of managedClusterSet found %d", len(managedClusterSets.Items))
+				}
+				if len(managedClusterSets.Items) == 1 {
+					klog.Info("managedClusterSet found")
+				}
+				return nil
+			}, 60, 3).Should(BeNil())
+		})
 		// Get the managedcluster for the registiredcluster
 		// Searching by labels
 		var managedCluster *clusterapiv1.ManagedCluster
 		By("Checking managedCluster", func() {
 			Eventually(func() error {
+
+				mcsName, err := getManagedClusterSetName(controllerRuntimeClient, registeredCluster)
+				if err != nil {
+					klog.Info("ManagedClusterSet Not found", "Error", err)
+					return err
+				}
 				managedClusters := &clusterapiv1.ManagedClusterList{}
 
 				if err := controllerRuntimeClient.List(context.TODO(),
@@ -217,10 +266,12 @@ var _ = Describe("Process registeredCluster: ", func() {
 					client.MatchingLabels{
 						RegisteredClusterNamelabel:      registeredCluster.Name,
 						RegisteredClusterNamespacelabel: registeredCluster.Namespace,
+						ManagedClusterSetlabel:          mcsName,
 					}); err != nil {
 					klog.Info("Waiting managedCluster", "Error", err)
 					return err
 				}
+
 				if len(managedClusters.Items) != 1 {
 					return fmt.Errorf("Number of managedCluster found %d", len(managedClusters.Items))
 				}
