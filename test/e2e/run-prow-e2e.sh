@@ -190,7 +190,7 @@ oc get ns
 echo "-- Check catalogsource"
 oc get catalogsource -A
 
-./install-cert-mangaer.sh
+./install-cert-manager.sh
 
 ./install-containerized-kcp.sh
 
