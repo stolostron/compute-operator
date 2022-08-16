@@ -36,7 +36,7 @@ export KCP_REPO_TEMP_DIR=$(mktemp -d)
 export KCP_KUBECONFIG_DIR="${SHARED_DIR}/kcp"
 mkdir -p ${KCP_KUBECONFIG_DIR}
 export KCP_KUBECONFIG="${KCP_KUBECONFIG_DIR}/admin.kubeconfig"
-export KCP_SA_KUBECONFIG="${KCP_SA_KUBECONFIG_DIR}/sa.admin.kubeconfig"
+export KCP_SA_KUBECONFIG="${KCP_SA_KUBECONFIG}/sa.admin.kubeconfig"
 
 # code from AppStudio used a different name so just map for now
 KUBECONFIG_KCP="${KCP_KUBECONFIG}"
