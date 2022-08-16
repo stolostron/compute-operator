@@ -16,6 +16,9 @@ SCRIPT_DIR="$(
 # Test Setup
 ###############################################################################
 
+# Location of repo in docker test image
+export COMPUTE_OPERATOR_DIR=${COMPUTE_OPERATOR_DIR:-"/compute-operator"}
+
 BROWSER=chrome
 BUILD_WEB_URL=https://prow.ci.openshift.org/view/gs/origin-ci-test/${JOB_NAME}/${BUILD_ID}
 GIT_PULL_NUMBER=$PULL_NUMBER
@@ -196,6 +199,8 @@ oc get catalogsource -A
 
 echo "-- kcp kubeconfig file is ${KCP_KUBECONFIG}"
 
+echo "== Configure kcp for use by compute-operator"
+
 echo "-- Test kcp api-resources"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl api-resources
 
@@ -211,8 +216,8 @@ KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws
 echo "-- Change to previous kcp workspace"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws -
 
-echo "-- Show cluster server for kcp"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl config view -o jsonpath='{.clusters[?(@.name == "root")].cluster.server}'
+#echo "-- Show cluster server for kcp"
+#KUBECONFIG="${KCP_KUBECONFIG}" kubectl config view -o jsonpath='{.clusters[?(@.name == "root")].cluster.server}'
 
 echo "-- Create kcp workspace"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp workspace create ${COMPUTE_ORGANIZATION} --enter
@@ -220,65 +225,45 @@ KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp workspace create ${COMPUTE_ORGANIZATI
 echo "-- Show current kcp workspace (new workspace)"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws .
 
-# echo "-- Export vcluster kubeconfig for kcp cluster"
-# vcluster connect ${VC_KCP} -n ${VC_KCP} --update-current=false --insecure --kube-config="${SHARED_DIR}/${VC_KCP}.kubeconfig"
+echo "-- Create service account"
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl create serviceaccount ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT}
 
-# # Make sure the managed cluster is ready to be used
-# echo "Waiting up to 15 minutes for managed cluster to be ready"
-# _timeout=900 _elapsed='' _step=30
-# while true; do
-#     # Wait for _step seconds, except for first iteration.
-#     if [[ -z "$_elapsed" ]]; then
-#         _elapsed=0
-#     else
-#         sleep $_step
-#         _elapsed=$(( _elapsed + _step ))
-#     fi
-#
-#     mc_url=`oc get managedclusters --selector name!=local-cluster --no-headers -o jsonpath='{.items[0].spec.managedClusterClientConfigs[0].url}'`
-#     if [[ ! -z "$mc_url" ]]; then
-#         echo "Managed cluster is ready after ${_elapsed}s"
-#         break
-#     fi
-#
-#     # Check timeout
-#     if (( _elapsed > _timeout )); then
-#             echo "Timeout (${_timeout}s) managed cluster is not ready"
-#             return 1
-#     fi
-#
-#     echo "Managed cluster is not ready. Will retry (${_elapsed}/${_timeout}s)"
-# done
-#
-# echo "--- Show managed cluster"
-# oc get managedclusters
+IDENTITY_HASH=`KUBECONFIG="${KCP_KUBECONFIG}" kubectl get apibindings workload.kcp.dev -o jsonpath='{.status.boundResources[?(@.resource=="synctargets")].schema.identityHash}'`
 
-# echo "--- Configure OpenShift to use a signed certificate..."
-# ./install-signed-cert.sh
+pushd ${COMPUTE_OPERATOR_DIR}
+echo "\nIdentityHash: ${IDENTITY_HASH}" >> resources/compute-templates/hack-values.yaml
 
-# Location of repo in docker test image
-export COMPUTE_OPERATOR_DIR=${COMPUTE_OPERATOR_DIR:-"/compute-operator"}
+echo "-- Run applier"
+make applier
 
-## Grab the repo contents
-#idp_dir=$(mktemp -d -t idp-XXXXX)
-#cd "$idp_dir" || exit 1
-#export HOME="$idp_dir"
+echo "-- Apply role and rolebinding"
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/role.yaml
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/role_binding.yaml
 
-## Set up repo URLs.
-## PULL_BASE_REF is a Prow variable as described here:
-## https://github.com/kubernetes/test-infra/blob/master/prow/jobs.md#job-environment-variables
-#echo "--- Cloning branch idp-mgmt-operator ${PULL_BASE_REF}"
-#COMPUTE_OPERATOR_url="https://${COMPUTE_OPERATOR_REPO}.git"
-#export COMPUTE_OPERATOR_DIR="${idp_dir}/idp-mgmt-operator"
-#git clone -b "${PULL_BASE_REF}" "$COMPUTE_OPERATOR_url" "$COMPUTE_OPERATOR_DIR" || {
-#    echo "ERROR Could not clone branch ${PULL_BASE_REF} from idp-mgmt-operator repo $idp_mgmt_operator_url"
-#    exit 1
-#}
 
-# TEMP disable and install compute operator to hub cluster
-# echo "-- Connect to compute vcluster"
-# ls -alh "${SHARED_DIR}"
-# vcluster connect ${VC_COMPUTE} -n ${VC_COMPUTE} --kube-config="${SHARED_DIR}/${VC_COMPUTE}.kubeconfig"
+echo "-- Change to org workspace"
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp use ${ORGANIZATION_WORKSPACE}
+echo "-- Create compute workspace"
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws create ${COMPUTE_WORKSPACE} --enter
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/apibinding.yaml
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws ..
+echo "-- Create location workspace"
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws create ${LOCATION_WORKSPACE} --enter
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/apibinding.yaml
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws ..
+
+popd
+
+
+
+
+
+
+
+
+
+
+
 
 echo "-- Check hub cluster namespaces"
 oc get ns

@@ -22,6 +22,7 @@ export KCP_SYNCER_IMAGE=${KCP_SYNCER_IMAGE:-"ghcr.io/kcp-dev/kcp/syncer:release-
 export KCP_REPO_TEMP_DIR=$(mktemp -d)
 
 KCP_KUBECONFIG_TEMP_DIR=$(mktemp -d)
+echo "kcp kubeconfig directory is ${KCP_KUBECONFIG_TEMP_DIR}"
 export KCP_KUBECONFIG_DIR=${KCP_KUBECONFIG_DIR:-$KCP_KUBECONFIG_TEMP_DIR}
 if [ ! -d ${KCP_KUBECONFIG_DIR} ]; then
   mkdir -p ${KCP_KUBECONFIG_DIR}
@@ -72,7 +73,7 @@ ckcp_manifest_dir=$CKCP_DIR
 ckcp_dev_dir=$ckcp_manifest_dir/overlays/dev
 ckcp_temp_dir=$ckcp_manifest_dir/overlays/temp
 
-kcp_org="root:default"
+kcp_org=${ORGANIZATION_WORKSPACE:-"root:default"}
 #kcp_workspace="pipeline-service-compute"
 # older versions of yq need the 'e' parameter
 kcp_version="$(yq e '.images[] | select(.name == "kcp") | .newTag' "$SCRIPT_DIR/kcp/overlays/dev/kustomization.yaml")"
@@ -164,10 +165,6 @@ KUBECONFIG="$KUBECONFIG_KCP" kubectl kcp workspace use "$ws_name"
 #KUBECONFIG_KCP="$WORK_DIR/credentials/kubeconfig/kcp/ckcp-ckcp.${ws_name}.${kcp_workspace}.kubeconfig"
 
 echo "=============== "
-
-echo "-- Check namespaces"
-oc get ns
-
 
 echo "-- Test kcp api-resources"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl api-resources
