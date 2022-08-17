@@ -223,8 +223,11 @@ KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws -
 echo "-- Use kcp workspace ${ORGANIZATION_WORKSPACE}"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws use ${ORGANIZATION_WORKSPACE}
 
+echo "-- Show kcp pod logs"
+oc logs --selector='app=kcp-in-a-pod' -n ckcp
+
 echo "-- Create service account ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT}"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl create serviceaccount ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT}
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl create serviceaccount ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT} || oc logs --selector='app=kcp-in-a-pod' -n ckcp
 
 IDENTITY_HASH=`KUBECONFIG="${KCP_KUBECONFIG}" kubectl get apibindings workload.kcp.dev -o jsonpath='{.status.boundResources[?(@.resource=="synctargets")].schema.identityHash}'`
 echo "IdentityHash: ${IDENTITY_HASH}"
