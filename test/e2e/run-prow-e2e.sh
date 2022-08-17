@@ -223,6 +223,9 @@ KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws -
 echo "-- Use kcp workspace ${ORGANIZATION_WORKSPACE}"
 KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws use ${ORGANIZATION_WORKSPACE}
 
+echo "-- List service account"
+KUBECONFIG="${KCP_KUBECONFIG}" kubectl get serviceaccount
+
 echo "-- Show kcp pod logs"
 oc logs --selector='app=kcp-in-a-pod' -n ckcp
 
