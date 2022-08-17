@@ -49,12 +49,12 @@ spec:
                     TODO: Add other useful fields. apiVersion, kind, uid?'
                   type: string
               type: object
-            maxRegisteredCluster:
-              description: Maximum of registeredcluster on the hub <= zero means it
-                will not accept registeredcluster.
+            maxManagedCluster:
+              description: Maximum of managedCluster on the hub <= zero means it will
+                not accept managedCluster.
               type: integer
           required:
-          - maxRegisteredCluster
+          - maxManagedCluster
           type: object
         status:
           description: HubConfigStatus defines the observed state of HubConfig

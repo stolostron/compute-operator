@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"os"
 	"regexp"
@@ -409,6 +410,11 @@ func (r *RegisteredClusterReconciler) getHubCluster(ctx context.Context,
 	if len(hubInstances) == 0 {
 		return helpers.HubInstance{}, errors.New("hub cluster is not configured")
 	}
+	//Shuffle the hubInstances to not always select the first available one.
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(hubInstances), func(i, j int) {
+		hubInstances[i], hubInstances[j] = hubInstances[j], hubInstances[i]
+	})
 	for _, hubInstance := range hubInstances {
 		// Search if already has the annotation
 		if _, err := r.getManagedCluster(ctx, regCluster, &hubInstance, clusterName); err == nil {
@@ -425,11 +431,11 @@ func (r *RegisteredClusterReconciler) getHubCluster(ctx context.Context,
 			// Error reading the object - requeue the request.
 			return helpers.HubInstance{}, giterrors.WithStack(err)
 		}
-		if len(managedClusterList.Items) < hubInstance.HubConfig.Spec.MaxRegisteredCluster {
+		if len(managedClusterList.Items) < hubInstance.HubConfig.Spec.MaxManagedCluster {
 			log.V(2).Info(fmt.Sprintf("hub %s is selected as its number of managedclusters is %d/%d",
 				hubInstance.HubConfig.Name,
 				len(managedClusterList.Items),
-				hubInstance.HubConfig.Spec.MaxRegisteredCluster))
+				hubInstance.HubConfig.Spec.MaxManagedCluster))
 			return hubInstance, nil
 		}
 	}

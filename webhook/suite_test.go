@@ -76,7 +76,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	test.TearDownCompute()
+	test.TearDownComputeAndHub()
 })
 
 var _ = Describe("Process clusterRegistrar: ", func() {

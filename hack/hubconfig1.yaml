@@ -1,0 +1,10 @@
+# Copyright Red Hat
+apiVersion: singapore.open-cluster-management.io/v1alpha1
+kind: HubConfig
+metadata:
+  name: hub-1
+  namespace: compute-config
+spec:
+  kubeconfigSecretRef:
+    name: mce-kubeconfig-secret-1
+  maxManagedCluster: 1

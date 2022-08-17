@@ -26,9 +26,9 @@ type HubConfigSpec struct {
 	// +optional
 	QPS string `json:"QPS,omitempty"`
 
-	// Maximum of registeredcluster on the hub
-	// <= zero means it will not accept registeredcluster.
-	MaxRegisteredCluster int `json:"maxRegisteredCluster"`
+	// Maximum of managedCluster on the hub
+	// <= zero means it will not accept managedCluster.
+	MaxManagedCluster int `json:"maxManagedCluster"`
 }
 
 // HubConfigStatus defines the observed state of HubConfig

@@ -66,7 +66,7 @@ func GetHubClusters(ctx context.Context, mgr ctrl.Manager, kubeClient kubernetes
 	if err != nil {
 		return nil, err
 	}
-	setupLog.Info("nb of hubConfig unstructured found", "sze", len(hubConfigListU.Items))
+	setupLog.Info("nb of hubConfig unstructured found", "size", len(hubConfigListU.Items))
 
 	for _, hubConfigU := range hubConfigListU.Items {
 

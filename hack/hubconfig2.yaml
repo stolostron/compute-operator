@@ -2,7 +2,9 @@
 apiVersion: singapore.open-cluster-management.io/v1alpha1
 kind: HubConfig
 metadata:
-  name: hub-1
+  name: hub-2
+  namespace: compute-config
 spec:
   kubeconfigSecretRef:
-    name: mce-kubeconfig-secret
+    name: mce-kubeconfig-secret-2
+  maxManagedCluster: 1

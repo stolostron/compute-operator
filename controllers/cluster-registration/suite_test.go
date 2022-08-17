@@ -124,7 +124,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	test.TearDownCompute()
+	test.TearDownComputeAndHub()
 })
 
 func getSyncTarget(locationContext context.Context, registeredCluster *singaporev1alpha1.RegisteredCluster) (*unstructured.Unstructured, error) {
@@ -507,7 +507,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 						Message:            "Manifestwork applied",
 					},
 				}
-				err = controllerRuntimeClient.Update(context.TODO(), manifestwork)
+				err = controllerRuntimeClient.Status().Update(context.TODO(), manifestwork)
 				Expect(err).Should(BeNil())
 			}
 		})
