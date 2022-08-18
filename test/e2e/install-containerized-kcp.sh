@@ -73,7 +73,7 @@ ckcp_manifest_dir=$CKCP_DIR
 ckcp_dev_dir=$ckcp_manifest_dir/overlays/dev
 ckcp_temp_dir=$ckcp_manifest_dir/overlays/temp
 
-kcp_org=${ORGANIZATION_WORKSPACE:-"root:default"}
+kcp_org=${ORGANIZATION_WORKSPACE:-"root:my-org"}
 #kcp_workspace="pipeline-service-compute"
 # older versions of yq need the 'e' parameter
 kcp_version="$(yq e '.images[] | select(.name == "kcp") | .newTag' "$SCRIPT_DIR/kcp/overlays/dev/kustomization.yaml")"
@@ -113,7 +113,7 @@ patches:
         description: This value refers to the hostAddress defined in the Route.
         value: $ckcp_route " >>"$ckcp_temp_dir/kustomization.yaml"
 
-echo -n "  - kcp $kcp_version: "
+echo -n "  - kcp branch/tag $kcp_version: "
 # older versions of kubectl will have kustomize errors. 4.10.20 works
 kubectl apply -k "$ckcp_temp_dir" >/dev/null 2>&1
 # Check if ckcp pod status is Ready
@@ -151,7 +151,7 @@ echo "OK"
 # Workaround to prevent the creation of a new workspace until KCP is ready.
 # This fixes `error: creating a workspace under a Universal type workspace is not supported`.
 ws_name=$(echo "$kcp_org" | cut -d: -f2)
-while ! KUBECONFIG="$KUBECONFIG_KCP" kubectl kcp workspace create "$ws_name" --type root:organization --ignore-existing >/dev/null; do
+while ! KUBECONFIG="$KUBECONFIG_KCP" kubectl kcp workspace create "$ws_name" --type root:organization --ignore-existing >/dev/null 2>&1; do
   sleep 5
 done
 KUBECONFIG="$KUBECONFIG_KCP" kubectl kcp workspace use "$ws_name"
