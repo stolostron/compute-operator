@@ -11,4 +11,6 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: compute-operator
-  namespace: {{ .ControllerComputeServiceAccountNamespace }}
+  namespace: default
+
+---
