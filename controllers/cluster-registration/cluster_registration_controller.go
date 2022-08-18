@@ -40,6 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
+	clusterapiv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	manifestworkv1 "open-cluster-management.io/api/work/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -71,6 +72,7 @@ const (
 	ClusterNameAnnotation           string = "registeredcluster.singapore.open-cluster-management.io/clustername"
 	ManagedClusterSetlabel          string = "cluster.open-cluster-management.io/clusterset"
 	HubNameLabel                    string = "registeredcluster.singapore.open-cluster-management.io/hub"
+	ManagedClusterSetClustername    string = "tenancy.kcp.dev/clustername"
 )
 
 const defaultSyncerImage = "ghcr.io/kcp-dev/kcp/syncer:v0.6.1"
@@ -134,7 +136,10 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 		return ctrl.Result{}, giterrors.WithStack(err)
 	}
 
-	// TODO create managedclusterset for workspace
+	if err := r.syncManagedClusterSet(ctx, &hubCluster, regCluster); err != nil {
+		logger.Error(err, "failed to create ManagedClusterSet")
+		return ctrl.Result{}, err
+	}
 
 	if regCluster.DeletionTimestamp == nil {
 		// create managecluster on creation of registeredcluster CR
@@ -202,6 +207,56 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *RegisteredClusterReconciler) getManagedClusterSet(ctx context.Context, hubCluster *helpers.HubInstance, regCluster *singaporev1alpha1.RegisteredCluster) (*clusterapiv1beta1.ManagedClusterSetList, error) {
+	managedClusterSetList := &clusterapiv1beta1.ManagedClusterSetList{}
+
+	if err := hubCluster.Client.List(ctx, managedClusterSetList, client.MatchingLabels(map[string]string{ManagedClusterSetClustername: helpers.ComputeWorkspaceName(logicalcluster.From(regCluster).String())})); err != nil {
+		// Error reading the object - requeue the request.
+		return managedClusterSetList, giterrors.WithStack(err)
+	}
+
+	return managedClusterSetList, nil
+}
+
+func (r *RegisteredClusterReconciler) syncManagedClusterSet(ctx context.Context, hubCluster *helpers.HubInstance, regCluster *singaporev1alpha1.RegisteredCluster) error {
+
+	logger := r.Log.WithName("syncManagedClusterSet").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "hub", hubCluster.HubConfig.Name)
+
+	// Get managedclustersetlist to check if managedclusterset is already exsists
+	managedClusterSetList, err := r.getManagedClusterSet(ctx, hubCluster, regCluster)
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
+
+	if len(managedClusterSetList.Items) < 1 {
+		//TODO use persistent identifiers to uniquely idenity workspace when they come in kcp
+		mcsName := helpers.ComputeWorkspaceName(logicalcluster.From(regCluster).String())
+		if len(mcsName) > 15 {
+			mcsName = mcsName[0:15]
+		}
+
+		managedClusterSet := &clusterapiv1beta1.ManagedClusterSet{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: clusterapiv1beta1.SchemeGroupVersion.String(),
+				Kind:       "ManagedClusterSet",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: mcsName + "-",
+				Labels: map[string]string{
+					ManagedClusterSetClustername: helpers.ComputeWorkspaceName(logicalcluster.From(regCluster).String()),
+				},
+			},
+		}
+
+		if err := hubCluster.Client.Create(ctx, managedClusterSet, &client.CreateOptions{}); err != nil {
+			return giterrors.WithStack(err)
+		}
+		logger.V(2).Info("managedclusterset is created")
+	}
+
+	return nil
 }
 
 // List of regexes to exclude from labels and cluster claims copied to sync target labels
@@ -452,9 +507,20 @@ func (r *RegisteredClusterReconciler) getHubCluster(ctx context.Context,
 }
 
 func (r *RegisteredClusterReconciler) getManagedCluster(ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, hubCluster *helpers.HubInstance, clusterName string) (clusterapiv1.ManagedCluster, error) {
-	managedClusterList := &clusterapiv1.ManagedClusterList{}
 	managedCluster := clusterapiv1.ManagedCluster{}
-	if err := hubCluster.Client.List(ctx, managedClusterList, client.MatchingLabels(getRegisteredClusterLabels(regCluster, clusterName))); err != nil {
+	managedClusterSetList, err := r.getManagedClusterSet(ctx, hubCluster, regCluster)
+	if err != nil {
+		return managedCluster, giterrors.WithStack(err)
+	}
+
+	if len(managedClusterSetList.Items) < 1 {
+		return managedCluster, fmt.Errorf("managedClusterSet is empty")
+	}
+
+	mcsName := managedClusterSetList.Items[0].Name
+
+	managedClusterList := &clusterapiv1.ManagedClusterList{}
+	if err := hubCluster.Client.List(ctx, managedClusterList, client.MatchingLabels(getRegisteredClusterLabels(regCluster, mcsName))); err != nil {
 		// Error reading the object - requeue the request.
 		return managedCluster, giterrors.WithStack(err)
 	}
@@ -463,7 +529,7 @@ func (r *RegisteredClusterReconciler) getManagedCluster(ctx context.Context, reg
 		"number", len(managedClusterList.Items),
 		RegisteredClusterNamelabel, regCluster.Name,
 		RegisteredClusterNamespacelabel, regCluster.Namespace,
-		ManagedClusterSetlabel, helpers.ManagedClusterSetNameForWorkspace(clusterName))
+		ManagedClusterSetlabel, mcsName)
 	if len(managedClusterList.Items) == 1 {
 		return managedClusterList.Items[0], nil
 	}
@@ -857,20 +923,33 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(ctx context.Cont
 	return ctrl.Result{}, nil
 }
 
-func getRegisteredClusterLabels(regCluster *singaporev1alpha1.RegisteredCluster, clusterName string) map[string]string {
+func getRegisteredClusterLabels(regCluster *singaporev1alpha1.RegisteredCluster, mcsName string) map[string]string {
 	return map[string]string{
 		RegisteredClusterNamelabel:      regCluster.Name,
 		RegisteredClusterNamespacelabel: regCluster.Namespace,
 		RegisteredClusterUidLabel:       string(regCluster.UID),
-		ManagedClusterSetlabel:          helpers.ManagedClusterSetNameForWorkspace(clusterName),
+		ManagedClusterSetlabel:          mcsName,
 	}
 }
 
 func (r *RegisteredClusterReconciler) createManagedCluster(ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, hubCluster *helpers.HubInstance, clusterName string) error {
 	logger := r.Log.WithName("createManagedCluster").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "hub", hubCluster.HubConfig.Name)
+
+	// get the managedclusterset name
+	managedClusterSetList, err := r.getManagedClusterSet(ctx, hubCluster, regCluster)
+	if err != nil {
+		return giterrors.WithStack(err)
+	}
+
+	if len(managedClusterSetList.Items) < 1 {
+		return fmt.Errorf("managedClusterSet is empty")
+	}
+
+	mcsName := managedClusterSetList.Items[0].Name
+
 	// check if managedcluster is already exists
 	managedClusterList := &clusterapiv1.ManagedClusterList{}
-	labels := getRegisteredClusterLabels(regCluster, clusterName)
+	labels := getRegisteredClusterLabels(regCluster, mcsName)
 	logger.V(2).Info("get managedclusterlist", "labels", labels)
 	if err := hubCluster.Client.List(ctx, managedClusterList, client.MatchingLabels(labels)); err != nil {
 		// Error reading the object - requeue the request.
@@ -899,6 +978,7 @@ func (r *RegisteredClusterReconciler) createManagedCluster(ctx context.Context, 
 		if err := hubCluster.Client.Create(ctx, managedCluster, &client.CreateOptions{}); err != nil {
 			return giterrors.WithStack(err)
 		}
+		logger.V(2).Info("managedclusterset is created")
 	}
 	return nil
 }
