@@ -145,9 +145,6 @@ YQ ?= ${PWD}/yq
 ## Install yq to ${YQ} (defaults to current directory)
 yq/install: %install:
 	@[ -x $(YQ) ] || ( \
-	  echo "BUILD_HARNESS_OS $(BUILD_HARNESS_OS) " ; \
-	  OC_PLATFORM ?= $(shell echo $(BUILD_HARNESS_OS) | sed 's/darwin/mac/g') ; \
-    echo "OC_PLATFORM $(OC_PLATFORM)" ; \
 		echo "Installing YQ $(YQ_VERSION) ($(YQ_PLATFORM)_$(YQ_ARCH)) from $(YQ_URL)" && \
 		curl '-#' -fL -o $(YQ) $(YQ_URL) && \
 		chmod +x $(YQ) \
