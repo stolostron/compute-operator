@@ -466,16 +466,14 @@ func (r *RegisteredClusterReconciler) getHubCluster(ctx context.Context,
 	if len(hubInstances) == 0 {
 		return helpers.HubInstance{}, errors.New("hub cluster is not configured")
 	}
-	// If regCluster already assigned to a hub
-	if hubConfigName, ok := regCluster.Labels[HubNameLabel]; ok {
-		for _, hubInstance := range hubInstances {
-			if hubInstance.HubConfig.Name == hubConfigName {
-				log.V(2).Info("managedCluster already exists for regCluster",
-					"namespace", regCluster.Namespace,
-					"name", regCluster.Name,
-					"clusterName", clusterName)
-				return hubInstance, nil
-			}
+	// If ws already assigned to a hub
+	for _, hubInstance := range hubInstances {
+		if _, ok := hubInstance.ManagedClusterSetNames[helpers.ComputeWorkspaceName(logicalcluster.From(regCluster).String())]; ok {
+			log.V(2).Info("managedCluster already exists for regCluster",
+				"namespace", regCluster.Namespace,
+				"name", regCluster.Name,
+				"clusterName", clusterName)
+			return hubInstance, nil
 		}
 	}
 	//Shuffle the hubInstances to not always select the first available one.
@@ -496,6 +494,7 @@ func (r *RegisteredClusterReconciler) getHubCluster(ctx context.Context,
 				hubInstance.HubConfig.Name,
 				len(managedClusterList.Items),
 				hubInstance.HubConfig.Spec.MaxManagedCluster))
+			helpers.AddManagedClusterSetName(hubInstance, logicalcluster.From(regCluster).String())
 			return hubInstance, nil
 		}
 	}
@@ -503,6 +502,7 @@ func (r *RegisteredClusterReconciler) getHubCluster(ctx context.Context,
 	log.V(2).Info("no hub found, taking the first one",
 		"namespace", hubInstances[0].HubConfig.Namespace,
 		"name", hubInstances[0].HubConfig.Name)
+	helpers.AddManagedClusterSetName(hubInstances[0], logicalcluster.From(regCluster).String())
 	return hubInstances[0], nil
 }
 

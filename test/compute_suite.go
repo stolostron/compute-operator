@@ -164,11 +164,11 @@ func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder
 	}
 	// Values for the appliers
 	values := struct {
-		Organization string
-		IdentityHash string
+		ComputeWorkspacePath string
+		IdentityHash         string
 	}{
-		Organization: ComputeOrganization,
-		IdentityHash: SyncTargetIdenityHash,
+		ComputeWorkspacePath: OrganizationWorkspace,
+		IdentityHash:         SyncTargetIdenityHash,
 	}
 	_, err := computeApplier.ApplyCustomResources(readerResources, values, false, "", files...)
 	if err != nil {

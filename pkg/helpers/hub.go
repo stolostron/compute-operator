@@ -24,11 +24,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
+type void struct{}
+
+var member void
+
 type HubInstance struct {
-	HubConfig      *singaporev1alpha1.HubConfig
-	Cluster        cluster.Cluster
-	Client         client.Client
-	ApplierBuilder *apply.ApplierBuilder
+	HubConfig              *singaporev1alpha1.HubConfig
+	Cluster                cluster.Cluster
+	Client                 client.Client
+	ApplierBuilder         *apply.ApplierBuilder
+	ManagedClusterSetNames map[string]void
 }
 
 // GetConditionStatus returns the status for a given condition type and whether the condition was found
@@ -75,7 +80,7 @@ func GetHubClusters(ctx context.Context, mgr ctrl.Manager, kubeClient kubernetes
 			return nil, err
 		}
 
-		hubInstance, err := getHubInstance(kubeConfigData, mgr, hubConfig)
+		hubInstance, err := getHubInstance(ctx, kubeConfigData, mgr, hubConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +120,7 @@ func getKubeConfigDataFromHubConfig(ctx context.Context, hubConfigU unstructured
 	return kubeConfigData, hubConfig, nil
 }
 
-func getHubInstance(kubeConfigData []byte, mgr ctrl.Manager, hubConfig *singaporev1alpha1.HubConfig) (*HubInstance, error) {
+func getHubInstance(ctx context.Context, kubeConfigData []byte, mgr ctrl.Manager, hubConfig *singaporev1alpha1.HubConfig) (*HubInstance, error) {
 	setupLog := ctrl.Log.WithName("setup")
 	setupLog.Info("generate hubKubeConfig")
 	hubKubeconfig, err := clientcmd.RESTConfigFromKubeConfig(kubeConfigData)
@@ -166,10 +171,38 @@ func getHubInstance(kubeConfigData []byte, mgr ctrl.Manager, hubConfig *singapor
 		WithClient(kubeClient, apiExtensionClient, dynamicClient)
 
 	hubInstance := HubInstance{
-		HubConfig:      hubConfig,
-		Cluster:        hubCluster,
-		Client:         hubCluster.GetClient(),
-		ApplierBuilder: hubApplierBuilder,
+		HubConfig:              hubConfig,
+		Cluster:                hubCluster,
+		Client:                 hubCluster.GetClient(),
+		ApplierBuilder:         hubApplierBuilder,
+		ManagedClusterSetNames: make(map[string]void, 0),
 	}
+
+	// Search all managedClusterSet on the hub, it doesn't matter if they are not related to ws
+	// as later we will search the managedClusterSet by ws
+	gvr := schema.GroupVersionResource{
+		Group:    "cluster.open-cluster-management.io",
+		Version:  "v1beta1",
+		Resource: "managedclustersets"}
+
+	// We can not use the hubInstance.Cluster.Client yet as the cache is not yet initialized.
+	setupLog.Info("retrieve list of hubConfig")
+	managedClusterSetList, err := dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, managedClusterSet := range managedClusterSetList.Items {
+		hubInstance.ManagedClusterSetNames[managedClusterSet.GetName()] = member
+	}
+
 	return &hubInstance, nil
+}
+
+func AddManagedClusterSetName(hubInstance HubInstance, workspaceName string) {
+	hubInstance.ManagedClusterSetNames[ComputeWorkspaceName(workspaceName)] = member
+}
+
+func RemoveManagedClusterSetName(hubInstance HubInstance, workspaceName string) {
+	delete(hubInstance.ManagedClusterSetNames, ComputeWorkspaceName(workspaceName))
 }
