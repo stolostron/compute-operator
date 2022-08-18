@@ -119,7 +119,7 @@ spec:
               - /ko-app/syncer
               args:
               - "--sync-target-name={{ .SyncTargetName }}"
-              - "--sync-target-name={{ .SyncTargetUid }}"
+              - "--sync-target-uid={{ .SyncTargetUid }}"
               - "--from_cluster={{ .LogicalCluster }}"
               - --from-kubeconfig=/kcp/kubeconfig
               - --resources=configmaps
