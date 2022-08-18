@@ -70,6 +70,7 @@ const (
 	RegisteredClusterUidLabel       string = "registeredcluster.singapore.open-cluster-management.io/uid"
 	ClusterNameAnnotation           string = "registeredcluster.singapore.open-cluster-management.io/clustername"
 	ManagedClusterSetlabel          string = "cluster.open-cluster-management.io/clusterset"
+	HubNameLabel                    string = "registeredcluster.singapore.open-cluster-management.io/hub"
 )
 
 const defaultSyncerImage = "ghcr.io/kcp-dev/kcp/syncer:v0.6.1"
@@ -410,20 +411,24 @@ func (r *RegisteredClusterReconciler) getHubCluster(ctx context.Context,
 	if len(hubInstances) == 0 {
 		return helpers.HubInstance{}, errors.New("hub cluster is not configured")
 	}
+	// If regCluster already assigned to a hub
+	if hubConfigName, ok := regCluster.Labels[HubNameLabel]; ok {
+		for _, hubInstance := range hubInstances {
+			if hubInstance.HubConfig.Name == hubConfigName {
+				log.V(2).Info("managedCluster already exists for regCluster",
+					"namespace", regCluster.Namespace,
+					"name", regCluster.Name,
+					"clusterName", clusterName)
+				return hubInstance, nil
+			}
+		}
+	}
 	//Shuffle the hubInstances to not always select the first available one.
 	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(hubInstances), func(i, j int) {
 		hubInstances[i], hubInstances[j] = hubInstances[j], hubInstances[i]
 	})
 	for _, hubInstance := range hubInstances {
-		// Search if already has the annotation
-		if _, err := r.getManagedCluster(ctx, regCluster, &hubInstance, clusterName); err == nil {
-			log.V(2).Info("managedCluster already exists for regCluster",
-				"namespace", regCluster.Namespace,
-				"name", regCluster.Name,
-				"clusterName", clusterName)
-			return hubInstance, nil
-		}
 		// Count the number of managedcluster to take the first hub which didn't maxout yet
 		// its number of managedcluster
 		managedClusterList := &clusterapiv1.ManagedClusterList{}
