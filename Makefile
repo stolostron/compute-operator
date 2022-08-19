@@ -349,12 +349,21 @@ install-prereqs: generate manifests
 	kubectl create secret generic kcp-kubeconfig -n ${POD_NAMESPACE} --from-file=kubeconfig=${KCP_KUBECONFIG}
 	kubectl apply -f config/crd/singapore.open-cluster-management.io_hubconfigs.yaml
 	kubectl apply -f config/crd/singapore.open-cluster-management.io_clusterregistrars.yaml
+	kubectl delete secret mce-kubeconfig-secret -n ${POD_NAMESPACE} --ignore-not-found
+ifdef HUB_KUBECONFIG
+	kubectl create secret generic mce-kubeconfig-secret -n ${POD_NAMESPACE} --from-file=kubeconfig=${HUB_KUBECONFIG}
+	kubectl apply -f hack/hubconfig.yaml
+endif
 	kubectl delete secret mce-kubeconfig-secret-1 -n ${POD_NAMESPACE} --ignore-not-found
+ifdef HUB_KUBECONFIG_1
 	kubectl create secret generic mce-kubeconfig-secret-1 -n ${POD_NAMESPACE} --from-file=kubeconfig=${HUB_KUBECONFIG_1}
 	kubectl apply -f hack/hubconfig1.yaml
+endif
 	kubectl delete secret mce-kubeconfig-secret-2 -n ${POD_NAMESPACE} --ignore-not-found
+ifdef HUB_KUBECONFIG_2
 	kubectl create secret generic mce-kubeconfig-secret-2 -n ${POD_NAMESPACE} --from-file=kubeconfig=${HUB_KUBECONFIG_2}
 	kubectl apply -f hack/hubconfig2.yaml
+endif
 	kubectl apply -f hack/clusterregistrar.yaml
 	kubectl apply -f config/apiresourceschema/singapore.open-cluster-management.io_registeredclusters.yaml --kubeconfig ${KCP_KUBECONFIG}
 	kubectl apply -f hack/compute/apiexport.yaml --kubeconfig ${KCP_KUBECONFIG}
