@@ -17,8 +17,8 @@ SCRIPT_DIR="$(
 ###############################################################################
 echo "=== Preparing to install containerized kcp ==="
 
-export KCP_GIT_BRANCH=${KCP_GIT_BRANCH:-"v0.7.0"}
-export KCP_SYNCER_IMAGE=${KCP_SYNCER_IMAGE:-"ghcr.io/kcp-dev/kcp/syncer:release-0.7"}
+export KCP_GIT_BRANCH=${KCP_GIT_BRANCH:-"v0.7.6"}
+export KCP_SYNCER_IMAGE=${KCP_SYNCER_IMAGE:-"ghcr.io/kcp-dev/kcp/syncer:v0.7.6"}
 export KCP_REPO_TEMP_DIR=$(mktemp -d)
 
 KCP_KUBECONFIG_TEMP_DIR=$(mktemp -d)

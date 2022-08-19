@@ -29,14 +29,19 @@ OCM_ROUTE=multicloud-console
 # Hub cluster
 export KUBECONFIG="${SHARED_DIR}/hub-1.kc"
 
-export KCP_GIT_BRANCH="v0.7.0"
-export KCP_SYNCER_IMAGE="ghcr.io/kcp-dev/kcp/syncer:release-0.7"
+export KCP_GIT_BRANCH="v0.7.6"
+export KCP_SYNCER_IMAGE="ghcr.io/kcp-dev/kcp/syncer:v0.7.6"
 export KCP_REPO_TEMP_DIR=$(mktemp -d)
+
 
 export KCP_KUBECONFIG_DIR="${SHARED_DIR}/kcp"
 mkdir -p ${KCP_KUBECONFIG_DIR}
 export KCP_KUBECONFIG="${KCP_KUBECONFIG_DIR}/admin.kubeconfig"
 export KCP_SA_KUBECONFIG="${KCP_KUBECONFIG_DIR}/sa.admin.kubeconfig"
+# Store the kcp compute service account in SHARED_DIR so we can easily access
+#export KCP_COMPUTE_SA_KUBECONFIG=$(cat "/etc/ocm-mgdsvcs-e2e-test/kcp-stable-compute-sa-kubeconfig")
+cp /etc/ocm-mgdsvcs-e2e-test/kcp-stable-compute-sa-kubeconfig ${KCP_SA_KUBECONFIG}
+
 
 # code from AppStudio used a different name so just map for now
 KUBECONFIG_KCP="${KCP_KUBECONFIG}"
@@ -194,83 +199,89 @@ oc get ns
 echo "-- Check catalogsource"
 oc get catalogsource -A
 
-./install-cert-manager.sh
-
-./install-containerized-kcp.sh
-
-echo "-- kcp kubeconfig file is ${KCP_KUBECONFIG}"
+# TODO - Using the containerized KCP was not working so we will try using kcp-stable and
+#        an already setup service account to see if that works better!
+# ./install-cert-manager.sh
+#
+# ./install-containerized-kcp.sh
+#
+# echo "-- kcp kubeconfig file is ${KCP_KUBECONFIG}"
 
 echo "== Configure kcp for use by compute-operator"
 
 echo "-- Test kcp api-resources"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl api-resources
+KUBECONFIG="${KCP_SA_KUBECONFIG}" kubectl api-resources
 
 echo "-- Show kcp context"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl config get-contexts
+KUBECONFIG="${KCP_SA_KUBECONFIG}" kubectl config get-contexts
 
 echo "-- Show current kcp workspace"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws .
+KUBECONFIG="${KCP_SA_KUBECONFIG}" kubectl ws .
 
 echo "-- Change to home kcp workspace"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws
+KUBECONFIG="${KCP_SA_KUBECONFIG}" kubectl ws
 
 echo "-- Change to previous kcp workspace"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl ws -
+KUBECONFIG="${KCP_SA_KUBECONFIG}" kubectl ws -
 
 #echo "-- Show cluster server for kcp"
 #KUBECONFIG="${KCP_KUBECONFIG}" kubectl config view -o jsonpath='{.clusters[?(@.name == "root")].cluster.server}'
 
-echo "-- Use kcp workspace ${ORGANIZATION_WORKSPACE}"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws use ${ORGANIZATION_WORKSPACE}
+# TODO - we will probably want to use the PR github build info to create a new child kcp workspace for
+#        each e2e run.
+#  KCP_E2E_WORKSPACE=compute-PR${PULL_NUMBER}-${PULL_PULL_SHA}
+
+#echo "-- Use kcp workspace ${ORGANIZATION_WORKSPACE}"
+#KUBECONFIG="${KCP_SA_KUBECONFIG}" kubectl kcp ws use ${ORGANIZATION_WORKSPACE}
 
 echo "-- Current namespace"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl get namespace
+KUBECONFIG="${KCP_SA_KUBECONFIG}" kubectl get namespace
 
 echo "-- All namespaces"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl get namespace -A
+KUBECONFIG="${KCP_SA_KUBECONFIG}" kubectl get namespace -A
 
 echo "-- List service account"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl -v 6 get serviceaccount
+KUBECONFIG="${KCP_SA_KUBECONFIG}" kubectl -v 6 get serviceaccount
 
 echo "-- Show kcp pod logs"
 oc logs --selector='app=kcp-in-a-pod' -n ckcp
 
-echo "-- Create service account ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT}"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl create serviceaccount ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT} || oc logs --selector='app=kcp-in-a-pod' -n ckcp
-
-IDENTITY_HASH=`KUBECONFIG="${KCP_KUBECONFIG}" kubectl get apibindings workload.kcp.dev -o jsonpath='{.status.boundResources[?(@.resource=="synctargets")].schema.identityHash}'`
-echo "IdentityHash: ${IDENTITY_HASH}"
-
-pushd ${COMPUTE_OPERATOR_DIR}
-echo "\nIdentityHash: ${IDENTITY_HASH}" >> resources/compute-templates/hack-values.yaml
-
-echo "-- make samples"
-make samples
-
-echo "-- Apply role and rolebinding"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/role.yaml
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/role_binding.yaml
-
-KUBECONFIG="${KCP_KUBECONFIG}" build/generate_kubeconfig_from_sa.sh ${KCP_KUBECONFIG} ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT} default ${KCP_SA_KUBECONFIG}
-
-IDENTITY_HASH2=`KUBECONFIG="${KCP_KUBECONFIG}" kubectl get apibindings workload.kcp.dev -o jsonpath='{.status.boundResources[?(@.resource=="synctargets")].schema.identityHash}'`
-
-echo "IdentityHash(2): ${IDENTITY_HASH}"
-
-echo "-- Test kcp api-resources"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl api-resources
-
-
-echo "-- Change to org workspace"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp use ${ORGANIZATION_WORKSPACE}
-echo "-- Create compute workspace"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws create ${COMPUTE_WORKSPACE} --enter
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/apibinding.yaml
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws ..
-echo "-- Create location workspace"
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws create ${LOCATION_WORKSPACE} --enter
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/apibinding.yaml
-KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws ..
+# echo "-- Create service account ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT}"
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl create serviceaccount ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT} || oc logs --selector='app=kcp-in-a-pod' -n ckcp
+#
+# IDENTITY_HASH=`KUBECONFIG="${KCP_KUBECONFIG}" kubectl get apibindings workload.kcp.dev -o jsonpath='{.status.boundResources[?(@.resource=="synctargets")].schema.identityHash}'`
+# echo "IdentityHash: ${IDENTITY_HASH}"
+#
+# pushd ${COMPUTE_OPERATOR_DIR}
+# echo "\nIdentityHash: ${IDENTITY_HASH}" >> resources/compute-templates/hack-values.yaml
+#
+# echo "-- make samples"
+# make samples
+#
+# echo "-- Apply role and rolebinding"
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/role.yaml
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/role_binding.yaml
+#
+# KUBECONFIG="${KCP_KUBECONFIG}" build/generate_kubeconfig_from_sa.sh ${KCP_KUBECONFIG} ${CONTROLLER_COMPUTE_SERVICE_ACCOUNT} default ${KCP_SA_KUBECONFIG}
+#
+# IDENTITY_HASH2=`KUBECONFIG="${KCP_KUBECONFIG}" kubectl get apibindings workload.kcp.dev -o jsonpath='{.status.boundResources[?(@.resource=="synctargets")].schema.identityHash}'`
+#
+# echo "IdentityHash(2): ${IDENTITY_HASH}"
+#
+# echo "-- Test kcp api-resources"
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl api-resources
+#
+#
+# echo "-- Change to org workspace"
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp use ${ORGANIZATION_WORKSPACE}
+# echo "-- Create compute workspace"
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws create ${COMPUTE_WORKSPACE} --enter
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/apibinding.yaml
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws ..
+# echo "-- Create location workspace"
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws create ${LOCATION_WORKSPACE} --enter
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl apply -f hack/compute/apibinding.yaml
+# KUBECONFIG="${KCP_KUBECONFIG}" kubectl kcp ws ..
 
 popd
 
