@@ -1,0 +1,19 @@
+# Copyright Red Hat
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-cert-manager-operator
+  namespace: openshift-cert-manager-operator
+spec:
+  # Only in OpenShift 4.10 and above
+  # channel: tech-preview
+  # installPlanApproval: Automatic
+  # name: openshift-cert-manager-operator
+  # source: redhat-operators
+  # sourceNamespace: openshift-marketplace
+  channel: stable
+  installPlanApproval: Automatic
+  name: cert-manager
+  source: community-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: cert-manager.v1.9.1

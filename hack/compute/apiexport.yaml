@@ -12,7 +12,7 @@ spec:
     resource: serviceaccounts
   - group: workload.kcp.dev
     resource: synctargets
-    identityHash: <identityHash>
+    identityHash: 30f34972de5a87d83a8f337f61599649f2752680d50bb28c9282d15109afc031
   - group: "rbac.authorization.k8s.io"
     resource: clusterroles
   - group: "rbac.authorization.k8s.io"
