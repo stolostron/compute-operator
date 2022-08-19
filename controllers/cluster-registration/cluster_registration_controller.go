@@ -72,7 +72,7 @@ const (
 	ManagedClusterSetClustername    string = "tenancy.kcp.dev/clustername"
 )
 
-const defaultSyncerImage = "ghcr.io/kcp-dev/kcp/syncer:v0.6.1"
+const defaultSyncerImage = "ghcr.io/kcp-dev/kcp/syncer:v0.7.6"
 
 var syncTargetGVR = schema.GroupVersionResource{
 	Group:    "workload.kcp.dev",
@@ -190,9 +190,16 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 
 				// sync kcp-syncer service account
 				token := ""
-				if token, err = r.syncServiceAccount(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster); err != nil {
+				sa, err := r.syncServiceAccount(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster)
+				if err != nil {
 					logger.Error(err, "failed to sync ServiceAccount in the location workspace %s", locationWorkspace)
 					return ctrl.Result{}, err
+				} else {
+					token, err = r.getKcpSyncerSAToken(computeContext, regCluster, locationWorkspace, sa)
+					if err != nil {
+						logger.V(2).Info("secret not ready, requeue")
+						return reconcile.Result{Requeue: true, RequeueAfter: 1 * time.Second}, err
+					}
 				}
 
 				// sync kcp-syncer deployment and supporting resources
@@ -583,7 +590,7 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 	regCluster *singaporev1alpha1.RegisteredCluster,
 	locationWorkspace string,
 	managedCluster *clusterapiv1.ManagedCluster,
-	hubCluster *helpers.HubInstance) (string, error) {
+	hubCluster *helpers.HubInstance) (*corev1.ServiceAccount, error) {
 
 	r.Log.V(2).Info("syncServiceAccount",
 		"registered cluster", regCluster.Name,
@@ -592,19 +599,19 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 	locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
 	syncTarget, err := r.getSyncTarget(locationContext, regCluster)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Create the ServiceAccount if it doesn't yet exist
 	if syncTarget == nil {
-		return "", fmt.Errorf("failed to get service account name. Synctarget not exists")
+		return nil, fmt.Errorf("failed to get service account name. Synctarget not exists")
 	}
 	saName := helpers.GetSyncerName(syncTarget)
 
 	sa, err := r.ComputeKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, saName, metav1.GetOptions{})
 	if err != nil {
 		if !k8serrors.IsNotFound(err) {
-			return "", err
+			return nil, err
 		}
 
 		sa = &corev1.ServiceAccount{
@@ -624,7 +631,7 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 			"creating service account", regCluster.Name)
 		sa, err = r.ComputeKubeClient.CoreV1().ServiceAccounts("default").Create(locationContext, sa, metav1.CreateOptions{})
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
@@ -656,19 +663,15 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 
 	_, err = applier.ApplyDirectly(readerDeploy, values, false, "", files...)
 
-	// Printed after sleep is over
 	r.Log.V(1).Info("created clusterrole and clusterrolebinding",
 		"cluster", logicalcluster.From(regCluster).String(),
 		"namespace", regCluster.Namespace,
 		"name", regCluster.Name)
 	if err != nil {
-		return "", giterrors.WithStack(err)
+		return nil, giterrors.WithStack(err)
 	}
-
-	// Return the ServiceAccount token
-	token, err := r.getKcpSyncerSAToken(computeContext, regCluster, locationWorkspace, sa)
-	return token, err
-
+	// Return the service account
+	return sa, nil
 }
 
 func (r *RegisteredClusterReconciler) getKcpSyncerSAToken(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, locationWorkspace string, sa *corev1.ServiceAccount) (string, error) {
