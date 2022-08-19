@@ -558,7 +558,7 @@ var _ = Describe("Process registeredCluster: ", func() {
 						Message:            "Manifestwork applied",
 					},
 				}
-				err = controllerRuntimeClient.Update(context.TODO(), manifestwork)
+				err = controllerRuntimeClient.Status().Update(context.TODO(), manifestwork)
 				Expect(err).Should(BeNil())
 			}
 		})
@@ -580,6 +580,157 @@ var _ = Describe("Process registeredCluster: ", func() {
 					registeredCluster); err != nil {
 					klog.Info("While deleting registeredcluster", "Error", err)
 					return err
+				}
+				return nil
+			}, 60, 1).Should(BeNil())
+		})
+
+		By("Check manifestwork deletion", func() {
+			Eventually(func() error {
+				for _, locationWorkspace := range registeredCluster.Spec.Location {
+
+					locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
+
+					synctarget, err := getSyncTarget(locationContext, registeredCluster)
+					Expect(err).Should(BeNil())
+
+					manifestwork := &manifestworkv1.ManifestWork{}
+
+					err = controllerRuntimeClient.Get(context.TODO(),
+						types.NamespacedName{
+							Name:      helpers.GetSyncerName(synctarget),
+							Namespace: managedCluster.Name,
+						},
+						manifestwork)
+					switch {
+					case err == nil:
+						return fmt.Errorf("manifestwork still exists %s/%s", managedCluster.Name, helpers.GetSyncerName(synctarget))
+					case errors.IsNotFound(err):
+						return nil
+					default:
+						return err
+					}
+				}
+				return nil
+			}, 60, 1).Should(BeNil())
+		})
+
+		// Check if service account is deleted
+		By("Check service account deletion", func() {
+			Eventually(func() error {
+				for _, locationWorkspace := range registeredCluster.Spec.Location {
+
+					locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
+
+					synctarget, err := getSyncTarget(locationContext, registeredCluster)
+					Expect(err).Should(BeNil())
+
+					_, err = apiExportVirtualWorkspaceKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, helpers.GetSyncerName(synctarget), metav1.GetOptions{})
+
+					switch {
+					case err == nil:
+						return fmt.Errorf("service account still exists %s/%s", "default", helpers.GetSyncerName(synctarget))
+					case errors.IsNotFound(err):
+						return nil
+					default:
+						return err
+					}
+				}
+				return nil
+			}, 60, 1).Should(BeNil())
+		})
+
+		// Check if synctarget is deleted
+		By("Check synctarget deletion", func() {
+			Eventually(func() error {
+				for _, locationWorkspace := range registeredCluster.Spec.Location {
+
+					locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
+
+					synctarget, err := getSyncTarget(locationContext, registeredCluster)
+					if err != nil {
+						return err
+					}
+					if synctarget == nil && err == nil {
+						return nil
+					}
+				}
+				return nil
+			}, 60, 1).Should(BeNil())
+		})
+
+		// Check if managedcluster is deleted
+		By("Check managedcluster deletion", func() {
+			Eventually(func() error {
+				mcsName, err := getManagedClusterSetName(controllerRuntimeClient, registeredCluster)
+				if err != nil {
+					klog.Info("ManagedClusterSet Not found", "Error", err)
+					return err
+				}
+				managedClusters := &clusterapiv1.ManagedClusterList{}
+
+				if err := controllerRuntimeClient.List(context.TODO(),
+					managedClusters,
+					client.MatchingLabels{
+						RegisteredClusterNamelabel:      registeredCluster.Name,
+						RegisteredClusterNamespacelabel: registeredCluster.Namespace,
+						ManagedClusterSetlabel:          mcsName,
+					}); err != nil {
+					return err
+				}
+
+				if len(managedClusters.Items) == 0 {
+					return nil
+				}
+				return nil
+			}, 60, 1).Should(BeNil())
+		})
+
+		// Patch managedclusterset status
+		By("Patching managedclusterset status", func() {
+			managedClusterSetList := &clusterapiv1beta1.ManagedClusterSetList{}
+
+			err := controllerRuntimeClient.List(context.TODO(),
+				managedClusterSetList,
+				client.MatchingLabels{
+					ManagedClusterSetClustername: helpers.ComputeWorkspaceName(logicalcluster.From(registeredCluster).String()),
+				})
+			Expect(err).Should(BeNil())
+
+			if len(managedClusterSetList.Items) > 0 {
+				managedClusterSet := &managedClusterSetList.Items[0]
+				managedClusterSet.Status.Conditions = []metav1.Condition{
+					{
+						Type:               clusterapiv1beta1.ManagedClusterSetConditionEmpty,
+						Status:             metav1.ConditionTrue,
+						LastTransitionTime: metav1.Now(),
+						Reason:             "NoClusterMatched",
+						Message:            "No ManagedCluster selected",
+					},
+				}
+
+				err = controllerRuntimeClient.Status().Update(context.TODO(), managedClusterSet)
+				Expect(err).Should(BeNil())
+			}
+		})
+
+		// Check if managedclusterset is deleted
+		By("Check managedclusterset deletion", func() {
+			Eventually(func() error {
+				managedClusterSets := &clusterapiv1beta1.ManagedClusterSetList{}
+
+				if err := controllerRuntimeClient.List(context.TODO(),
+					managedClusterSets,
+					client.MatchingLabels{
+						ManagedClusterSetClustername: helpers.ComputeWorkspaceName(logicalcluster.From(registeredCluster).String()),
+					}); err != nil {
+					return err
+				}
+				if len(managedClusterSets.Items) == 0 {
+					return nil
+				}
+				if len(managedClusterSets.Items) > 0 {
+					return fmt.Errorf("managedclusterset still exists %s", managedClusterSets.Items[0].Name)
 				}
 				return nil
 			}, 60, 1).Should(BeNil())

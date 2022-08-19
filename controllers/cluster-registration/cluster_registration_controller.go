@@ -72,7 +72,7 @@ const (
 	ManagedClusterSetClustername    string = "tenancy.kcp.dev/clustername"
 )
 
-const defaultSyncerImage = "ghcr.io/kcp-dev/kcp/syncer:v0.6.1"
+const defaultSyncerImage = "ghcr.io/kcp-dev/kcp/syncer:v0.7.6"
 
 var syncTargetGVR = schema.GroupVersionResource{
 	Group:    "workload.kcp.dev",
@@ -140,10 +140,11 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 
 	if regCluster.DeletionTimestamp == nil {
 		// create managecluster on creation of registeredcluster CR
-		if err := r.createManagedCluster(ctx, regCluster, &hubCluster, req.ClusterName); err != nil {
+		if r, err := r.createManagedCluster(ctx, regCluster, &hubCluster, req.ClusterName); err != nil || r.Requeue {
 			logger.Error(err, "failed to create ManagedCluster")
-			return ctrl.Result{}, err
+			return r, err
 		}
+
 	}
 	managedCluster, err := r.getManagedCluster(ctx, regCluster, &hubCluster)
 	if err != nil && !k8serrors.IsNotFound(err) {
@@ -189,9 +190,16 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 
 				// sync kcp-syncer service account
 				token := ""
-				if token, err = r.syncServiceAccount(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster); err != nil {
+				sa, err := r.syncServiceAccount(computeContext, ctx, regCluster, locationWorkspace, &managedCluster, &hubCluster)
+				if err != nil {
 					logger.Error(err, "failed to sync ServiceAccount in the location workspace %s", locationWorkspace)
 					return ctrl.Result{}, err
+				} else {
+					token, err = r.getKcpSyncerSAToken(computeContext, regCluster, locationWorkspace, sa)
+					if err != nil {
+						logger.V(2).Info("secret not ready, requeue")
+						return reconcile.Result{Requeue: true, RequeueAfter: 1 * time.Second}, err
+					}
 				}
 
 				// sync kcp-syncer deployment and supporting resources
@@ -206,7 +214,7 @@ func (r *RegisteredClusterReconciler) Reconcile(computeContextOri context.Contex
 	return ctrl.Result{}, nil
 }
 
-func (r *RegisteredClusterReconciler) getManagedClusterSet(ctx context.Context, hubCluster *helpers.HubInstance, regCluster *singaporev1alpha1.RegisteredCluster) (*clusterapiv1beta1.ManagedClusterSetList, error) {
+func (r *RegisteredClusterReconciler) getManagedClusterSetList(ctx context.Context, hubCluster *helpers.HubInstance, regCluster *singaporev1alpha1.RegisteredCluster) (*clusterapiv1beta1.ManagedClusterSetList, error) {
 	managedClusterSetList := &clusterapiv1beta1.ManagedClusterSetList{}
 
 	if err := hubCluster.Client.List(ctx, managedClusterSetList, client.MatchingLabels(map[string]string{ManagedClusterSetClustername: helpers.ComputeWorkspaceName(logicalcluster.From(regCluster).String())})); err != nil {
@@ -222,12 +230,12 @@ func (r *RegisteredClusterReconciler) syncManagedClusterSet(ctx context.Context,
 	logger := r.Log.WithName("syncManagedClusterSet").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "hub", hubCluster.HubConfig.Name)
 
 	// Get managedclustersetlist to check if managedclusterset is already exsists
-	managedClusterSetList, err := r.getManagedClusterSet(ctx, hubCluster, regCluster)
+	managedClusterSetList, err := r.getManagedClusterSetList(ctx, hubCluster, regCluster)
 	if err != nil {
 		return giterrors.WithStack(err)
 	}
 
-	if len(managedClusterSetList.Items) < 1 {
+	if len(managedClusterSetList.Items) < 1 && regCluster.DeletionTimestamp == nil {
 		//TODO use persistent identifiers to uniquely idenity workspace when they come in kcp
 		mcsName := helpers.ComputeWorkspaceName(logicalcluster.From(regCluster).String())
 		if len(mcsName) > 15 {
@@ -316,6 +324,7 @@ func (r *RegisteredClusterReconciler) getSyncTarget(locationContext context.Cont
 
 	if len(syncTargetList.Items) == 0 {
 		return nil, nil
+		//k8serrors.NewNotFound(schema.GroupResource{Group: "workload.kcp.dev", Resource: "synctargets"}, "synctarget")
 	}
 	if len(syncTargetList.Items) > 1 {
 		logger.Error(err, "more than one synctarget found for registered cluster")
@@ -371,7 +380,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 		if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Create(locationContext, syncTarget, metav1.CreateOptions{}); err != nil {
 			return err
 		}
-		logger.V(2).Info("SyncTarget is created in the location workspace ")
+		logger.V(2).Info("SyncTarget is created in the location workspace")
 	} else {
 		// Update SyncTarget labels. Merge with existing labels found on SyncTarget since kcp adds some too
 		syncTargetLabels := syncTarget.GetLabels()
@@ -382,7 +391,7 @@ func (r *RegisteredClusterReconciler) syncSyncTarget(computeContext context.Cont
 			if _, err := r.ComputeDynamicClient.Resource(syncTargetGVR).Update(locationContext, syncTarget, metav1.UpdateOptions{}); err != nil {
 				return err
 			}
-			logger.V(2).Info("SyncTarget is updated in the location workspace ")
+			logger.V(2).Info("SyncTarget is updated in the location workspace")
 		} else {
 			r.Log.V(2).Info("no changes detected to SyncTarget", "labels", labels)
 		}
@@ -457,9 +466,13 @@ func (r *RegisteredClusterReconciler) updateRegisteredClusterStatus(computeConte
 func (r *RegisteredClusterReconciler) getManagedCluster(ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, hubCluster *helpers.HubInstance) (clusterapiv1.ManagedCluster, error) {
 
 	managedCluster := clusterapiv1.ManagedCluster{}
-	managedClusterSetList, err := r.getManagedClusterSet(ctx, hubCluster, regCluster)
+	managedClusterSetList, err := r.getManagedClusterSetList(ctx, hubCluster, regCluster)
 	if err != nil {
 		return managedCluster, giterrors.WithStack(err)
+	}
+
+	if len(managedClusterSetList.Items) == 0 && regCluster.DeletionTimestamp != nil {
+		return managedCluster, nil
 	}
 
 	if len(managedClusterSetList.Items) < 1 {
@@ -486,6 +499,7 @@ func (r *RegisteredClusterReconciler) getManagedCluster(ctx context.Context, reg
 	if regCluster.DeletionTimestamp != nil {
 		return managedCluster, nil
 	}
+
 	return managedCluster, fmt.Errorf("correct managedcluster not found")
 }
 
@@ -576,7 +590,7 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 	regCluster *singaporev1alpha1.RegisteredCluster,
 	locationWorkspace string,
 	managedCluster *clusterapiv1.ManagedCluster,
-	hubCluster *helpers.HubInstance) (string, error) {
+	hubCluster *helpers.HubInstance) (*corev1.ServiceAccount, error) {
 
 	r.Log.V(2).Info("syncServiceAccount",
 		"registered cluster", regCluster.Name,
@@ -585,16 +599,19 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 	locationContext := logicalcluster.WithCluster(computeContext, logicalcluster.New(locationWorkspace))
 	syncTarget, err := r.getSyncTarget(locationContext, regCluster)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Create the ServiceAccount if it doesn't yet exist
+	if syncTarget == nil {
+		return nil, fmt.Errorf("failed to get service account name. Synctarget not exists")
+	}
 	saName := helpers.GetSyncerName(syncTarget)
 
 	sa, err := r.ComputeKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, saName, metav1.GetOptions{})
 	if err != nil {
 		if !k8serrors.IsNotFound(err) {
-			return "", err
+			return nil, err
 		}
 
 		sa = &corev1.ServiceAccount{
@@ -614,7 +631,7 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 			"creating service account", regCluster.Name)
 		sa, err = r.ComputeKubeClient.CoreV1().ServiceAccounts("default").Create(locationContext, sa, metav1.CreateOptions{})
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
@@ -646,19 +663,15 @@ func (r *RegisteredClusterReconciler) syncServiceAccount(computeContext context.
 
 	_, err = applier.ApplyDirectly(readerDeploy, values, false, "", files...)
 
-	// Printed after sleep is over
 	r.Log.V(1).Info("created clusterrole and clusterrolebinding",
 		"cluster", logicalcluster.From(regCluster).String(),
 		"namespace", regCluster.Namespace,
 		"name", regCluster.Name)
 	if err != nil {
-		return "", giterrors.WithStack(err)
+		return nil, giterrors.WithStack(err)
 	}
-
-	// Return the ServiceAccount token
-	token, err := r.getKcpSyncerSAToken(computeContext, regCluster, locationWorkspace, sa)
-	return token, err
-
+	// Return the service account
+	return sa, nil
 }
 
 func (r *RegisteredClusterReconciler) getKcpSyncerSAToken(computeContext context.Context, regCluster *singaporev1alpha1.RegisteredCluster, locationWorkspace string, sa *corev1.ServiceAccount) (string, error) {
@@ -670,6 +683,10 @@ func (r *RegisteredClusterReconciler) getKcpSyncerSAToken(computeContext context
 	syncTarget, err := r.getSyncTarget(locationContext, regCluster)
 	if err != nil {
 		return "", err
+	}
+
+	if syncTarget == nil {
+		return "", fmt.Errorf("failed to get kcp syncer name. Synctarget not exists")
 	}
 	saName := helpers.GetSyncerName(syncTarget)
 
@@ -738,6 +755,9 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 			return err
 		}
 
+		if syncTarget == nil {
+			return fmt.Errorf("failed to get syncer name. Synctarget not exists")
+		}
 		syncerName := helpers.GetSyncerName(syncTarget)
 
 		kcpURL, err := url.Parse(r.ComputeConfig.Host)
@@ -813,8 +833,9 @@ func (r *RegisteredClusterReconciler) syncKcpSyncer(computeContext context.Conte
 
 func (r *RegisteredClusterReconciler) processRegclusterDeletion(ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, managedCluster *clusterapiv1.ManagedCluster, hubCluster *helpers.HubInstance) (ctrl.Result, error) {
 
-	// TODO - update this
 	if len(regCluster.Spec.Location) > 0 {
+		var syncerName string
+		var synctargetName string
 		for _, locationWorkspace := range regCluster.Spec.Location {
 
 			locationContext := logicalcluster.WithCluster(ctx, logicalcluster.New(locationWorkspace))
@@ -823,33 +844,72 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(ctx context.Cont
 				return ctrl.Result{}, giterrors.WithStack(err)
 			}
 
-			manifestwork := &manifestworkv1.ManifestWork{}
-			manifestworkName := helpers.GetSyncerName(syncTarget)
-			err = hubCluster.Client.Get(ctx,
-				types.NamespacedName{
-					Name:      manifestworkName,
-					Namespace: managedCluster.Name},
-				manifestwork)
-			switch {
-			case err == nil:
-				r.Log.Info("delete manifestwork", "name", manifestworkName)
-				if err := hubCluster.Client.Delete(ctx, manifestwork); err != nil {
+			if syncTarget != nil {
+				syncerName = helpers.GetSyncerName(syncTarget)
+				synctargetName = syncTarget.GetName()
+
+				manifestwork := &manifestworkv1.ManifestWork{}
+				err = hubCluster.Client.Get(ctx,
+					types.NamespacedName{
+						Name:      syncerName,
+						Namespace: managedCluster.Name},
+					manifestwork)
+				switch {
+				case err == nil:
+					r.Log.Info("delete manifestwork", "name", syncerName)
+					if err := hubCluster.Client.Delete(ctx, manifestwork); err != nil {
+						return ctrl.Result{}, giterrors.WithStack(err)
+					}
+					r.Log.Info("waiting manifestwork to be deleted",
+						"name", syncerName,
+						"namespace", managedCluster.Name)
+					return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Second}, nil
+				case !k8serrors.IsNotFound(err):
+
 					return ctrl.Result{}, giterrors.WithStack(err)
 				}
-				r.Log.Info("waiting manifestwork to be deleted",
-					"name", manifestworkName,
-					"namespace", managedCluster.Name)
-				return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Second}, nil
-			case !k8serrors.IsNotFound(err):
+				r.Log.Info("deleted manifestwork", "name", syncerName)
 
-				return ctrl.Result{}, giterrors.WithStack(err)
+				r.Log.Info("delete service account", "name", syncerName)
+				_, err = r.ComputeKubeClient.CoreV1().ServiceAccounts("default").Get(locationContext, syncerName, metav1.GetOptions{})
+				switch {
+				case err == nil:
+					r.Log.Info("delete service account", "name", syncerName)
+					if err := r.ComputeKubeClient.CoreV1().ServiceAccounts("default").Delete(locationContext, syncerName, metav1.DeleteOptions{}); err != nil {
+						return ctrl.Result{}, giterrors.WithStack(err)
+					}
+					r.Log.Info("waiting service account to be deleted",
+						"name", syncerName,
+						"namespace", "default")
+					return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Second}, nil
+				case !k8serrors.IsNotFound(err):
+					return ctrl.Result{}, giterrors.WithStack(err)
+				}
+				r.Log.Info("deleted service account", "name", syncerName)
+
+				syncTarget, err := r.getSyncTarget(locationContext, regCluster)
+				if syncTarget != nil && err == nil {
+					r.Log.Info("delete synctarget", "name", synctargetName)
+					if err := r.ComputeDynamicClient.Resource(syncTargetGVR).Delete(locationContext, synctargetName, metav1.DeleteOptions{}); err != nil {
+						return ctrl.Result{}, giterrors.WithStack(err)
+					}
+					r.Log.Info("waiting synctarget to be deleted",
+						"name", synctargetName,
+						"location workspace", locationWorkspace)
+					return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Second}, nil
+				}
+				if err != nil {
+					return ctrl.Result{}, giterrors.WithStack(err)
+				}
+				r.Log.Info("deleted synctarget", "name", synctargetName)
+
 			}
-			r.Log.Info("deleted manifestwork", "name", manifestworkName)
+
 		}
 	}
 
 	// TODO - remaining cleanup - https://issues.redhat.com/browse/CMCS-145
-
+	// delete managedcluster
 	cluster := &clusterapiv1.ManagedCluster{}
 	err := hubCluster.Client.Get(ctx,
 		types.NamespacedName{
@@ -869,6 +929,33 @@ func (r *RegisteredClusterReconciler) processRegclusterDeletion(ctx context.Cont
 	}
 	r.Log.Info("deleted managedcluster", "name", managedCluster.Name)
 
+	managedClusterSetList, err := r.getManagedClusterSetList(ctx, hubCluster, regCluster)
+	if err != nil {
+		return ctrl.Result{}, giterrors.WithStack(err)
+	}
+
+	// delete managedclusterset
+	if len(managedClusterSetList.Items) > 0 {
+		if status, ok := helpers.GetConditionStatus(managedClusterSetList.Items[0].Status.Conditions, clusterapiv1beta1.ManagedClusterSetConditionEmpty); ok && status == metav1.ConditionTrue {
+
+			mcsName := managedClusterSetList.Items[0].Name
+			switch {
+			case err == nil:
+				r.Log.Info("delete managedclusterset", "name", mcsName)
+				if err := hubCluster.Client.Delete(ctx, &managedClusterSetList.Items[0]); err != nil {
+					return ctrl.Result{}, giterrors.WithStack(err)
+				}
+				r.Log.Info("waiting managedclusterset to be deleted",
+					"name", mcsName)
+				return ctrl.Result{Requeue: true, RequeueAfter: 5 * time.Second}, nil
+			case !k8serrors.IsNotFound(err):
+				return ctrl.Result{}, giterrors.WithStack(err)
+			}
+			r.Log.Info("deleted managedclusterset", "name", mcsName)
+		}
+		return ctrl.Result{}, nil
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -881,17 +968,17 @@ func getRegisteredClusterLabels(regCluster *singaporev1alpha1.RegisteredCluster,
 	}
 }
 
-func (r *RegisteredClusterReconciler) createManagedCluster(ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, hubCluster *helpers.HubInstance, clusterName string) error {
+func (r *RegisteredClusterReconciler) createManagedCluster(ctx context.Context, regCluster *singaporev1alpha1.RegisteredCluster, hubCluster *helpers.HubInstance, clusterName string) (ctrl.Result, error) {
 	logger := r.Log.WithName("createManagedCluster").WithValues("namespace", regCluster.Namespace, "name", regCluster.Name, "hub", hubCluster.HubConfig.Name)
 
 	// get the managedclusterset name
-	managedClusterSetList, err := r.getManagedClusterSet(ctx, hubCluster, regCluster)
+	managedClusterSetList, err := r.getManagedClusterSetList(ctx, hubCluster, regCluster)
 	if err != nil {
-		return giterrors.WithStack(err)
+		return ctrl.Result{}, giterrors.WithStack(err)
 	}
 
 	if len(managedClusterSetList.Items) < 1 {
-		return fmt.Errorf("managedClusterSet is empty")
+		return reconcile.Result{Requeue: true, RequeueAfter: 1 * time.Second}, nil
 	}
 
 	mcsName := managedClusterSetList.Items[0].Name
@@ -902,7 +989,7 @@ func (r *RegisteredClusterReconciler) createManagedCluster(ctx context.Context, 
 	logger.V(2).Info("get managedclusterlist", "labels", labels)
 	if err := hubCluster.Client.List(ctx, managedClusterList, client.MatchingLabels(labels)); err != nil {
 		// Error reading the object - requeue the request.
-		return giterrors.WithStack(err)
+		return ctrl.Result{}, giterrors.WithStack(err)
 	}
 
 	if len(managedClusterList.Items) < 1 {
@@ -925,11 +1012,11 @@ func (r *RegisteredClusterReconciler) createManagedCluster(ctx context.Context, 
 		}
 
 		if err := hubCluster.Client.Create(ctx, managedCluster, &client.CreateOptions{}); err != nil {
-			return giterrors.WithStack(err)
+			return ctrl.Result{}, giterrors.WithStack(err)
 		}
 		logger.V(2).Info("managedclusterset is created")
 	}
-	return nil
+	return ctrl.Result{}, nil
 }
 
 func registeredClusterPredicate() predicate.Predicate {
