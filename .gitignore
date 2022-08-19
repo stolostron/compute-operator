@@ -42,6 +42,7 @@
 mce-kubeconfig
 kubeConfig
 kubeconfig
+my-hack-values*.yaml
 
 #temp directories
 .kcp

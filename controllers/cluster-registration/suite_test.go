@@ -126,7 +126,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	test.TearDownCompute()
+	test.TearDownComputeAndHub()
 })
 
 func getSyncTarget(locationContext context.Context, registeredCluster *singaporev1alpha1.RegisteredCluster) (*unstructured.Unstructured, error) {

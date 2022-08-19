@@ -164,11 +164,11 @@ func CreateAPIBinding(computeContext context.Context, computeAdminApplierBuilder
 	}
 	// Values for the appliers
 	values := struct {
-		Organization string
-		IdentityHash string
+		ComputeWorkspacePath string
+		IdentityHash         string
 	}{
-		Organization: ComputeOrganization,
-		IdentityHash: SyncTargetIdenityHash,
+		ComputeWorkspacePath: OrganizationWorkspace,
+		IdentityHash:         SyncTargetIdenityHash,
 	}
 	_, err := computeApplier.ApplyCustomResources(readerResources, values, false, "", files...)
 	if err != nil {
@@ -206,7 +206,7 @@ func SetupCompute(scheme *runtime.Scheme, controllerNamespace, scriptsPath strin
 			defer ginkgo.GinkgoRecover()
 			computeServer = exec.Command("kcp",
 				"start",
-				"-v=6",
+				// "-v=6",
 			)
 
 			// Create io.writer for kcp log
@@ -682,7 +682,10 @@ func SetupControllerEnvironment(scheme *runtime.Scheme,
 	return
 }
 
-func InitControllerEnvironment(scheme *runtime.Scheme, controllerNamespace string, controllerRestConfig *rest.Config, hubKubeconfigString string) {
+func InitControllerEnvironment(scheme *runtime.Scheme,
+	controllerNamespace string,
+	controllerRestConfig *rest.Config,
+	hubKubeconfigString string) {
 	// Generate readers for appliers
 	readerTest := GetScenarioResourcesReader()
 
@@ -716,9 +719,8 @@ func InitControllerEnvironment(scheme *runtime.Scheme, controllerNamespace strin
 	})
 
 	// Create a hubConfig CR with that secret
-	var hubConfig *singaporev1alpha1.HubConfig
 	ginkgo.By("Create a HubConfig", func() {
-		hubConfig = &singaporev1alpha1.HubConfig{
+		hubConfig := &singaporev1alpha1.HubConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-hubconfig",
 				Namespace: controllerNamespace,
@@ -727,6 +729,7 @@ func InitControllerEnvironment(scheme *runtime.Scheme, controllerNamespace strin
 				KubeConfigSecretRef: corev1.LocalObjectReference{
 					Name: "my-hub-kube-config",
 				},
+				MaxManagedCluster: 1,
 			},
 		}
 		err := controllerRuntimeClient.Create(context.TODO(), hubConfig)
@@ -780,7 +783,7 @@ func InitControllerEnvironment(scheme *runtime.Scheme, controllerNamespace strin
 	})
 }
 
-func TearDownCompute() {
+func TearDownComputeAndHub() {
 	cleanup()
 }
 

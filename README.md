@@ -85,6 +85,8 @@ To run the operator locally, you can:
 ```bash
 export POD_NAMESPACE=compute-config
 export HUB_KUBECONFIG=/tmp/managed-hub-cluster.kubeconfig
+# export HUB_KUBECONFIG_1=<a second hub kubeconfig>
+# export HUB_KUBECONFIG_2=<a third hub kubeconfig>
 export KCP_KUBECONFIG=/tmp/kubeconfig-compute-operator.yaml
 oc new-project $POD_NAMESPACE
 make run-local
